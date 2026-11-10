@@ -28,24 +28,27 @@ export interface AsrModelFiles {
   tokens: string
 }
 
-/** 在模型目录中探测 zipformer transducer 四件套（优先 int8 量化版） */
+/** 在模型目录中探测流式 zipformer transducer 四件套（优先 int8 量化版）。
+ *  兼容官方 Release 两种命名：encoder-epoch-99-avg-1(.int8).onnx 与 enc(.int8).onnx */
 export function findModelFiles(dir: string): { files: AsrModelFiles } | { missing: string[] } {
   if (!existsSync(dir)) return { missing: ['目录不存在'] }
   const names = readdirSync(dir)
-  const pick = (base: string): string | null => {
-    for (const cand of [`${base}.int8.onnx`, `${base}.onnx`]) {
-      if (names.includes(cand)) return join(dir, cand)
-    }
-    return null
+  // 按角色前缀 + .onnx 后缀匹配，int8 量化版优先（体积小、CPU 快、精度损失极小）
+  const fuzzy = (prefix: string): string | null => {
+    const hits = names
+      .filter((n) => n.startsWith(prefix) && /\.onnx$/.test(n))
+      .map((n) => ({ path: join(dir, n), quantized: n.includes('.int8.') }))
+      .sort((a, b) => (a.quantized === b.quantized ? 0 : a.quantized ? -1 : 1))
+    return hits[0]?.path ?? null
   }
-  const enc = pick('enc')
-  const dec = pick('dec')
-  const joiner = pick('join')
+  const enc = fuzzy('enc') // encoder-*.onnx / enc*.onnx
+  const dec = fuzzy('dec') // decoder-*.onnx / dec*.onnx
+  const joiner = fuzzy('join') // joiner-*.onnx / join*.onnx
   const tokens = names.includes('tokens.txt') ? join(dir, 'tokens.txt') : null
   const missing: string[] = []
-  if (!enc) missing.push('enc.onnx / enc.int8.onnx')
-  if (!dec) missing.push('dec.onnx / dec.int8.onnx')
-  if (!joiner) missing.push('join.onnx / join.int8.onnx')
+  if (!enc) missing.push('encoder*.onnx（如 encoder-epoch-99-avg-1.int8.onnx）')
+  if (!dec) missing.push('decoder*.onnx')
+  if (!joiner) missing.push('joiner*.onnx')
   if (!tokens) missing.push('tokens.txt')
   if (missing.length > 0) return { missing }
   return { files: { enc, dec, join: joiner, tokens } as AsrModelFiles }

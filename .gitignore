@@ -14,3 +14,6 @@ out-tmp/
 # 环境与密钥（不应入库）
 .env
 .env.*
+
+# ASR 模型（数百 MB，按 README 指引下载）
+sherpa-onnx-*/
