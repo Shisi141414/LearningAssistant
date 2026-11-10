@@ -125,6 +125,179 @@ export function SettingsPage() {
   )
 }
 
+/* ================= 麦克风测试（硬件排查） ================= */
+
+interface MicStats {
+  frames: number
+  sumRms: number
+  maxRms: number
+  silentFrames: number
+  clipFrames: number
+}
+
+type MicPhase = 'idle' | 'recording' | 'recorded'
+
+function MicTestRow() {
+  const [phase, setPhase] = useState<MicPhase>('idle')
+  const [seconds, setSeconds] = useState(0)
+  const [level, setLevel] = useState(0) // 0~1 实时电平
+  const [stats, setStats] = useState<MicStats | null>(null)
+  const [deviceLabel, setDeviceLabel] = useState('')
+  const [sampleRate, setSampleRate] = useState(0)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refs = useRef<{
+    recorder: MediaRecorder | null
+    chunks: Blob[]
+    ctx: AudioContext | null
+    stream: MediaStream | null
+    analyser: AnalyserNode | null
+    timer: number | null
+    raf: number | null
+    stats: MicStats
+  }>({ recorder: null, chunks: [], ctx: null, stream: null, analyser: null, timer: null, raf: null, stats: { frames: 0, sumRms: 0, maxRms: 0, silentFrames: 0, clipFrames: 0 } })
+
+  const cleanup = (): void => {
+    const r = refs.current
+    if (r.timer) clearInterval(r.timer)
+    if (r.raf) cancelAnimationFrame(r.raf)
+    r.recorder?.stream.getTracks().forEach((t) => t.stop())
+    void r.ctx?.close().catch(() => undefined)
+    refs.current = { ...r, recorder: null, ctx: null, stream: null, analyser: null, timer: null, raf: null }
+  }
+
+  useEffect(() => cleanup, [])
+
+  const start = async (): Promise<void> => {
+    setError(null)
+    setBlobUrl(null)
+    setStats(null)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+      })
+      const track = stream.getAudioTracks()[0]
+      setDeviceLabel(track.label || '（未获取设备名）')
+
+      // 采集链路 A：MediaRecorder 录制（回放用）
+      const chunks: Blob[] = []
+      const recorder = new MediaRecorder(stream)
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data)
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
+        setBlobUrl(URL.createObjectURL(blob))
+      }
+      recorder.start(250)
+
+      // 采集链路 B：AnalyserNode 电平统计（质量分析用）
+      const ctx = new AudioContext()
+      setSampleRate(ctx.sampleRate)
+      const src = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 2048
+      src.connect(analyser)
+      const buf = new Float32Array(analyser.fftSize)
+      const s: MicStats = { frames: 0, sumRms: 0, maxRms: 0, silentFrames: 0, clipFrames: 0 }
+
+      const loop = (): void => {
+        analyser.getFloatTimeDomainData(buf)
+        let sumSq = 0
+        let clipped = 0
+        for (let i = 0; i < buf.length; i++) {
+          sumSq += buf[i] * buf[i]
+          if (Math.abs(buf[i]) > 0.985) clipped++
+        }
+        const rms = Math.sqrt(sumSq / buf.length)
+        s.frames++
+        s.sumRms += rms
+        s.maxRms = Math.max(s.maxRms, rms)
+        if (rms < 0.005) s.silentFrames++
+        s.clipFrames += clipped
+        setLevel(Math.min(1, rms * 4)) // 放大显示
+        refs.current.raf = requestAnimationFrame(loop)
+      }
+
+      refs.current = { ...refs.current, recorder, chunks, ctx, stream, analyser, stats: s, raf: requestAnimationFrame(loop) }
+      setSeconds(0)
+      refs.current.timer = window.setInterval(() => setSeconds((v) => v + 1), 1000)
+      setPhase('recording')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const stop = (): void => {
+    refs.current.recorder?.stop()
+    setStats(refs.current.stats)
+    cleanup()
+    setLevel(0)
+    setPhase('recorded')
+  }
+
+  /** 质量结论 */
+  const verdict = (s: MicStats): { ok: boolean; text: string } => {
+    if (s.frames === 0) return { ok: false, text: '未采集到音频帧' }
+    const avgRms = s.sumRms / s.frames
+    const silentRatio = s.silentFrames / s.frames
+    const clipRatio = s.clipFrames / (s.frames * 2048)
+    if (s.maxRms < 0.01 || silentRatio > 0.98) return { ok: false, text: `疑似无声（峰值 ${s.maxRms.toFixed(3)}，静音占比 ${(silentRatio * 100).toFixed(0)}%）——检查麦克风开关、系统输入设备选择或换设备` }
+    if (clipRatio > 0.01) return { ok: false, text: `削波（削波采样占比 ${(clipRatio * 100).toFixed(1)}%）——系统里调低麦克风增益，否则识别率会显著下降` }
+    if (avgRms < 0.02) return { ok: true, text: `电平偏低（均值 ${avgRms.toFixed(3)}）——建议离麦克风更近或调高增益，可正常使用` }
+    return { ok: true, text: `音频质量正常（均值 ${avgRms.toFixed(3)}，峰值 ${s.maxRms.toFixed(3)}），适合语音识别` }
+  }
+
+  return (
+    <div className="row-item" style={{ alignItems: 'flex-start' }}>
+      <div className="grow">
+        <div style={{ fontWeight: 700 }}>⑥ 麦克风与音频质量（硬件排查）</div>
+        <div className="meta" style={{ marginBottom: 4 }}>录几句话 → 回放试听 + 电平统计。若测试①识别异常，先跑这项排除麦克风问题</div>
+
+        {phase === 'recording' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '6px 0' }}>
+            <span className="rec-indicator">
+              <span className="dot" /> {seconds}s
+            </span>
+            <div style={{ flex: 1, height: 8, background: '#f1f2f4', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ width: `${level * 100}%`, height: '100%', background: level > 0.9 ? 'var(--danger)' : 'var(--accent)', transition: 'width 0.08s' }} />
+            </div>
+          </div>
+        )}
+
+        {error && <div style={{ fontSize: 12.5, color: '#b91c1c', padding: '4px 0' }}>启动失败：{error}</div>}
+
+        {stats && (
+          <div style={{ fontSize: 12.5, lineHeight: 1.7, padding: '6px 10px', borderRadius: 6, background: verdict(stats).ok ? '#f0fdf4' : '#fef2f2', color: verdict(stats).ok ? '#166534' : '#b91c1c' }}>
+            {verdict(stats).text}
+            <br />
+            <span style={{ opacity: 0.75 }}>
+              设备：{deviceLabel || '未知'} · 采样率 {sampleRate}Hz · 采集 {stats.frames} 帧
+            </span>
+          </div>
+        )}
+
+        {blobUrl && (
+          <div style={{ marginTop: 6 }}>
+            {/* Chromium 原生支持 webm/opus 回放 */}
+            <audio controls src={blobUrl} style={{ width: '100%', height: 34 }} />
+          </div>
+        )}
+      </div>
+      {phase === 'recording' ? (
+        <button style={{ minWidth: 88 }} onClick={stop}>
+          停止（{seconds}s）
+        </button>
+      ) : (
+        <button style={{ minWidth: 88 }} onClick={() => void start()}>
+          {phase === 'recorded' ? '重新录制' : '开始录制'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 /* ================= 功能自检 ================= */
 
 type DiagState = { running: boolean; ok?: boolean; text?: string }
@@ -198,6 +371,7 @@ function DiagnosticsCard() {
           逐项验证各能力链路（引擎加载、模型服务、整理管线、识图、切块），排查配置问题。语音链路用模型自带测试音频，不经过麦克风——麦克风需在课堂页实测。
         </div>
         <div className="row-list">
+          <MicTestRow />
           <DiagRow
             title="① 语音识别（本地引擎）"
             desc="加载 sherpa-onnx 引擎并转写模型自带的测试音频，验证模型目录完整性与引擎可用"
