@@ -20,11 +20,17 @@ Electron + React + TypeScript · electron-vite · better-sqlite3 · zustand · o
 ## 开发
 
 ```bash
-npm install          # 安装依赖（自动 rebuild 原生模块）
-npm run dev          # 开发模式（HMR）
-npm run typecheck    # 类型检查
-npm run build        # 构建
+git pull               # 每次开工前拉取最新
+npm install            # 安装依赖
+npm run rebuild        # 首次安装后必跑：将 better-sqlite3 重编译为 Electron ABI
+npm run dev            # 开发模式（HMR）
+npm run typecheck      # 类型检查
+npm run test:db        # 数据库迁移冒烟测试
+npm run build          # 构建
+npm run build:win      # 打包 Windows 安装包（NSIS）
 ```
+
+> Windows 首次运行 `npm run dev` 若报 `NODE_MODULE_VERSION mismatch`，执行 `npm run rebuild` 即可（需要 Python 3 与 VS Build Tools；见 docs/01-research.md §1.2）。
 
 ## 文档
 
