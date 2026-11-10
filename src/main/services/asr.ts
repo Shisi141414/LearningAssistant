@@ -88,21 +88,24 @@ class AsrService {
       writeFileSync(hotwordsFile, opts.hotwords.trim(), 'utf-8')
     }
 
+    // sherpa-onnx-node v2 配置（以 node_modules/sherpa-onnx-node/types.js 为准）：
+    //  - transducer 字段名 encoder/decoder/joiner（v1 为 enc/dec/join）
+    //  - endpoint 扁平化：enableEndpoint + ruleN*（v1 为嵌套 endpointConfig）
     const config = {
       featConfig: { sampleRate: SAMPLE_RATE, featureDim: 80 },
       modelConfig: {
-        transducer: { enc: found.files.enc, dec: found.files.dec, join: found.files.join },
+        transducer: { encoder: found.files.enc, decoder: found.files.dec, joiner: found.files.join },
         tokens: found.files.tokens,
         numThreads: Math.max(1, Math.min(4, Math.floor(cpus().length / 2))),
         debug: 0,
         provider: 'cpu'
       },
-      // 端点检测：静音 2.4s 或（有语音后）静音 1.2s 断句；最长 20s 强制断
-      endpointConfig: {
-        rule1: { mustContainNonSilence: false, minTrailingSilence: 2.4, minUtteranceLength: 20 },
-        rule2: { mustContainNonSilence: true, minTrailingSilence: 1.2, minUtteranceLength: 20 },
-        rule3: { mustContainNonSilence: false, minTrailingSilence: 0, minUtteranceLength: 20 }
-      },
+      // 热词需 modified_beam_search 解码；无热词用 greedy_search 更快
+      decodingMethod: hotwordsFile ? 'modified_beam_search' : 'greedy_search',
+      enableEndpoint: 1,
+      rule1MinTrailingSilence: 2.4, // 静音 2.4s 断句
+      rule2MinTrailingSilence: 1.2, // 有语音后静音 1.2s 断句
+      rule3MinUtteranceLength: 20, // 最长 20s 强制断句
       hotwordsFile,
       hotwordsScore: 1.5,
       ruleFsts: '',
