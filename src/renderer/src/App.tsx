@@ -1,0 +1,62 @@
+/**
+ * App.tsx —— 路由与全局副作用
+ */
+import { useEffect } from 'react'
+import { Routes, Route } from 'react-router-dom'
+import { Layout } from './app/Layout'
+import { Dashboard } from './pages/Dashboard'
+import { NotesPage } from './pages/NotesPage'
+import { NoteDetail } from './pages/NoteDetail'
+import { ChatPage } from './pages/ChatPage'
+import { SettingsPage } from './pages/SettingsPage'
+import { InspirationPage } from './pages/InspirationPage'
+import { Placeholder } from './pages/Placeholder'
+import { useAppStore } from './stores/app'
+import { useChatStore } from './stores/chat'
+
+export default function App() {
+  const loadSubjects = useAppStore((s) => s.loadSubjects)
+  const showToast = useAppStore((s) => s.showToast)
+  const chat = useChatStore()
+
+  useEffect(() => {
+    void loadSubjects()
+  }, [loadSubjects])
+
+  // 订阅 LLM 流式事件（全局一次）
+  useEffect(() => {
+    const offChunk = window.api.onLlmChunk((e) => chat.appendChunk(e.session_id, e.message_id, e.delta))
+    const offDone = window.api.onLlmDone((e) => chat.finishMessage(e.session_id, e.message_id, e.content, e.model_display))
+    const offError = window.api.onLlmError((e) => {
+      try {
+        chat.failMessage(e.session_id, e.message_id, e.error)
+      } catch {
+        showToast(e.error)
+      }
+    })
+    return () => {
+      offChunk()
+      offDone()
+      offError()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/classroom" element={<Placeholder title="课堂模式" stage="M1" desc="实时语音转写、双视图整理、转写流标注、图片识别归位。架构与接口已预留（见 docs/02-architecture.md），下一阶段实现。" />} />
+        <Route path="/notes" element={<NotesPage />} />
+        <Route path="/notes/:noteId" element={<NoteDetail />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/knowledge" element={<Placeholder title="知识网络" stage="M2" desc="知识点抽取与关联、图谱可视化、跨学科引用、预回答缓存。" />} />
+        <Route path="/library" element={<Placeholder title="知识库" stage="M3" desc="教材与补充材料上传、解析索引、贴标签。" />} />
+        <Route path="/exercises" element={<Placeholder title="习题库" stage="M3" desc="习题条目化管理、思路图示、错误点标记、关联教材与笔记。" />} />
+        <Route path="/review" element={<Placeholder title="作业与复习" stage="M4" desc="learnx 作业同步、FSRS 遗忘曲线复习调度、桌面小组件。" />} />
+        <Route path="/inspirations" element={<InspirationPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+    </Layout>
+  )
+}

@@ -1,0 +1,497 @@
+/* LearningAssistant 全局样式 —— 设计原则：浅色、安静、内容优先 */
+
+:root {
+  color-scheme: light;
+  --bg: #f7f7f5;
+  --bg-panel: #ffffff;
+  --border: #e5e5e0;
+  --text: #1f2328;
+  --text-2: #6b7280;
+  --accent: #4f46e5;
+  --accent-weak: #eef2ff;
+  --danger: #dc2626;
+  --keypoint: #d97706;
+  --question: #0891b2;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    'PingFang SC',
+    'Microsoft YaHei',
+    sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  user-select: text;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+button:hover {
+  background: #f3f4f6;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.primary:hover {
+  background: #4338ca;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  outline: none;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak);
+}
+
+/* ---------- 布局 ---------- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  gap: 2px;
+}
+
+.sidebar .brand {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 6px 10px 14px;
+  letter-spacing: 0.5px;
+}
+
+.sidebar .brand span {
+  color: var(--accent);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text-2);
+  text-decoration: none;
+  font-size: 13.5px;
+}
+
+.nav-item:hover {
+  background: #f3f4f6;
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-item .badge {
+  font-size: 10px;
+  background: #f1f2f4;
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--text-2);
+}
+
+.sidebar .subject-box {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.sidebar .subject-box label {
+  font-size: 11px;
+  color: var(--text-2);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px 12px;
+}
+
+.page h1 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+
+/* ---------- 底部快捷栏 ---------- */
+
+.quickbar {
+  flex-shrink: 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 16px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}
+
+.quickbar input {
+  flex: 1;
+}
+
+.quickbar .hint {
+  font-size: 11px;
+  color: var(--text-2);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 卡片与列表 ---------- */
+
+.card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+}
+
+.row-item .grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.row-item .title {
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.row-item .meta {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+/* ---------- 笔记段落 ---------- */
+
+.segment {
+  border-left: 3px solid var(--seg-color, #64748b);
+  background: var(--bg-panel);
+  border-radius: 6px;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.segment-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.segment-head .tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--seg-color);
+  background: color-mix(in srgb, var(--seg-color) 10%, white);
+  border-radius: 4px;
+  padding: 1px 8px;
+}
+
+.segment-head .spacer {
+  flex: 1;
+}
+
+.segment-head button {
+  padding: 2px 8px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.segment:hover .segment-head button {
+  opacity: 1;
+}
+
+.segment textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  line-height: 1.6;
+  font-family: inherit;
+}
+
+.annotation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.annotation-chip.keypoint {
+  color: var(--keypoint);
+  background: #fef3c7;
+}
+
+.annotation-chip.question {
+  color: var(--question);
+  background: #cffafe;
+}
+
+/* ---------- 对话 ---------- */
+
+.chat-wrap {
+  display: flex;
+  height: 100%;
+  gap: 14px;
+}
+
+.chat-sessions {
+  width: 220px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.chat-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.msg {
+  max-width: 86%;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: var(--accent-weak);
+  border: 1px solid #e0e7ff;
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: #fafafa;
+  border: 1px solid var(--border);
+}
+
+.msg .msg-meta {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-top: 6px;
+}
+
+.msg .cursor {
+  display: inline-block;
+  width: 8px;
+  height: 14px;
+  background: var(--accent);
+  animation: blink 0.9s infinite;
+  vertical-align: -2px;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.chat-input {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  min-height: 44px;
+  max-height: 140px;
+}
+
+/* ---------- 表单 ---------- */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px 12px;
+  align-items: center;
+  max-width: 640px;
+}
+
+.form-grid label {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+/* ---------- 其他 ---------- */
+
+.toast {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #111827;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  z-index: 100;
+}
+
+.empty {
+  color: var(--text-2);
+  text-align: center;
+  padding: 40px 0;
+  font-size: 13px;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 1px 9px;
+  background: #f1f2f4;
+  color: var(--text-2);
+}
+
+.pill.vision {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+
+.muted {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d6d6d2;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b8b8b4;
+}
