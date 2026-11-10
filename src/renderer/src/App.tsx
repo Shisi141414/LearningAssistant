@@ -7,6 +7,8 @@ import { Layout } from './app/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { NotesPage } from './pages/NotesPage'
 import { NoteDetail } from './pages/NoteDetail'
+import { ActivitiesPage } from './pages/ActivitiesPage'
+import { ActivityDetail } from './pages/ActivityDetail'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InspirationPage } from './pages/InspirationPage'
@@ -49,6 +51,8 @@ export default function App() {
         <Route path="/classroom" element={<Placeholder title="课堂模式" stage="M1" desc="实时语音转写、双视图整理、转写流标注、图片识别归位。架构与接口已预留（见 docs/02-architecture.md），下一阶段实现。" />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/notes/:noteId" element={<NoteDetail />} />
+        <Route path="/activities" element={<ActivitiesPage />} />
+        <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/knowledge" element={<Placeholder title="知识网络" stage="M2" desc="知识点抽取与关联、图谱可视化、跨学科引用、预回答缓存。" />} />
         <Route path="/library" element={<Placeholder title="知识库" stage="M3" desc="教材与补充材料上传、解析索引、贴标签。" />} />

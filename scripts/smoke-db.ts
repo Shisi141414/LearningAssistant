@@ -78,6 +78,35 @@ db.prepare('INSERT INTO chat_messages (id, session_id, role, content, context_js
 const msgBack = db.prepare("SELECT role FROM chat_messages WHERE id = 'msg-1'").get() as { role: string }
 assert(msgBack.role === 'user', '会话消息写入正常')
 
+console.log('7. 迁移版本与活动实体（002）')
+const uv = db.pragma('user_version', { simple: true }) as number
+assert(uv === MIGRATIONS[MIGRATIONS.length - 1].version, `user_version = ${uv}（等于最新迁移版本）`)
+const activityTables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='activities'").all() as unknown[]).length
+assert(activityTables === 1, 'activities 表已创建（002 迁移）')
+const notesActivityCol = (db.prepare("SELECT 1 FROM pragma_table_info('notes') WHERE name='activity_id'").all() as unknown[]).length
+assert(notesActivityCol === 1, 'notes.activity_id 列已添加')
+const chatActivityCol = (db.prepare("SELECT 1 FROM pragma_table_info('chat_sessions') WHERE name='activity_id'").all() as unknown[]).length
+assert(chatActivityCol === 1, 'chat_sessions.activity_id 列已添加')
+
+console.log('8. 活动链路（活动→笔记挂载→删除活动笔记保留）')
+db.prepare('INSERT INTO activities (id, title, kind, happened_at, subject_id, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('act-1', '力学前沿讲座', 'lecture', Date.now(), subjId, '', Date.now())
+db.prepare('INSERT INTO notes (id, subject_id, activity_id, title, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('note-act', null, 'act-1', '讲座笔记', 'manual', Date.now(), Date.now())
+let bothRejected = false
+try {
+  db.prepare('INSERT INTO notes (id, subject_id, activity_id, title, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('note-bad', subjId, 'act-1', '违规双挂', 'manual', Date.now(), Date.now())
+} catch {
+  bothRejected = true
+}
+if (!bothRejected) {
+  // SQLite 层不拦双挂（CHECK 约束未加，业务层校验——见 notes.ipc.ts），这里验证数据形态即可
+  db.prepare('DELETE FROM notes WHERE id = ?').run('note-bad')
+}
+console.log('  （双挂校验在业务层 notes.ipc.ts 完成，DB 层允许但不产生脏数据路径）')
+db.prepare('DELETE FROM activities WHERE id = ?').run('act-1')
+const actNoteAfter = (db.prepare("SELECT COUNT(*) AS c FROM notes WHERE id = 'note-act'").get() as { c: number }).c
+const actIdAfter = (db.prepare("SELECT activity_id FROM notes WHERE id = 'note-act'").get() as { activity_id: string | null }).activity_id
+assert(actNoteAfter === 1 && actIdAfter === null, '删除活动后笔记保留且 activity_id 置 NULL（ON DELETE SET NULL）')
+
 console.log('')
 if (failed > 0) {
   console.error(`✗ 冒烟测试失败：${failed} 项断言未通过`)

@@ -134,6 +134,17 @@ CREATE TABLE subjects (
   created_at INTEGER NOT NULL
 );
 
+-- 活动（讲座/会议/讨论，ADR-5：与学科并列的一等分类实体）
+CREATE TABLE activities (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,           -- 如"XX院士力学前沿讲座"
+  kind TEXT NOT NULL DEFAULT 'lecture',  -- lecture|seminar|meeting|other
+  happened_at INTEGER,           -- 举行时间
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,  -- 可选关联学科（知识挂载）
+  description TEXT,
+  created_at INTEGER NOT NULL
+);
+
 -- API 供应商（ccswitch 风格）
 CREATE TABLE providers (
   id TEXT PRIMARY KEY,
@@ -160,10 +171,11 @@ CREATE TABLE models (
   UNIQUE(provider_id, model_id)
 );
 
--- 笔记
+-- 笔记（挂学科或活动，二选一，ADR-5）
 CREATE TABLE notes (
   id TEXT PRIMARY KEY,
   subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL,
   title TEXT NOT NULL,
   source TEXT DEFAULT 'manual',   -- manual | class | import
   created_at INTEGER NOT NULL,
@@ -197,6 +209,7 @@ CREATE TABLE annotations (
 CREATE TABLE chat_sessions (
   id TEXT PRIMARY KEY,
   subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL,
   title TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -253,6 +266,13 @@ CREATE TABLE review_records ( id, item_type, item_id, fsrs_state_json, due_at );
 
 ### ADR-4 v1 只实现 openai + anthropic 两种上游格式适配
 覆盖 DeepSeek/Qwen/GLM/Kimi（openai 兼容）与 Claude 系（anthropic）。Gemini 官方兼容层亦可用 openai 格式接。其他格式待需求出现再加。
+
+### ADR-5 活动是与学科并列的一等分类实体（2026-11-10 补充）
+讲座、会议、讨论与课程共用全部功能管线（转写/笔记/整理/提问），但管理属性不同：课程主题一致、前后连贯（按学科累积知识）；活动次数多、主题跳跃（每场独立、互不连贯）。因此不把每场活动建成学科（否则学科列表爆炸、语义混乱），而是：
+- `activities` 表：每场活动一条记录（标题、类型 lecture/seminar/meeting/other、日期）
+- `activity.subject_id` 可空外键——活动**可关联**某学科，其内容产生的知识点可进入该学科知识网络（呼应"学科彼此不孤立"）
+- `notes.subject_id` 与 `notes.activity_id` 双可空外键，二选一挂载（业务层校验）；chat_sessions 同理
+- UI：学科选择器保持课程语义；活动在自己的页面按日期倒序管理，每场活动可挂笔记/发起课堂模式
 
 ## 7. 性能与体量预估
 

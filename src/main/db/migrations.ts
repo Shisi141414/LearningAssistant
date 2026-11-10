@@ -169,5 +169,28 @@ CREATE TABLE IF NOT EXISTS review_records (
   due_at INTEGER
 );
 `
+  },
+  {
+    version: 2,
+    name: 'activities',
+    sql: `
+-- 活动（讲座/会议/讨论）——与学科并列的一等分类实体（ADR-5）
+CREATE TABLE IF NOT EXISTS activities (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'lecture',
+  happened_at INTEGER,
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activities_happened ON activities(happened_at);
+
+-- 笔记与会话增加活动挂载（与 subject_id 二选一）
+ALTER TABLE notes ADD COLUMN activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_notes_activity ON notes(activity_id);
+
+ALTER TABLE chat_sessions ADD COLUMN activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL;
+`
   }
 ]

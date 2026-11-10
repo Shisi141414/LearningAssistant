@@ -15,7 +15,7 @@ interface ChatState {
   modelLabels: Record<ID, string>
   loadSessions: () => Promise<void>
   openSession: (id: ID | null) => Promise<ChatSession | null>
-  createSession: (subjectId: ID | null, title?: string) => Promise<ChatSession | null>
+  createSession: (subjectId: ID | null, title?: string, activityId?: ID | null) => Promise<ChatSession | null>
   removeSession: (id: ID) => Promise<void>
   sendMessage: (content: string, opts?: { contextRefs?: ContextRef[]; modelDbId?: ID | null }) => Promise<void>
   abort: (messageId: ID) => Promise<void>
@@ -47,8 +47,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     return get().sessions.find((s) => s.id === id) ?? null
   },
 
-  createSession: async (subjectId, title) => {
-    const res = await window.api.chat.createSession({ subject_id: subjectId, title })
+  createSession: async (subjectId, title, activityId) => {
+    const res = await window.api.chat.createSession({ subject_id: subjectId, activity_id: activityId, title })
     if (!res.ok) return null
     set((st) => ({ sessions: [res.data, ...st.sessions], activeSessionId: res.data.id, messages: [] }))
     return res.data

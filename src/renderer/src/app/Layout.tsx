@@ -10,6 +10,7 @@ const NAV = [
   { to: '/', label: '总览', end: true },
   { to: '/classroom', label: '课堂' },
   { to: '/notes', label: '笔记' },
+  { to: '/activities', label: '活动' },
   { to: '/chat', label: '对话' },
   { to: '/knowledge', label: '知识网络', badge: 'M2' },
   { to: '/library', label: '知识库', badge: 'M3' },

@@ -14,10 +14,12 @@ import { nanoid } from 'nanoid'
 interface NoteRow {
   id: string
   subject_id: string | null
+  activity_id: string | null
   title: string
   source: 'manual' | 'class' | 'import'
   created_at: number
   updated_at: number
+  activity_title?: string | null
 }
 
 interface SegmentRow {
@@ -52,12 +54,24 @@ function touchNote(db: ReturnType<typeof getDb>, noteId: ID): void {
 export function registerNotesIpc(): void {
   /* ---------- 笔记 ---------- */
 
-  ipcMain.handle(IPC.NotesList, (_e, subjectId?: ID | null) =>
+  ipcMain.handle(IPC.NotesList, (_e, filter?: { subject_id?: ID | null; activity_id?: ID | null }) =>
     handleResult(() => {
       const db = getDb()
-      const rows = subjectId
-        ? (db.prepare('SELECT * FROM notes WHERE subject_id = ? ORDER BY updated_at DESC').all(subjectId) as NoteRow[])
-        : (db.prepare('SELECT * FROM notes ORDER BY updated_at DESC').all() as NoteRow[])
+      // "全部"视图混入活动笔记时，带出活动标题供标识
+      let rows: NoteRow[]
+      if (filter?.activity_id) {
+        rows = db.prepare(
+          'SELECT n.*, a.title AS activity_title FROM notes n LEFT JOIN activities a ON n.activity_id = a.id WHERE n.activity_id = ? ORDER BY n.updated_at DESC'
+        ).all(filter.activity_id) as NoteRow[]
+      } else if (filter?.subject_id) {
+        rows = db.prepare(
+          'SELECT n.*, a.title AS activity_title FROM notes n LEFT JOIN activities a ON n.activity_id = a.id WHERE n.subject_id = ? ORDER BY n.updated_at DESC'
+        ).all(filter.subject_id) as NoteRow[]
+      } else {
+        rows = db.prepare(
+          'SELECT n.*, a.title AS activity_title FROM notes n LEFT JOIN activities a ON n.activity_id = a.id ORDER BY n.updated_at DESC'
+        ).all() as NoteRow[]
+      }
       return rows.map(rowToNote)
     })
   )
@@ -75,33 +89,37 @@ export function registerNotesIpc(): void {
     })
   )
 
-  ipcMain.handle(IPC.NotesCreate, (_e, input: { title: string; subject_id?: ID | null; source?: Note['source'] }) =>
+  ipcMain.handle(IPC.NotesCreate, (_e, input: { title: string; subject_id?: ID | null; activity_id?: ID | null; source?: Note['source'] }) =>
     handleResult(() => {
       const db = getDb()
+      // ADR-5：subject 与 activity 二选一（都不挂 = 通用笔记）
+      if (input.subject_id && input.activity_id) throw new Error('笔记不能同时挂学科与活动')
       const now = Date.now()
       const note: Note = {
         id: nanoid(),
         subject_id: input.subject_id ?? null,
+        activity_id: input.activity_id ?? null,
         title: input.title,
         source: input.source ?? 'manual',
         created_at: now,
         updated_at: now
       }
-      db.prepare('INSERT INTO notes (id, subject_id, title, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-        note.id, note.subject_id, note.title, note.source, note.created_at, note.updated_at
+      db.prepare('INSERT INTO notes (id, subject_id, activity_id, title, source, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+        note.id, note.subject_id, note.activity_id, note.title, note.source, note.created_at, note.updated_at
       )
       return note
     })
   )
 
-  ipcMain.handle(IPC.NotesUpdate, (_e, { id, ...patch }: { id: ID; title?: string; subject_id?: ID | null }) =>
+  ipcMain.handle(IPC.NotesUpdate, (_e, { id, ...patch }: { id: ID; title?: string; subject_id?: ID | null; activity_id?: ID | null }) =>
     handleResult(() => {
       const db = getDb()
       const cur = db.prepare('SELECT * FROM notes WHERE id = ?').get(id) as NoteRow | undefined
       if (!cur) throw new Error('笔记不存在')
       const next = { ...rowToNote(cur), ...patch } as Note
-      db.prepare('UPDATE notes SET title = ?, subject_id = ?, updated_at = ? WHERE id = ?').run(
-        next.title, next.subject_id, Date.now(), id
+      if (next.subject_id && next.activity_id) throw new Error('笔记不能同时挂学科与活动')
+      db.prepare('UPDATE notes SET title = ?, subject_id = ?, activity_id = ?, updated_at = ? WHERE id = ?').run(
+        next.title, next.subject_id, next.activity_id, Date.now(), id
       )
       return next
     })

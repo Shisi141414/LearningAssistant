@@ -13,6 +13,7 @@ import { nanoid } from 'nanoid'
 interface SessionRow {
   id: string
   subject_id: string | null
+  activity_id: string | null
   title: string
   created_at: number
   updated_at: number
@@ -46,19 +47,20 @@ export function registerChatIpc(): void {
     })
   )
 
-  ipcMain.handle(IPC.ChatCreateSession, (_e, input: { subject_id?: ID | null; title?: string }) =>
+  ipcMain.handle(IPC.ChatCreateSession, (_e, input: { subject_id?: ID | null; activity_id?: ID | null; title?: string }) =>
     handleResult(() => {
       const db = getDb()
       const now = Date.now()
       const s: ChatSession = {
         id: nanoid(),
         subject_id: input.subject_id ?? null,
+        activity_id: input.activity_id ?? null,
         title: input.title ?? '新会话',
         created_at: now,
         updated_at: now
       }
-      db.prepare('INSERT INTO chat_sessions (id, subject_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)').run(
-        s.id, s.subject_id, s.title, s.created_at, s.updated_at
+      db.prepare('INSERT INTO chat_sessions (id, subject_id, activity_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').run(
+        s.id, s.subject_id, s.activity_id, s.title, s.created_at, s.updated_at
       )
       return s
     })
@@ -100,13 +102,16 @@ export function registerChatIpc(): void {
 async function runChat(sender: WebContents, input: ChatSendInput): Promise<void> {
   const db = getDb()
 
-  // 1. 会话校验与学科信息
+  // 1. 会话校验与学科/活动信息（活动会话：以活动为背景，连带其关联学科）
   const session = db.prepare('SELECT * FROM chat_sessions WHERE id = ?').get(input.session_id) as SessionRow | undefined
   if (!session) throw new Error('会话不存在')
-  let subjectName = ''
-  if (session.subject_id) {
+  let contextLine = ''
+  if (session.activity_id) {
+    const act = db.prepare('SELECT a.title, a.kind, s.name AS subject_name FROM activities a LEFT JOIN subjects s ON a.subject_id = s.id WHERE a.id = ?').get(session.activity_id) as { title: string; kind: string; subject_name: string | null } | undefined
+    if (act) contextLine = `当前会话围绕《${act.title}》（讲座/会议/研讨类活动${act.subject_name ? `，关联学科《${act.subject_name}》` : ''}）展开，注意该场景内容主题独立，回答时聚焦本场内容。`
+  } else if (session.subject_id) {
     const subj = db.prepare('SELECT name FROM subjects WHERE id = ?').get(session.subject_id) as { name: string } | undefined
-    subjectName = subj?.name ?? ''
+    if (subj) contextLine = `当前会话学科：《${subj.name}》。`
   }
 
   // 2. 存用户消息
@@ -141,7 +146,7 @@ async function runChat(sender: WebContents, input: ChatSendInput): Promise<void>
     role: 'system',
     content: [
       '你是"学习助手"应用里的智能体，服务对象是清华大学本科生。',
-      subjectName ? `当前会话学科：《${subjectName}》。` : '',
+      contextLine,
       '回答使用简体中文；条理清晰，优先用 Markdown 结构化；数学公式用 LaTeX（行内 $...$，独立 $$...$$）。',
       '学生提问若涉及具体课程内容，优先基于提供的上下文材料作答，再补充一般性知识。',
       contextText ? `\n以下是本次提问挂载的上下文材料（笔记/资料摘录）：\n${contextText}` : ''

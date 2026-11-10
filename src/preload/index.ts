@@ -10,7 +10,8 @@ import type {
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
-  InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID
+  InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID,
+  Activity, ActivityInput, ActivityKind
 } from '@shared/types'
 
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
@@ -21,6 +22,12 @@ const api = {
     create: (input: SubjectInput) => invoke<Subject>(IPC.SubjectsCreate, input),
     update: (id: ID, patch: Partial<SubjectInput>) => invoke<Subject>(IPC.SubjectsUpdate, { id, ...patch }),
     remove: (id: ID) => invoke<boolean>(IPC.SubjectsRemove, id)
+  },
+  activities: {
+    list: (filter?: { kind?: ActivityKind; subject_id?: ID }) => invoke<Activity[]>(IPC.ActivitiesList, filter),
+    create: (input: ActivityInput) => invoke<Activity>(IPC.ActivitiesCreate, input),
+    update: (id: ID, patch: Partial<ActivityInput>) => invoke<Activity>(IPC.ActivitiesUpdate, { id, ...patch }),
+    remove: (id: ID) => invoke<boolean>(IPC.ActivitiesRemove, id)
   },
   providers: {
     list: () => invoke<Provider[]>(IPC.ProvidersList),
@@ -36,10 +43,10 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.ModelsRemove, id)
   },
   notes: {
-    list: (subjectId?: ID | null) => invoke<Note[]>(IPC.NotesList, subjectId),
+    list: (filter?: { subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note[]>(IPC.NotesList, filter),
     get: (id: ID) => invoke<NoteWithSegments>(IPC.NotesGet, id),
-    create: (input: { title: string; subject_id?: ID | null }) => invoke<Note>(IPC.NotesCreate, input),
-    update: (id: ID, patch: { title?: string; subject_id?: ID | null }) => invoke<Note>(IPC.NotesUpdate, { id, ...patch }),
+    create: (input: { title: string; subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note>(IPC.NotesCreate, input),
+    update: (id: ID, patch: { title?: string; subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note>(IPC.NotesUpdate, { id, ...patch }),
     remove: (id: ID) => invoke<boolean>(IPC.NotesRemove, id),
     addSegment: (input: { note_id: ID; seg_type?: SegmentType; raw_text?: string; organized_text?: string }) =>
       invoke<NoteSegment>(IPC.NotesAddSegment, input),
@@ -54,7 +61,7 @@ const api = {
   },
   chat: {
     listSessions: () => invoke<ChatSession[]>(IPC.ChatListSessions),
-    createSession: (input: { subject_id?: ID | null; title?: string }) => invoke<ChatSession>(IPC.ChatCreateSession, input),
+    createSession: (input: { subject_id?: ID | null; activity_id?: ID | null; title?: string }) => invoke<ChatSession>(IPC.ChatCreateSession, input),
     removeSession: (id: ID) => invoke<boolean>(IPC.ChatRemoveSession, id),
     getMessages: (sessionId: ID) => invoke<ChatMessage[]>(IPC.ChatGetMessages, sessionId),
     /** 发送后流式事件经 onLlmChunk/onLlmDone/onLlmError 推送 */

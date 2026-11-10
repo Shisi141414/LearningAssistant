@@ -17,6 +17,12 @@ export const IPC = {
   SubjectsUpdate: 'subjects:update',
   SubjectsRemove: 'subjects:remove',
 
+  /* 活动（讲座/会议/讨论） */
+  ActivitiesList: 'activities:list',
+  ActivitiesCreate: 'activities:create',
+  ActivitiesUpdate: 'activities:update',
+  ActivitiesRemove: 'activities:remove',
+
   /* 供应商 */
   ProvidersList: 'providers:list',
   ProvidersSave: 'providers:save',

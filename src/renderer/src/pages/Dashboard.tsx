@@ -3,7 +3,7 @@
  */
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Note, ChatSession, Inspiration } from '@shared/types'
+import type { Note, ChatSession, Inspiration, Activity } from '@shared/types'
 import { useAppStore } from '../stores/app'
 
 export function Dashboard() {
@@ -11,17 +11,20 @@ export function Dashboard() {
   const [notes, setNotes] = useState<Note[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [inspirations, setInspirations] = useState<Inspiration[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
 
   useEffect(() => {
     void (async () => {
-      const [n, c, i] = await Promise.all([
+      const [n, c, i, a] = await Promise.all([
         window.api.notes.list(),
         window.api.chat.listSessions(),
-        window.api.inspirations.list()
+        window.api.inspirations.list(),
+        window.api.activities.list()
       ])
       if (n.ok) setNotes(n.data.slice(0, 5))
       if (c.ok) setSessions(c.data.slice(0, 5))
       if (i.ok) setInspirations(i.data.slice(0, 5))
+      if (a.ok) setActivities(a.data.slice(0, 5))
     })()
   }, [])
 
@@ -72,6 +75,24 @@ export function Dashboard() {
                   <div className="meta">{new Date(i.created_at).toLocaleString('zh-CN')}</div>
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+        <div className="card">
+          <h3 style={{ margin: '0 0 8px' }}>最近活动</h3>
+          {activities.length === 0 && <div className="muted">讲座 / 会议 / 研讨在 <Link to="/activities">活动页</Link> 独立管理</div>}
+          <div className="row-list">
+            {activities.map((a) => (
+              <Link key={a.id} to={`/activities/${a.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div className="row-item">
+                  <div className="grow">
+                    <div className="title">{a.title}</div>
+                    <div className="meta">
+                      {a.happened_at ? new Date(a.happened_at).toLocaleDateString('zh-CN') : '日期未定'} · {a.notes_count ?? 0} 篇笔记
+                    </div>
+                  </div>
+                </div>
+              </Link>
             ))}
           </div>
         </div>

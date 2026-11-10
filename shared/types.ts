@@ -25,6 +25,38 @@ export interface SubjectInput {
   description?: string
 }
 
+/* ---------- 活动（讲座/会议/讨论，ADR-5） ---------- */
+
+export type ActivityKind = 'lecture' | 'seminar' | 'meeting' | 'other'
+
+export const ACTIVITY_KIND_META: Record<ActivityKind, { label: string; color: string }> = {
+  lecture: { label: '讲座', color: '#0d9488' },
+  seminar: { label: '研讨', color: '#9333ea' },
+  meeting: { label: '会议', color: '#b45309' },
+  other: { label: '其他', color: '#64748b' }
+}
+
+export interface Activity {
+  id: ID
+  title: string
+  kind: ActivityKind
+  happened_at: Timestamp | null
+  /** 可选关联学科：活动内容的知识点可挂入该学科知识网络 */
+  subject_id: ID | null
+  description: string
+  created_at: Timestamp
+  /** 列表查询附带：该活动的笔记数 */
+  notes_count?: number
+}
+
+export interface ActivityInput {
+  title: string
+  kind?: ActivityKind
+  happened_at?: Timestamp | null
+  subject_id?: ID | null
+  description?: string
+}
+
 /* ---------- API 供应商（ccswitch 风格） ---------- */
 
 /** 上游格式：v1 支持两种（见 docs/02-architecture.md ADR-4） */
@@ -120,10 +152,14 @@ export const SEGMENT_TYPE_META: Record<SegmentType, { label: string; color: stri
 export interface Note {
   id: ID
   subject_id: ID | null
+  /** 挂载活动（与 subject_id 二选一，ADR-5） */
+  activity_id: ID | null
   title: string
   source: 'manual' | 'class' | 'import'
   created_at: Timestamp
   updated_at: Timestamp
+  /** 列表查询附带：挂载活动的标题（用于"全部"视图标识） */
+  activity_title?: string | null
 }
 
 export interface NoteSegment {
@@ -179,6 +215,7 @@ export type ChatRole = 'user' | 'assistant' | 'system'
 export interface ChatSession {
   id: ID
   subject_id: ID | null
+  activity_id: ID | null
   title: string
   created_at: Timestamp
   updated_at: Timestamp

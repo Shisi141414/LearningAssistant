@@ -21,7 +21,8 @@ export function NotesPage() {
   const [newTitle, setNewTitle] = useState('')
 
   const reload = useCallback(async () => {
-    const res = await window.api.notes.list(currentSubjectId)
+    // 按当前学科过滤课程笔记；"全部"时混入活动笔记（带活动标题标识）
+    const res = await window.api.notes.list(currentSubjectId ? { subject_id: currentSubjectId } : undefined)
     if (res.ok) setNotes(res.data)
   }, [currentSubjectId])
 
@@ -88,6 +89,7 @@ export function NotesPage() {
                 <div className="title">{n.title}</div>
               </Link>
               <div className="meta">
+                {n.activity_id ? `活动：${n.activity_title ?? ''} · ` : ''}
                 {SOURCE_LABEL[n.source]} · 更新于 {new Date(n.updated_at).toLocaleString('zh-CN')}
               </div>
             </div>
