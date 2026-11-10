@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import type { ModelInfo } from '@shared/types'
+import { MarkdownSegment } from '../components/MarkdownSegment'
 import { useAppStore } from '../stores/app'
 import { useChatStore } from '../stores/chat'
 
@@ -116,7 +117,7 @@ export function ChatPage() {
             )}
             {chat.messages.map((m) => (
               <div key={m.id} className={`msg ${m.role}`}>
-                {m.content}
+                <MarkdownSegment text={m.content} />
                 {m.id === streamingMsgId && <span className="cursor" />}
                 {m.role === 'assistant' && m.id !== streamingMsgId && chat.modelLabels[m.id] && (
                   <div className="msg-meta">{chat.modelLabels[m.id]}</div>

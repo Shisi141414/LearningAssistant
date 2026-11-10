@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Activity, AsrStatus, NoteWithSegments } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
+import { MarkdownSegment } from '../components/MarkdownSegment'
 import { useAppStore } from '../stores/app'
 
 type Phase = 'setup' | 'live'
@@ -189,10 +190,26 @@ export function ClassroomPage() {
       noteRef.current = res.data.id
       setNote({ ...res.data, segments: [], annotations: [] })
 
+      // 读取个性化配置（设置 → 个性化）
+      const [autoRecordRes, autoOrganizeRes] = await Promise.all([
+        window.api.config.get('classroom.autoRecord'),
+        window.api.config.get('classroom.autoOrganize')
+      ])
+      setAutoOrganize(autoOrganizeRes.ok ? autoOrganizeRes.data !== '0' : true) // 默认开
+
       const startRes = await window.api.classroom.start(res.data.id)
       if (startRes.ok) {
         setAsrMode(startRes.data.mode === 'asr')
         if (startRes.data.message) showToast(startRes.data.message)
+        // 个性化：进课堂自动开始录音
+        if (startRes.data.mode === 'asr' && autoRecordRes.ok && autoRecordRes.data === '1') {
+          try {
+            micRef.current = await startMic((pcm) => window.api.classroom.feedAudio(pcm))
+            setRecording(true)
+          } catch (e) {
+            showToast(`自动录音启动失败：${e instanceof Error ? e.message : String(e)}`)
+          }
+        }
       } else {
         setAsrMode(false)
         showToast(`语音引擎启动失败，已进入手动模式：${startRes.error}`)
@@ -403,7 +420,9 @@ export function ClassroomPage() {
                   ？
                 </button>
               </div>
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</div>
+              <div className="md-seg-wrap">
+                <MarkdownSegment text={text} />
+              </div>
             </div>
           )
         })}

@@ -473,6 +473,81 @@ select:focus {
   border-top: none;
 }
 
+/* ---------- 设置页标签 ---------- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+
+.tabs .tab {
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  color: var(--text-2);
+  border-bottom: 2px solid transparent;
+}
+
+.tabs .tab:hover {
+  background: #f3f4f6;
+}
+
+.tabs .tab.active {
+  color: var(--accent);
+  font-weight: 700;
+  border-bottom-color: var(--accent);
+}
+
+/* ---------- 开关行（个性化） ---------- */
+
+.pref-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pref-row:last-child {
+  border-bottom: none;
+}
+
+.pref-row .grow {
+  flex: 1;
+}
+
+.pref-row .pref-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.pref-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+/* ---------- Markdown + 公式 ---------- */
+
+.md-seg {
+  white-space: pre-wrap;
+  line-height: 1.75;
+  word-break: break-word;
+}
+
+.md-seg code {
+  white-space: pre-wrap;
+}
+
+.md-seg .katex {
+  font-size: 1.02em;
+}
+
 /* ---------- 课堂模式 ---------- */
 
 .partial-line {

@@ -13,8 +13,11 @@ import { useAppStore } from '../stores/app'
 
 type ProviderTestState = Record<string, 'testing' | { ok: boolean; latencyMs: number; error?: string }>
 
+type SettingsTab = 'models' | 'test' | 'prefs'
+
 export function SettingsPage() {
   const showToast = useAppStore((s) => s.showToast)
+  const [tab, setTab] = useState<SettingsTab>('models')
   const [providers, setProviders] = useState<Provider[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tests, setTests] = useState<ProviderTestState>({})
@@ -43,84 +46,144 @@ export function SettingsPage() {
   return (
     <div className="page">
       <h1>设置</h1>
-
-      <div className="section-title">模型服务</div>
-      <div className="muted" style={{ marginBottom: 12 }}>
-        ccswitch 风格配置：填 baseURL、上游格式与 API Key，再从供应商导入模型列表；密钥加密存储在本机，仅在本地使用。
+      <div className="tabs">
+        <button className={`tab${tab === 'models' ? ' active' : ''}`} onClick={() => setTab('models')}>
+          模型
+        </button>
+        <button className={`tab${tab === 'test' ? ' active' : ''}`} onClick={() => setTab('test')}>
+          测试
+        </button>
+        <button className={`tab${tab === 'prefs' ? ' active' : ''}`} onClick={() => setTab('prefs')}>
+          个性化
+        </button>
       </div>
 
-      <ProviderForm
-        onSaved={async (id) => {
-          await reload()
-          if (id) setSelectedId(id)
-          showToast('供应商已保存')
-        }}
-        showToast={showToast}
-      />
+      {tab === 'models' && (
+        <>
+          <div className="muted" style={{ marginBottom: 12 }}>
+            ccswitch 风格配置：填 baseURL、上游格式与 API Key，再从供应商导入模型列表；密钥加密存储在本机，仅在本地使用。
+          </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: 16, alignItems: 'start', marginTop: 14 }}>
-        {/* 左列：供应商列表 */}
-        <div className="row-list">
-          {providers.length === 0 && <div className="empty">还没有供应商，用上方表单添加</div>}
-          {providers.map((p) => {
-            const t = tests[p.id]
-            return (
-              <div
-                key={p.id}
-                className="row-item"
-                style={{ cursor: 'pointer', borderColor: p.id === selectedId ? 'var(--accent)' : undefined, flexDirection: 'column', alignItems: 'stretch' }}
-                onClick={() => setSelectedId(p.id)}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div className="grow" style={{ fontWeight: 700 }}>
-                    {p.name}
+          <ProviderForm
+            onSaved={async (id) => {
+              await reload()
+              if (id) setSelectedId(id)
+              showToast('供应商已保存')
+            }}
+            showToast={showToast}
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: 16, alignItems: 'start', marginTop: 14 }}>
+            {/* 左列：供应商列表 */}
+            <div className="row-list">
+              {providers.length === 0 && <div className="empty">还没有供应商，用上方表单添加</div>}
+              {providers.map((p) => {
+                const t = tests[p.id]
+                return (
+                  <div
+                    key={p.id}
+                    className="row-item"
+                    style={{ cursor: 'pointer', borderColor: p.id === selectedId ? 'var(--accent)' : undefined, flexDirection: 'column', alignItems: 'stretch' }}
+                    onClick={() => setSelectedId(p.id)}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="grow" style={{ fontWeight: 700 }}>
+                        {p.name}
+                      </div>
+                      <span className="pill">{p.api_format}</span>
+                      {!p.has_key && <span className="pill" style={{ background: '#fee2e2', color: '#b91c1c' }}>无 Key</span>}
+                      {!p.enabled && <span className="pill">停用</span>}
+                    </div>
+                    <div className="meta" style={{ marginTop: 2, wordBreak: 'break-all' }}>
+                      {p.base_url}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        style={{ fontSize: 12, padding: '2px 8px' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void test(p.id)
+                        }}
+                      >
+                        {t === 'testing' ? '测试中…' : '测试连通'}
+                      </button>
+                      <button
+                        style={{ fontSize: 12, padding: '2px 8px' }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (window.confirm(`删除供应商「${p.name}」及其模型配置？`)) {
+                            void window.api.providers.remove(p.id).then(() => void reload())
+                          }
+                        }}
+                      >
+                        删除
+                      </button>
+                      {t && t !== 'testing' && (
+                        <span style={t.ok ? { fontSize: 11, color: '#15803d' } : { fontSize: 11, color: '#b91c1c' }}>
+                          {t.ok ? `连通 ${t.latencyMs}ms` : `失败：${t.error?.slice(0, 50)}`}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="pill">{p.api_format}</span>
-                  {!p.has_key && <span className="pill" style={{ background: '#fee2e2', color: '#b91c1c' }}>无 Key</span>}
-                  {!p.enabled && <span className="pill">停用</span>}
-                </div>
-                <div className="meta" style={{ marginTop: 2, wordBreak: 'break-all' }}>
-                  {p.base_url}
-                </div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    style={{ fontSize: 12, padding: '2px 8px' }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void test(p.id)
-                    }}
-                  >
-                    {t === 'testing' ? '测试中…' : '测试连通'}
-                  </button>
-                  <button
-                    style={{ fontSize: 12, padding: '2px 8px' }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (window.confirm(`删除供应商「${p.name}」及其模型配置？`)) {
-                        void window.api.providers.remove(p.id).then(() => void reload())
-                      }
-                    }}
-                  >
-                    删除
-                  </button>
-                  {t && t !== 'testing' && (
-                    <span style={t.ok ? { fontSize: 11, color: '#15803d' } : { fontSize: 11, color: '#b91c1c' }}>
-                      {t.ok ? `连通 ${t.latencyMs}ms` : `失败：${t.error?.slice(0, 50)}`}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+                )
+              })}
+            </div>
+
+            {/* 右列：所选供应商的模型管理 */}
+            <div>{selected ? <ModelsPanel provider={selected} showToast={showToast} /> : <div className="empty">先添加或选择一个供应商</div>}</div>
+          </div>
+
+          <AsrCard />
+          <StorageCard />
+        </>
+      )}
+
+      {tab === 'test' && <DiagnosticsCard />}
+
+      {tab === 'prefs' && <PrefsCard />}
+    </div>
+  )
+}
+
+/* ================= 个性化 ================= */
+
+function PrefsCard() {
+  const showToast = useAppStore((s) => s.showToast)
+  const [autoRecord, setAutoRecord] = useState(false)
+  const [autoOrganize, setAutoOrganize] = useState(true)
+
+  useEffect(() => {
+    void window.api.config.get('classroom.autoRecord').then((r) => {
+      if (r.ok) setAutoRecord(r.data === '1')
+    })
+    void window.api.config.get('classroom.autoOrganize').then((r) => {
+      if (r.ok) setAutoOrganize(r.data !== '0') // 默认开
+    })
+  }, [])
+
+  const save = (key: string, value: boolean, setter: (v: boolean) => void): void => {
+    setter(value)
+    void window.api.config.set(key, value ? '1' : '0').then((r) => {
+      if (!r.ok) showToast(`保存失败：${r.error}`)
+    })
+  }
+
+  return (
+    <div className="card" style={{ maxWidth: 720 }}>
+      <div className="pref-row">
+        <div className="grow">
+          <div className="pref-title">进入课堂自动开始录音</div>
+          <div className="meta">语音引擎就绪时，点「开始课堂」直接开麦（仍可随时停止）；引擎未就绪不受影响</div>
         </div>
-
-        {/* 右列：所选供应商的模型管理 */}
-        <div>{selected ? <ModelsPanel provider={selected} showToast={showToast} /> : <div className="empty">先添加或选择一个供应商</div>}</div>
+        <input type="checkbox" checked={autoRecord} onChange={(e) => save('classroom.autoRecord', e.target.checked, setAutoRecord)} />
       </div>
-
-      <AsrCard />
-      <StorageCard />
-      <DiagnosticsCard />
+      <div className="pref-row">
+        <div className="grow">
+          <div className="pref-title">新课堂默认开启 AI 自动整理</div>
+          <div className="meta">转写落段后自动调模型纠错与分类（课堂工具栏可随时开关本次会话的整理）</div>
+        </div>
+        <input type="checkbox" checked={autoOrganize} onChange={(e) => save('classroom.autoOrganize', e.target.checked, setAutoOrganize)} />
+      </div>
     </div>
   )
 }
@@ -364,14 +427,12 @@ function DiagnosticsCard() {
   }
 
   return (
-    <>
-      <div className="section-title">功能自检</div>
-      <div className="card">
-        <div className="muted" style={{ marginBottom: 10 }}>
-          从硬件到链路逐项验证：①麦克风 → ②语音识别引擎 → ③模型服务 → ④整理管线 → ⑤识图 → ⑥切块。按序跑，哪项红了问题就在哪一层。
-        </div>
-        <div className="row-list">
-          <MicTestRow />
+    <div className="card">
+      <div className="muted" style={{ marginBottom: 10 }}>
+        从硬件到链路逐项验证：①麦克风 → ②语音识别引擎 → ③模型服务 → ④整理管线 → ⑤识图 → ⑥切块。按序跑，哪项红了问题就在哪一层。
+      </div>
+      <div className="row-list">
+        <MicTestRow />
           <DiagRow
             title="② 语音识别（本地引擎）"
             desc="加载 sherpa-onnx 引擎并转写模型自带的测试音频，验证模型目录完整性与引擎可用"
@@ -443,8 +504,7 @@ function DiagnosticsCard() {
             }}
           />
         </div>
-      </div>
-    </>
+    </div>
   )
 }
 
