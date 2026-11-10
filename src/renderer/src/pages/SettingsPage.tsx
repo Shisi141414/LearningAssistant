@@ -4,7 +4,7 @@
  * 布局（2026-11-10 修复）：添加供应商表单为全宽卡片（.form-grid2 响应式字段），
  * 不再挤在窄列里；下方左列供应商列表、右列模型管理。
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Provider, ProviderInput, ModelInfo, ApiFormat, SpeedTier, AsrStatus, StorageInfo } from '@shared/types'
 import { PROVIDER_PRESETS } from '@shared/presets'
 import { chunkText } from '@shared/textChunk'
@@ -162,7 +162,7 @@ function MicTestRow() {
     const r = refs.current
     if (r.timer) clearInterval(r.timer)
     if (r.raf) cancelAnimationFrame(r.raf)
-    r.recorder?.stream.getTracks().forEach((t) => t.stop())
+    r.recorder?.stream.getTracks().forEach((t: MediaStreamTrack) => t.stop())
     void r.ctx?.close().catch(() => undefined)
     refs.current = { ...r, recorder: null, ctx: null, stream: null, analyser: null, timer: null, raf: null }
   }
@@ -347,11 +347,11 @@ function DiagRow({
 }
 
 function DiagnosticsCard() {
-  const [asr, setAsr] = useState<DiagState>({})
-  const [chat, setChat] = useState<DiagState>({})
-  const [organize, setOrganize] = useState<DiagState>({})
-  const [vision, setVision] = useState<DiagState>({})
-  const [chunk, setChunk] = useState<DiagState>({})
+  const [asr, setAsr] = useState<DiagState>({ running: false })
+  const [chat, setChat] = useState<DiagState>({ running: false })
+  const [organize, setOrganize] = useState<DiagState>({ running: false })
+  const [vision, setVision] = useState<DiagState>({ running: false })
+  const [chunk, setChunk] = useState<DiagState>({ running: false })
 
   const wrap = async (setter: (s: DiagState) => void, fn: () => Promise<string>): Promise<void> => {
     setter({ running: true })
