@@ -1,0 +1,431 @@
+/**
+ * pages/ClassroomPage.tsx —— 课堂模式（M1a）
+ *
+ * 链路：麦克风(16k PCM) → IPC → 主进程 sherpa-onnx 流式识别
+ *      → partial 实时上屏 / final 落段 → AI 整理（自动，可关）→ 分色双视图 → 标注
+ * 无语音引擎时降级为"手动转写模式"（粘贴/输入文本，管线一致）——ADR-0 离线优先。
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import type { Activity, AsrStatus, NoteWithSegments } from '@shared/types'
+import { SEGMENT_TYPE_META } from '@shared/types'
+import { useAppStore } from '../stores/app'
+
+type Phase = 'setup' | 'live'
+type ViewMode = 'organized' | 'raw'
+
+/** 麦克风采集句柄 */
+interface MicHandle {
+  ctx: AudioContext
+  stream: MediaStream
+  stop: () => void
+}
+
+async function startMic(onChunk: (pcm: Int16Array) => void): Promise<MicHandle> {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+  })
+  const ctx = new AudioContext({ sampleRate: 16000 })
+  const source = ctx.createMediaStreamSource(stream)
+  // ScriptProcessorNode 虽已标记废弃，但在 Electron 渲染进程稳定可用，且无需额外 worklet 文件（CSP 友好）
+  const processor = ctx.createScriptProcessor(4096, 1, 1)
+  const mute = ctx.createGain()
+  mute.gain.value = 0 // 不回放麦克风音频（防啸叫），仅驱动处理回调
+  processor.onaudioprocess = (e: AudioProcessingEvent) => {
+    const f32 = e.inputBuffer.getChannelData(0)
+    const pcm = new Int16Array(f32.length)
+    for (let i = 0; i < f32.length; i++) {
+      const s = Math.max(-1, Math.min(1, f32[i]))
+      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff
+    }
+    onChunk(pcm)
+  }
+  source.connect(processor)
+  processor.connect(mute)
+  mute.connect(ctx.destination)
+  return {
+    ctx,
+    stream,
+    stop: () => {
+      processor.disconnect()
+      source.disconnect()
+      mute.disconnect()
+      stream.getTracks().forEach((t) => t.stop())
+      void ctx.close()
+    }
+  }
+}
+
+export function ClassroomPage() {
+  /* ---- setup ---- */
+  const [phase, setPhase] = useState<Phase>('setup')
+  const subjects = useAppStore((s) => s.subjects)
+  const currentSubjectId = useAppStore((s) => s.currentSubjectId)
+  const showToast = useAppStore((s) => s.showToast)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [attachMode, setAttachMode] = useState<'subject' | 'activity'>('subject')
+  const [subjectId, setSubjectId] = useState(currentSubjectId ?? '')
+  const [activityId, setActivityId] = useState('')
+  const [title, setTitle] = useState('')
+  const [asr, setAsr] = useState<AsrStatus | null>(null)
+  const [starting, setStarting] = useState(false)
+
+  /* ---- live ---- */
+  const [note, setNote] = useState<NoteWithSegments | null>(null)
+  const [partial, setPartial] = useState('')
+  const [recording, setRecording] = useState(false)
+  const [asrMode, setAsrMode] = useState(false) // 语音引擎是否在跑
+  const [autoOrganize, setAutoOrganize] = useState(true)
+  const [view, setView] = useState<ViewMode>('organized')
+  const [organizingIds, setOrganizingIds] = useState<Set<string>>(new Set())
+  const [manualText, setManualText] = useState('')
+
+  const micRef = useRef<MicHandle | null>(null)
+  const noteRef = useRef<string | null>(null)
+  const autoRef = useRef(autoOrganize)
+  autoRef.current = autoOrganize
+  const segmentsEndRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    void window.api.activities.list().then((r) => {
+      if (r.ok) setActivities(r.data)
+    })
+    void window.api.classroom.asrStatus().then((r) => {
+      if (r.ok) setAsr(r.data)
+    })
+  }, [])
+
+  /** final 落段：入库 → 视图追加 → 触发整理 */
+  const appendSegment = useCallback(
+    async (text: string): Promise<void> => {
+      const noteId = noteRef.current
+      const content = text.trim()
+      if (!noteId || !content) return
+      const res = await window.api.notes.addSegment({ note_id: noteId, raw_text: content, organized_text: content })
+      if (!res.ok) {
+        showToast(`段落保存失败：${res.error}`)
+        return
+      }
+      setNote((n) => (n ? { ...n, segments: [...n.segments, res.data] } : n))
+      if (autoRef.current) void triggerOrganize(res.data.id)
+    },
+    [showToast]
+  )
+
+  const triggerOrganize = useCallback(async (segmentId: string): Promise<void> => {
+    setOrganizingIds((s) => new Set([...s, segmentId]))
+    const res = await window.api.classroom.organizeSegment(segmentId)
+    if (!res.ok) {
+      // 整理失败不阻断课堂（离线优先降级）：保留原文
+      setOrganizingIds((s) => {
+        const next = new Set(s)
+        next.delete(segmentId)
+        return next
+      })
+      showToast(`自动整理失败：${res.error}`)
+    }
+    // 成功路径经 onSegmentOrganized 事件统一处理（含删除 organizing 标记）
+  }, [showToast])
+
+  /** 事件订阅（live 阶段挂载） */
+  useEffect(() => {
+    if (phase !== 'live') return
+    const offPartial = window.api.onClassroomPartial((e) => setPartial(e.text))
+    const offFinal = window.api.onClassroomFinal((e) => {
+      setPartial('')
+      void appendSegment(e.text)
+    })
+    const offOrg = window.api.onSegmentOrganized((e) => {
+      setOrganizingIds((s) => {
+        const next = new Set(s)
+        next.delete(e.segment_id)
+        return next
+      })
+      setNote((n) =>
+        n
+          ? {
+              ...n,
+              segments: n.segments.map((seg) =>
+                seg.id === e.segment_id ? { ...seg, seg_type: e.seg_type, organized_text: e.organized_text } : seg
+              )
+            }
+          : n
+      )
+    })
+    return () => {
+      offPartial()
+      offFinal()
+      offOrg()
+    }
+  }, [phase, appendSegment])
+
+  /** 离开页面/卸载清理 */
+  useEffect(() => {
+    return () => {
+      micRef.current?.stop()
+      micRef.current = null
+      void window.api.classroom.stop()
+    }
+  }, [])
+
+  // 新段落时滚动到底
+  useEffect(() => {
+    segmentsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [note?.segments.length, partial])
+
+  /* ---- actions ---- */
+
+  const startSession = async (): Promise<void> => {
+    setStarting(true)
+    try {
+      const defaultTitle = `${new Date().toLocaleDateString('zh-CN')} ${attachMode === 'subject' ? subjects.find((s) => s.id === subjectId)?.name ?? '课堂' : activities.find((a) => a.id === activityId)?.title ?? '活动'} 课堂记录`
+      const res = await window.api.notes.create({
+        title: title.trim() || defaultTitle,
+        subject_id: attachMode === 'subject' && subjectId ? subjectId : null,
+        activity_id: attachMode === 'activity' && activityId ? activityId : null,
+        source: 'class'
+      })
+      if (!res.ok) throw new Error(res.error)
+      noteRef.current = res.data.id
+      setNote({ ...res.data, segments: [], annotations: [] })
+
+      const startRes = await window.api.classroom.start(res.data.id)
+      if (startRes.ok) {
+        setAsrMode(startRes.data.mode === 'asr')
+        if (startRes.data.message) showToast(startRes.data.message)
+      } else {
+        setAsrMode(false)
+        showToast(`语音引擎启动失败，已进入手动模式：${startRes.error}`)
+      }
+      setPhase('live')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e))
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  const toggleRecording = async (): Promise<void> => {
+    if (recording) {
+      micRef.current?.stop()
+      micRef.current = null
+      setRecording(false)
+      return
+    }
+    if (!asrMode) {
+      showToast('语音引擎未运行（检查设置 → 语音引擎），当前为手动转写模式')
+      return
+    }
+    try {
+      micRef.current = await startMic((pcm) => window.api.classroom.feedAudio(pcm))
+      setRecording(true)
+    } catch (e) {
+      showToast(`麦克风启动失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const endSession = (): void => {
+    micRef.current?.stop()
+    micRef.current = null
+    setRecording(false)
+    void window.api.classroom.stop()
+    setPhase('setup')
+    setPartial('')
+  }
+
+  const addManual = async (): Promise<void> => {
+    const text = manualText.trim()
+    if (!text) return
+    setManualText('')
+    await appendSegment(text)
+  }
+
+  /* ---- 渲染 ---- */
+
+  if (phase === 'setup') {
+    const ready = asr?.installed && asr?.modelReady
+    return (
+      <div className="page">
+        <h1>课堂模式</h1>
+        <div className="muted" style={{ marginBottom: 14 }}>
+          实时语音转写 + AI 整理。语音引擎就绪后可边听边记；未就绪也可用手动转写模式（粘贴/输入），整理管线一致。
+        </div>
+        <div className="card" style={{ maxWidth: 680 }}>
+          <div className="form-grid2">
+            <div className="field">
+              <label>挂载到</label>
+              <select value={attachMode} onChange={(e) => setAttachMode(e.target.value as 'subject' | 'activity')}>
+                <option value="subject">课程学科</option>
+                <option value="activity">活动（讲座/会议）</option>
+              </select>
+            </div>
+            {attachMode === 'subject' ? (
+              <div className="field">
+                <label>学科</label>
+                <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                  <option value="">（不挂载）</option>
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="field">
+                <label>活动</label>
+                <select value={activityId} onChange={(e) => setActivityId(e.target.value)}>
+                  <option value="">（不挂载）</option>
+                  {activities.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="field">
+              <label>笔记标题（默认自动生成）</label>
+              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="如：11月12日 数学分析 极限与连续" />
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14, padding: 10, borderRadius: 8, background: ready ? '#f0fdf4' : '#fffbeb', border: `1px solid ${ready ? '#bbf7d0' : '#fde68a'}` }}>
+            {asr === null ? (
+              <span className="muted">语音引擎状态检查中…</span>
+            ) : ready ? (
+              <span style={{ color: '#15803d' }}>语音引擎就绪（{asr.modelDir}）</span>
+            ) : (
+              <div style={{ fontSize: 13, color: '#b45309' }}>
+                语音引擎未就绪：
+                {!asr.installed && ' 未安装 sherpa-onnx-node（项目目录执行 npm install sherpa-onnx-node）'}
+                {asr.installed && asr.modelDir && asr.missingFiles.length > 0 && ` 模型目录缺少 ${asr.missingFiles.join('、')}`}
+                {!asr.modelDir && ' 未配置模型目录'}
+                {' —— 可先用手动转写模式，稍后在'} <Link to="/settings">设置 → 语音引擎</Link> 配置
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+            <button className="primary" disabled={starting} onClick={() => void startSession()}>
+              {starting ? '准备中…' : ready ? '开始课堂（语音就绪）' : '开始课堂（手动转写模式）'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* live 视图 */
+  return (
+    <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="toolbar">
+        <h1 style={{ margin: 0 }}>{note?.title}</h1>
+        {recording && (
+          <span className="rec-indicator">
+            <span className="dot" /> 录音中
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        <label style={{ fontSize: 13, color: 'var(--text-2)', display: 'flex', gap: 4, alignItems: 'center' }}>
+          <input type="checkbox" checked={autoOrganize} onChange={(e) => setAutoOrganize(e.target.checked)} /> 自动整理
+        </label>
+        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <button
+            style={{ borderRadius: 0, border: 'none', background: view === 'organized' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'organized' ? 'var(--accent)' : 'var(--text)' }}
+            onClick={() => setView('organized')}
+          >
+            整理视图
+          </button>
+          <button
+            style={{ borderRadius: 0, border: 'none', borderLeft: '1px solid var(--border)', background: view === 'raw' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'raw' ? 'var(--accent)' : 'var(--text)' }}
+            onClick={() => setView('raw')}
+          >
+            原文视图
+          </button>
+        </div>
+        {asrMode && (
+          <button className={recording ? '' : 'primary'} onClick={() => void toggleRecording()}>
+            {recording ? '⏹ 停止录音' : '🎤 开始录音'}
+          </button>
+        )}
+        <button onClick={endSession}>结束课堂</button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div className="partial-line">
+          {recording ? partial || '（聆听中…）' : asrMode ? '（未开始录音——点击「开始录音」）' : '（手动转写模式：在下方输入框记录）'}
+        </div>
+
+        {note?.segments.map((seg) => {
+          const meta = SEGMENT_TYPE_META[seg.seg_type]
+          const organizing = organizingIds.has(seg.id)
+          const text = view === 'organized' ? seg.organized_text || seg.raw_text : seg.raw_text
+          return (
+            <div key={seg.id} className="segment" data-segment-id={seg.id} style={{ ['--seg-color' as string]: meta.color }}>
+              <div className="segment-head">
+                <span className="tag">{meta.label}</span>
+                {organizing && <span className="organizing-tag">AI 整理中…</span>}
+                {note.annotations
+                  .filter((a) => a.segment_id === seg.id)
+                  .map((a) => (
+                    <span key={a.id} className={`annotation-chip ${a.kind}`}>
+                      {a.kind === 'keypoint' ? '★' : '？'}
+                      {a.comment ? a.comment.slice(0, 12) : a.kind === 'keypoint' ? '重点' : '疑问'}
+                    </span>
+                  ))}
+                <span className="spacer" />
+                <button style={{ fontSize: 12 }} title="重新 AI 整理" onClick={() => void triggerOrganize(seg.id)}>
+                  整理
+                </button>
+                <button
+                  style={{ fontSize: 12 }}
+                  onClick={() => {
+                    void window.api.annotations.add({ segment_id: seg.id, kind: 'keypoint' }).then(() => {
+                      void window.api.notes.get(seg.note_id).then((r) => {
+                        if (r.ok) setNote(r.data)
+                      })
+                    })
+                  }}
+                >
+                  ★
+                </button>
+                <button
+                  style={{ fontSize: 12 }}
+                  onClick={() => {
+                    void window.api.annotations.add({ segment_id: seg.id, kind: 'question' }).then(() => {
+                      void window.api.notes.get(seg.note_id).then((r) => {
+                        if (r.ok) setNote(r.data)
+                      })
+                    })
+                  }}
+                >
+                  ？
+                </button>
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{text}</div>
+            </div>
+          )
+        })}
+        <div ref={segmentsEndRef} />
+      </div>
+
+      <div className="chat-input" style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 4 }}>
+        <textarea
+          placeholder="手动转写/补充记录（Enter 添加段落，Shift+Enter 换行）"
+          value={manualText}
+          onChange={(e) => setManualText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void addManual()
+            }
+          }}
+        />
+        <button className="primary" onClick={() => void addManual()}>
+          添加段落
+        </button>
+      </div>
+    </div>
+  )
+}

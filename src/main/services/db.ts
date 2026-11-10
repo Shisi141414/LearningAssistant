@@ -7,16 +7,20 @@
  *  - 首次启动写入种子学科（可删改——种子是数据不是代码，ADR-3）
  */
 import Database from 'better-sqlite3'
-import { app } from 'electron'
 import { join } from 'path'
 import { nanoid } from 'nanoid'
 import { MIGRATIONS } from '../db/migrations'
+import { resolveDataDir } from './bootConfig'
 
 let db: Database.Database | null = null
 
+export function dbFilePath(): string {
+  return join(resolveDataDir(), 'learning-assistant.db')
+}
+
 export function getDb(): Database.Database {
   if (db) return db
-  const filePath = join(app.getPath('userData'), 'learning-assistant.db')
+  const filePath = dbFilePath()
   db = new Database(filePath)
   db.pragma('journal_mode = WAL') // 课堂高频写入场景，WAL 提高并发与耐久性
   db.pragma('foreign_keys = ON')
@@ -26,7 +30,15 @@ export function getDb(): Database.Database {
 }
 
 export function closeDb(): void {
-  db?.close()
+  if (db) {
+    // 截断 WAL，让 .db 单文件自洽（迁移/备份场景依赖这一点）
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)')
+    } catch {
+      /* ignore */
+    }
+    db.close()
+  }
   db = null
 }
 

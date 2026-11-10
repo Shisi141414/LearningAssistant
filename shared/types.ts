@@ -296,15 +296,54 @@ export interface ApiErr {
 
 export type ApiResult<T> = ApiOk<T> | ApiErr
 
+/** 主进程连通性测试结果 */
+export interface ProviderTestResult {
+  ok: boolean
+  latencyMs: number
+  error?: string
+}
+
 /** 发给 LLM 的消息（openai/anthropic 两种格式的公共子集） */
 export interface LlmMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
 }
 
-/** 主进程连通性测试结果 */
-export interface ProviderTestResult {
-  ok: boolean
-  latencyMs: number
-  error?: string
+/* ---------- 课堂模式（M1） ---------- */
+
+/** 本地 ASR 引擎状态（设置页/课堂页就绪检查） */
+export interface AsrStatus {
+  /** sherpa-onnx-node 是否已安装 */
+  installed: boolean
+  moduleError?: string
+  modelDir: string | null
+  modelReady: boolean
+  missingFiles: string[]
+}
+
+export type ClassroomStartResult = { mode: 'asr' | 'manual'; message?: string }
+
+export interface ClassroomPartialEvent {
+  text: string
+}
+
+export interface ClassroomFinalEvent {
+  text: string
+}
+
+export interface SegmentOrganizedEvent {
+  segment_id: ID
+  seg_type: SegmentType
+  organized_text: string
+  /** true = 模型输出不可解析，organized_text 回退为原文 */
+  fallback: boolean
+}
+
+/* ---------- 配置与存储 ---------- */
+
+export interface StorageInfo {
+  dataDir: string
+  dbPath: string
+  dbSizeBytes: number
+  custom: boolean
 }

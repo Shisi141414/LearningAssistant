@@ -1,7 +1,7 @@
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, session } from 'electron'
 import { join } from 'node:path'
 import { registerAllIpc } from './ipc'
 import { closeDb, getDb } from './services/db'
@@ -42,6 +42,11 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // 课堂模式需要麦克风：只放行媒体权限（'media' 含音视频采集），其余默认拒绝
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    callback(permission === 'media')
+  })
+
   getDb() // 初始化数据库（迁移 + 种子）
   registerAllIpc()
   createWindow()

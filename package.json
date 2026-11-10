@@ -12,6 +12,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
+    "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
+    "test": "npm run test:db && npm run test:organize",
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "build:win": "electron-vite build && electron-builder --win",
@@ -41,6 +43,10 @@
   },
   "allowScripts": {
     "electron@45.2.3": true,
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@13.0.3": true,
+    "sherpa-onnx-node@2.0.1": true
+  },
+  "optionalDependencies": {
+    "sherpa-onnx-node": "^2.0.1"
   }
 }

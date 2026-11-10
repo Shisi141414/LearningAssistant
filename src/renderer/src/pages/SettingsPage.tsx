@@ -1,12 +1,11 @@
 /**
- * pages/SettingsPage.tsx —— 设置：模型服务（ccswitch 风格）
+ * pages/SettingsPage.tsx —— 设置：模型服务 / 语音引擎 / 数据与存储
  *
- * 供应商表单 = 名称 + baseURL + 上游格式 + API Key（cc-switch 同构）
- * 模型管理 = 从上游 /models 一键导入 + 能力备注（上下文/识图/速度/备注）可编辑
- * 预设（DeepSeek/智谱/通义/Kimi/SiliconFlow/OpenAI/Anthropic）一键填充
+ * 布局（2026-11-10 修复）：添加供应商表单为全宽卡片（.form-grid2 响应式字段），
+ * 不再挤在窄列里；下方左列供应商列表、右列模型管理。
  */
 import { useCallback, useEffect, useState } from 'react'
-import type { Provider, ProviderInput, ModelInfo, ApiFormat, SpeedTier } from '@shared/types'
+import type { Provider, ProviderInput, ModelInfo, ApiFormat, SpeedTier, AsrStatus, StorageInfo } from '@shared/types'
 import { PROVIDER_PRESETS } from '@shared/presets'
 import { useAppStore } from '../stores/app'
 
@@ -33,95 +32,97 @@ export function SettingsPage() {
   const test = async (id: string): Promise<void> => {
     setTests((t) => ({ ...t, [id]: 'testing' }))
     const res = await window.api.providers.test(id)
-    if (res.ok) {
-      setTests((t) => ({ ...t, [id]: res.data }))
-    } else {
-      setTests((t) => ({ ...t, [id]: { ok: false, latencyMs: 0, error: res.error } }))
-    }
+    if (res.ok) setTests((t) => ({ ...t, [id]: res.data }))
+    else setTests((t) => ({ ...t, [id]: { ok: false, latencyMs: 0, error: res.error } }))
   }
 
   const selected = providers.find((p) => p.id === selectedId) ?? null
 
   return (
     <div className="page">
-      <h1>设置 · 模型服务</h1>
-      <div className="muted" style={{ marginBottom: 14 }}>
+      <h1>设置</h1>
+
+      <div className="section-title">模型服务</div>
+      <div className="muted" style={{ marginBottom: 12 }}>
         ccswitch 风格配置：填 baseURL、上游格式与 API Key，再从供应商导入模型列表；密钥加密存储在本机，仅在本地使用。
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 16, alignItems: 'start' }}>
-        {/* 左列：供应商 */}
-        <div>
-          <ProviderForm
-            onSaved={async (id) => {
-              await reload()
-              if (id) setSelectedId(id)
-              showToast('供应商已保存')
-            }}
-            showToast={showToast}
-          />
-          <div className="row-list" style={{ marginTop: 10 }}>
-            {providers.map((p) => {
-              const t = tests[p.id]
-              return (
-                <div
-                  key={p.id}
-                  className="row-item"
-                  style={{ cursor: 'pointer', borderColor: p.id === selectedId ? 'var(--accent)' : undefined, flexDirection: 'column', alignItems: 'stretch' }}
-                  onClick={() => setSelectedId(p.id)}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div className="grow" style={{ fontWeight: 700 }}>
-                      {p.name}
-                    </div>
-                    <span className="pill">{p.api_format}</span>
-                    {!p.has_key && <span className="pill" style={{ background: '#fee2e2', color: '#b91c1c' }}>无 Key</span>}
-                    {!p.enabled && <span className="pill">停用</span>}
+      <ProviderForm
+        onSaved={async (id) => {
+          await reload()
+          if (id) setSelectedId(id)
+          showToast('供应商已保存')
+        }}
+        showToast={showToast}
+      />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: 16, alignItems: 'start', marginTop: 14 }}>
+        {/* 左列：供应商列表 */}
+        <div className="row-list">
+          {providers.length === 0 && <div className="empty">还没有供应商，用上方表单添加</div>}
+          {providers.map((p) => {
+            const t = tests[p.id]
+            return (
+              <div
+                key={p.id}
+                className="row-item"
+                style={{ cursor: 'pointer', borderColor: p.id === selectedId ? 'var(--accent)' : undefined, flexDirection: 'column', alignItems: 'stretch' }}
+                onClick={() => setSelectedId(p.id)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div className="grow" style={{ fontWeight: 700 }}>
+                    {p.name}
                   </div>
-                  <div className="meta" style={{ marginTop: 2 }}>
-                    {p.base_url}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button
-                      style={{ fontSize: 12, padding: '2px 8px' }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        void test(p.id)
-                      }}
-                    >
-                      {t === 'testing' ? '测试中…' : '测试连通'}
-                    </button>
-                    <button
-                      style={{ fontSize: 12, padding: '2px 8px' }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (window.confirm(`删除供应商「${p.name}」及其模型配置？`)) {
-                          void window.api.providers.remove(p.id).then(() => void reload())
-                        }
-                      }}
-                    >
-                      删除
-                    </button>
-                    {t && t !== 'testing' && (
-                      <span className={`pill${t.ok ? '' : ' err'}`} style={t.ok ? { background: '#dcfce7', color: '#15803d' } : { background: '#fee2e2', color: '#b91c1c' }}>
-                        {t.ok ? `连通 ${t.latencyMs}ms` : `失败：${t.error?.slice(0, 60)}`}
-                      </span>
-                    )}
-                  </div>
+                  <span className="pill">{p.api_format}</span>
+                  {!p.has_key && <span className="pill" style={{ background: '#fee2e2', color: '#b91c1c' }}>无 Key</span>}
+                  {!p.enabled && <span className="pill">停用</span>}
                 </div>
-              )
-            })}
-          </div>
+                <div className="meta" style={{ marginTop: 2, wordBreak: 'break-all' }}>
+                  {p.base_url}
+                </div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    style={{ fontSize: 12, padding: '2px 8px' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void test(p.id)
+                    }}
+                  >
+                    {t === 'testing' ? '测试中…' : '测试连通'}
+                  </button>
+                  <button
+                    style={{ fontSize: 12, padding: '2px 8px' }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (window.confirm(`删除供应商「${p.name}」及其模型配置？`)) {
+                        void window.api.providers.remove(p.id).then(() => void reload())
+                      }
+                    }}
+                  >
+                    删除
+                  </button>
+                  {t && t !== 'testing' && (
+                    <span style={t.ok ? { fontSize: 11, color: '#15803d' } : { fontSize: 11, color: '#b91c1c' }}>
+                      {t.ok ? `连通 ${t.latencyMs}ms` : `失败：${t.error?.slice(0, 50)}`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         {/* 右列：所选供应商的模型管理 */}
         <div>{selected ? <ModelsPanel provider={selected} showToast={showToast} /> : <div className="empty">先添加或选择一个供应商</div>}</div>
       </div>
+
+      <AsrCard />
+      <StorageCard />
     </div>
   )
 }
 
-/* ================= 供应商表单 ================= */
+/* ================= 供应商表单（全宽） ================= */
 
 const EMPTY_FORM: ProviderInput = { name: '', base_url: '', api_format: 'openai', api_key: '' }
 
@@ -155,32 +156,38 @@ function ProviderForm({ onSaved, showToast }: { onSaved: (id?: string) => Promis
 
   return (
     <div className="card">
-      <h3 style={{ margin: '0 0 10px' }}>添加供应商</h3>
-      <div className="form-grid">
-        <label>预设</label>
-        <select value={presetKey} onChange={(e) => applyPreset(e.target.value)}>
-          <option value="">— 手动填写 —</option>
-          {PROVIDER_PRESETS.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.label}（{p.hint}）
-            </option>
-          ))}
-        </select>
-
-        <label>名称</label>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：DeepSeek 官方" />
-
-        <label>baseURL</label>
-        <input value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="https://api.deepseek.com/v1（openai 格式一般以 /v1 结尾）" />
-
-        <label>上游格式</label>
-        <select value={form.api_format} onChange={(e) => setForm({ ...form, api_format: e.target.value as ApiFormat })}>
-          <option value="openai">OpenAI 兼容（DeepSeek / Qwen / GLM / Kimi / GPT…）</option>
-          <option value="anthropic">Anthropic（Claude 系）</option>
-        </select>
-
-        <label>API Key</label>
-        <input type="password" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} placeholder="sk-…（加密存储于本机）" />
+      <h3 style={{ margin: '0 0 12px' }}>添加供应商</h3>
+      <div className="form-grid2">
+        <div className="field">
+          <label>预设</label>
+          <select value={presetKey} onChange={(e) => applyPreset(e.target.value)}>
+            <option value="">— 手动填写 —</option>
+            {PROVIDER_PRESETS.map((p) => (
+              <option key={p.key} value={p.key}>
+                {p.label}（{p.hint}）
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label>名称</label>
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="如：DeepSeek 官方" />
+        </div>
+        <div className="field" style={{ gridColumn: 'span 2' }}>
+          <label>baseURL</label>
+          <input value={form.base_url} onChange={(e) => setForm({ ...form, base_url: e.target.value })} placeholder="https://api.deepseek.com/v1（openai 格式一般以 /v1 结尾）" />
+        </div>
+        <div className="field">
+          <label>上游格式</label>
+          <select value={form.api_format} onChange={(e) => setForm({ ...form, api_format: e.target.value as ApiFormat })}>
+            <option value="openai">OpenAI 兼容（DeepSeek / Qwen / GLM / Kimi…）</option>
+            <option value="anthropic">Anthropic（Claude 系）</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>API Key</label>
+          <input type="password" value={form.api_key} onChange={(e) => setForm({ ...form, api_key: e.target.value })} placeholder="sk-…（加密存储于本机）" />
+        </div>
       </div>
       <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
         <button className="primary" disabled={saving} onClick={() => void save()}>
@@ -218,7 +225,7 @@ function ModelsPanel({ provider, showToast }: { provider: Provider; showToast: (
     if (res.ok) {
       const existing = new Set(models.map((m) => m.model_id))
       setRemoteIds(res.data.filter((id) => !existing.has(id)))
-      showToast(`拉取到 ${res.data.length} 个模型，${res.data.length - (res.data.length - (res.data.filter((id) => !existing.has(id)).length))} 个已存在`)
+      showToast(`拉取到 ${res.data.length} 个模型，其中 ${res.data.length - res.data.filter((id) => !existing.has(id)).length} 个已存在`)
     } else {
       showToast(`导入失败：${res.error}`)
     }
@@ -228,7 +235,7 @@ function ModelsPanel({ provider, showToast }: { provider: Provider; showToast: (
     <div className="card">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
         <h3 style={{ margin: 0 }}>{provider.name} · 模型</h3>
-        <span className="spacer" style={{ flex: 1 }} />
+        <span style={{ flex: 1 }} />
         <button onClick={() => void importModels()} disabled={importing}>
           {importing ? '拉取中…' : '从上游导入模型'}
         </button>
@@ -335,31 +342,38 @@ function ModelEditForm({
 
   return (
     <div style={{ marginBottom: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8 }}>
-      <div className="form-grid" style={{ gridTemplateColumns: '110px 1fr' }}>
-        <label>model id</label>
-        <input value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="如 deepseek-chat" disabled={!!model} />
-
-        <label>显示名</label>
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="如 DeepSeek Chat" />
-
-        <label>上下文长度</label>
-        <input value={contextLength} onChange={(e) => setContextLength(e.target.value.replace(/\D/g, ''))} placeholder="128000（token 数，选填）" />
-
-        <label>能力</label>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 13 }}>
-            <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> 支持识图
-          </label>
-          <select value={speed} onChange={(e) => setSpeed(e.target.value as SpeedTier | '')} style={{ width: 100 }}>
-            <option value="">速度未标</option>
+      <div className="form-grid2">
+        <div className="field">
+          <label>model id</label>
+          <input value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="如 deepseek-chat" disabled={!!model} />
+        </div>
+        <div className="field">
+          <label>显示名</label>
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="如 DeepSeek Chat" />
+        </div>
+        <div className="field">
+          <label>上下文长度（token）</label>
+          <input value={contextLength} onChange={(e) => setContextLength(e.target.value.replace(/\D/g, ''))} placeholder="128000（选填）" />
+        </div>
+        <div className="field">
+          <label>速度档</label>
+          <select value={speed} onChange={(e) => setSpeed(e.target.value as SpeedTier | '')}>
+            <option value="">未标</option>
             <option value="fast">快</option>
             <option value="medium">中</option>
             <option value="slow">慢</option>
           </select>
         </div>
-
-        <label>备注</label>
-        <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="自由备注：擅长什么、价格、坑…" />
+        <div className="field">
+          <label>能力</label>
+          <label style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 13, color: 'var(--text)' }}>
+            <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> 支持识图
+          </label>
+        </div>
+        <div className="field" style={{ gridColumn: 'span 2' }}>
+          <label>备注</label>
+          <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="自由备注：擅长什么、价格、坑…" />
+        </div>
       </div>
       <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
         <button className="primary" onClick={() => void save()}>
@@ -368,5 +382,165 @@ function ModelEditForm({
         <button onClick={onDone}>取消</button>
       </div>
     </div>
+  )
+}
+
+/* ================= 语音引擎（课堂模式） ================= */
+
+function AsrCard() {
+  const showToast = useAppStore((s) => s.showToast)
+  const [status, setStatus] = useState<AsrStatus | null>(null)
+  const [modelDir, setModelDir] = useState('')
+  const [hotwords, setHotwords] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const reloadStatus = useCallback(async () => {
+    const res = await window.api.classroom.asrStatus()
+    if (res.ok) setStatus(res.data)
+  }, [])
+
+  useEffect(() => {
+    void reloadStatus()
+    void window.api.config.get('asr.model_dir').then((r) => {
+      if (r.ok && r.data) setModelDir(r.data)
+    })
+    void window.api.config.get('asr.hotwords').then((r) => {
+      if (r.ok && r.data) setHotwords(r.data)
+    })
+  }, [reloadStatus])
+
+  const pick = async (): Promise<void> => {
+    const dir = await window.api.classroom.pickModelDir().then((r) => (r.ok ? r.data : null))
+    if (dir) setModelDir(dir)
+  }
+
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    await window.api.config.set('asr.model_dir', modelDir.trim() || null)
+    await window.api.config.set('asr.hotwords', hotwords.trim() || null)
+    await reloadStatus()
+    setSaving(false)
+    showToast(status?.modelReady ? '语音引擎配置已保存' : '已保存（引擎仍需安装/模型文件才可用）')
+  }
+
+  return (
+    <>
+      <div className="section-title">语音引擎（课堂模式）</div>
+      <div className="card">
+        <div className="form-grid2">
+          <div className="field" style={{ gridColumn: 'span 2' }}>
+            <label>模型目录（sherpa-onnx 流式 zipformer，含 enc/dec/join .onnx 与 tokens.txt）</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={modelDir} onChange={(e) => setModelDir(e.target.value)} placeholder="如 D:\\models\\sherpa-onnx-streaming-zipformer-zh-en-2023-11-20" style={{ flex: 1 }} />
+              <button onClick={() => void pick()}>浏览…</button>
+            </div>
+          </div>
+          <div className="field" style={{ gridColumn: 'span 2' }}>
+            <label>热词表（每行一个，学科术语提升识别率；需 transducer 系模型）</label>
+            <textarea value={hotwords} onChange={(e) => setHotwords(e.target.value)} placeholder={'柯西中值定理\n哈密顿原理\n变分法'} style={{ minHeight: 72 }} />
+          </div>
+        </div>
+
+        <div style={{ marginTop: 10, fontSize: 13 }}>
+          {status === null ? (
+            <span className="muted">状态检查中…</span>
+          ) : status.installed ? (
+            <span style={{ color: '#15803d' }}>sherpa-onnx-node 已安装</span>
+          ) : (
+            <span style={{ color: '#b45309' }}>未安装 sherpa-onnx-node —— 在项目目录执行 npm install sherpa-onnx-node</span>
+          )}
+          {status?.modelDir && (
+            <span style={{ marginLeft: 12, color: status.modelReady ? '#15803d' : '#b45309' }}>
+              {status.modelReady ? `模型就绪（${status.modelDir}）` : `模型缺文件：${status.missingFiles.join('、')}`}
+            </span>
+          )}
+        </div>
+        <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+          模型下载：GitHub k2-fsa/sherpa-onnx 的 asr-models Release（推荐 streaming-zipformer 中英双语 int8 版，约几百 MB），解压后选目录即可。详见 README。
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <button className="primary" disabled={saving} onClick={() => void save()}>
+            {saving ? '保存中…' : '保存语音配置'}
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+/* ================= 数据与存储 ================= */
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+function StorageCard() {
+  const showToast = useAppStore((s) => s.showToast)
+  const [info, setInfo] = useState<StorageInfo | null>(null)
+
+  const reload = useCallback(async () => {
+    const res = await window.api.storage.info()
+    if (res.ok) setInfo(res.data)
+  }, [])
+
+  useEffect(() => {
+    void reload()
+  }, [reload])
+
+  const migrate = async (): Promise<void> => {
+    const dir = await window.api.storage.pickDir().then((r) => (r.ok ? r.data : null))
+    if (!dir) return
+    if (!window.confirm(`把全部数据（数据库 ${info ? formatBytes(info.dbSizeBytes) : ''}）迁移到：\n${dir}\n\n原位置文件保留作保险，确认后继续？`)) return
+    const res = await window.api.storage.migrate(dir)
+    if (res.ok) {
+      setInfo(res.data)
+      showToast(`已迁移到 ${res.data.dataDir}（建议重启应用）`)
+    } else {
+      showToast(`迁移失败：${res.error}`)
+    }
+  }
+
+  const reset = async (): Promise<void> => {
+    if (!window.confirm('恢复到默认存储位置（应用数据目录）？当前自定义目录的数据会复制回去并保留。')) return
+    const res = await window.api.storage.resetToDefault()
+    if (res.ok) {
+      setInfo(res.data)
+      showToast('已恢复默认位置（建议重启应用）')
+    } else {
+      showToast(`操作失败：${res.error}`)
+    }
+  }
+
+  return (
+    <>
+      <div className="section-title">数据与存储</div>
+      <div className="card">
+        <div className="form-grid2">
+          <div className="field" style={{ gridColumn: 'span 2' }}>
+            <label>数据目录（SQLite 数据库与后续附件所在）</label>
+            <input value={info?.dataDir ?? '读取中…'} readOnly style={{ background: '#fafafa' }} />
+          </div>
+          <div className="field">
+            <label>数据库文件</label>
+            <div className="muted" style={{ padding: '6px 0' }}>{info ? `${info.dbPath}（${formatBytes(info.dbSizeBytes)}）` : '—'}</div>
+          </div>
+          <div className="field">
+            <label>来源</label>
+            <div className="muted" style={{ padding: '6px 0' }}>{info ? (info.custom ? '自定义位置' : '应用默认（userData）') : '—'}</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          <button className="primary" onClick={() => void migrate()}>
+            更改存储位置…
+          </button>
+          {info?.custom && <button onClick={() => void reset()}>恢复默认位置</button>}
+        </div>
+        <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+          迁移过程：数据库自动检查点后复制到新目录，旧位置文件保留，确认无误后可手动删除。切换后建议重启应用。
+        </div>
+      </div>
+    </>
   )
 }

@@ -161,6 +161,15 @@ async function streamAnthropic(
   return full
 }
 
+/** 非流式补全（AI 整理等后台任务用）：内部走流式拼接，屏蔽两种格式差异 */
+export async function completeChat(
+  endpoint: LlmEndpoint,
+  model: string,
+  messages: LlmMessage[]
+): Promise<string> {
+  return streamChat(endpoint, model, messages, new AbortController().signal, { onChunk: () => undefined })
+}
+
 /* ---------------- 工具 ---------------- */
 
 function authHeaders(endpoint: LlmEndpoint): Record<string, string> {

@@ -45,6 +45,22 @@ export const IPC = {
   NotesAddSegment: 'notes:addSegment',
   NotesUpdateSegment: 'notes:updateSegment',
   NotesRemoveSegment: 'notes:removeSegment',
+  NotesOrganizeSegment: 'notes:organizeSegment',
+
+  /* 课堂模式（M1） */
+  ClassroomStart: 'classroom:start',
+  ClassroomStop: 'classroom:stop',
+  ClassroomFeedAudio: 'classroom:feedAudio', // 单向 send（高频音频块）
+  AsrStatus: 'asr:status',
+  AsrPickDir: 'asr:pickDir',
+
+  /* 配置与存储 */
+  ConfigGet: 'config:get',
+  ConfigSet: 'config:set',
+  StorageInfo: 'storage:info',
+  StoragePick: 'storage:pick',
+  StorageMigrate: 'storage:migrate',
+  StorageReset: 'storage:reset',
 
   /* 标注 */
   AnnotationsAdd: 'annotations:add',
@@ -67,11 +83,14 @@ export const IPC = {
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
-/** 流式事件通道（主进程 -> 渲染进程单向推送） */
+/** 流式/事件通道（主进程 -> 渲染进程单向推送） */
 export const IPC_EVENTS = {
   LlmChunk: 'llm:chunk',
   LlmDone: 'llm:done',
-  LlmError: 'llm:error'
+  LlmError: 'llm:error',
+  ClassroomPartial: 'classroom:partial',
+  ClassroomFinal: 'classroom:final',
+  SegmentOrganized: 'segment:organized'
 } as const
 
 export type IpcEventChannel = (typeof IPC_EVENTS)[keyof typeof IPC_EVENTS]

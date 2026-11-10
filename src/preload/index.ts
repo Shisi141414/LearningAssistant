@@ -11,7 +11,9 @@ import type {
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
   InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID,
-  Activity, ActivityInput, ActivityKind
+  Activity, ActivityInput, ActivityKind,
+  AsrStatus, ClassroomStartResult, ClassroomPartialEvent, ClassroomFinalEvent,
+  SegmentOrganizedEvent, StorageInfo
 } from '@shared/types'
 
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
@@ -45,7 +47,7 @@ const api = {
   notes: {
     list: (filter?: { subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note[]>(IPC.NotesList, filter),
     get: (id: ID) => invoke<NoteWithSegments>(IPC.NotesGet, id),
-    create: (input: { title: string; subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note>(IPC.NotesCreate, input),
+    create: (input: { title: string; subject_id?: ID | null; activity_id?: ID | null; source?: Note['source'] }) => invoke<Note>(IPC.NotesCreate, input),
     update: (id: ID, patch: { title?: string; subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note>(IPC.NotesUpdate, { id, ...patch }),
     remove: (id: ID) => invoke<boolean>(IPC.NotesRemove, id),
     addSegment: (input: { note_id: ID; seg_type?: SegmentType; raw_text?: string; organized_text?: string }) =>
@@ -58,6 +60,30 @@ const api = {
     add: (input: { segment_id: ID; kind: AnnotationKind; comment?: string }) => invoke<Annotation>(IPC.AnnotationsAdd, input),
     update: (id: ID, comment: string) => invoke<Annotation>(IPC.AnnotationsUpdate, { id, comment }),
     remove: (id: ID) => invoke<boolean>(IPC.AnnotationsRemove, id)
+  },
+  classroom: {
+    /** 返回 mode: 'asr'（语音就绪）| 'manual'（手动转写模式） */
+    start: (noteId: ID) => invoke<ClassroomStartResult>(IPC.ClassroomStart, noteId),
+    stop: () => invoke<boolean>(IPC.ClassroomStop),
+    /** 高频音频块：单向 send（16k 单声道 Int16 PCM） */
+    feedAudio: (pcm: Int16Array) => {
+      ipcRenderer.send(IPC.ClassroomFeedAudio, Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength))
+    },
+    asrStatus: () => invoke<AsrStatus>(IPC.AsrStatus),
+    pickModelDir: () => invoke<string | null>(IPC.AsrPickDir),
+    /** 触发段落 AI 整理（结果经 onSegmentOrganized 事件回推） */
+    organizeSegment: (segmentId: ID) => invoke<SegmentOrganizedEvent>(IPC.NotesOrganizeSegment, segmentId)
+  },
+  config: {
+    get: (key: string) => invoke<string | null>(IPC.ConfigGet, key),
+    set: (key: string, value: string | null) => invoke<boolean>(IPC.ConfigSet, key, value)
+  },
+  storage: {
+    info: () => invoke<StorageInfo>(IPC.StorageInfo),
+    pickDir: () => invoke<string | null>(IPC.StoragePick),
+    /** 迁移数据到新目录（旧数据保留作保险）；返回新的存储信息 */
+    migrate: (newDir: string) => invoke<StorageInfo>(IPC.StorageMigrate, newDir),
+    resetToDefault: () => invoke<StorageInfo>(IPC.StorageReset)
   },
   chat: {
     listSessions: () => invoke<ChatSession[]>(IPC.ChatListSessions),
@@ -76,7 +102,10 @@ const api = {
   /** 流式事件订阅（返回取消订阅函数） */
   onLlmChunk: (cb: (e: LlmChunkEvent) => void) => subscribe(IPC_EVENTS.LlmChunk, cb),
   onLlmDone: (cb: (e: LlmDoneEvent) => void) => subscribe(IPC_EVENTS.LlmDone, cb),
-  onLlmError: (cb: (e: LlmErrorEvent) => void) => subscribe(IPC_EVENTS.LlmError, cb)
+  onLlmError: (cb: (e: LlmErrorEvent) => void) => subscribe(IPC_EVENTS.LlmError, cb),
+  onClassroomPartial: (cb: (e: ClassroomPartialEvent) => void) => subscribe(IPC_EVENTS.ClassroomPartial, cb),
+  onClassroomFinal: (cb: (e: ClassroomFinalEvent) => void) => subscribe(IPC_EVENTS.ClassroomFinal, cb),
+  onSegmentOrganized: (cb: (e: SegmentOrganizedEvent) => void) => subscribe(IPC_EVENTS.SegmentOrganized, cb)
 }
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {

@@ -192,5 +192,16 @@ CREATE INDEX IF NOT EXISTS idx_notes_activity ON notes(activity_id);
 
 ALTER TABLE chat_sessions ADD COLUMN activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL;
 `
+  },
+  {
+    version: 3,
+    name: 'app_config',
+    sql: `
+-- 应用内 KV 配置（ASR 模型目录、热词等；数据目录本身存 userData/app-config.json 引导文件，见 services/db.ts）
+CREATE TABLE IF NOT EXISTS app_config (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`
   }
 ]

@@ -24,16 +24,20 @@
 
 **目标**：真实课堂可用的实时转写 + 段落整理。**本地优先**（用户确认）：转写默认走本地 Provider，完全离线可用。
 
-- ⚠️ 风险项前置（动工前两周内完成）：
-  - sherpa-onnx Windows 实测：zipformer-transducer（支持热词）vs Paraformer（精度高）的 CER、延迟、热词效果对比（力学术语表测试）
-  - 讯飞/阿里 Key 申请（云端备选 Provider）
-- AsrProvider 抽象 + LocalAsrProvider（默认，sherpa-onnx 流式，模型按需下载）+ CloudAsrProvider（可选，讯飞 WebAPI）
-- 2-pass 转写管线：流式 partial 实时上屏 + VAD 切段离线精转 final 替换（飞书妙记式动态修正，参考 cueflow #2150）
-- 课堂页：实时转写流显示（原文视图即时滚动）；标注在转写流上即时插入
-- 转写→分段→AI 整理流水线：段落级纠改、seg_type 分类着色、公式规整；**无网降级**：保留原文，联网后补整理
-- 双视图切换 UI 完善
-- 图片上传 + vision 模型识别归位（依赖 supports_vision 模型）
-- 快速提问面板（选中即问）
+**M1a 已完成（2026-11-10）**：
+- 课堂页：setup（挂学科/活动、ASR 就绪检查）→ live（转写流+partial 实时行、段落分色、双视图、段落级标注、手动转写输入——无引擎时降级手动模式，管线一致）
+- 本地 ASR：sherpa-onnx-node（optionalDependencies，v2.0.1）+ 流式 zipformer；端点检测自动断句；热词表；麦克风采集（渲染进程 16k PCM → IPC 喂数）
+- AI 整理管线：final 落段 → 自动 LLM 整理（分类 seg_type + 纠错 + LaTeX 规整，JSON 容错解析），失败回退原文（ADR-0 降级）
+- 语音引擎设置卡（模型目录/热词/安装状态）+ 数据与存储卡（自定义存储位置、迁移、恢复默认）
+- migration 003：app_config KV；引导配置 userData/app-config.json（数据目录存库外）
+
+**M1b 待办**：
+- ⚠️ Windows 真机验证：sherpa-onnx 2.0.1 API 兼容性、zipformer-transducer（热词）vs Paraformer（精度）实测、延迟调优
+- 2-pass 精转修正（流式 partial + VAD 离线 final 替换，飞书妙记式，参考 cueflow #2150）
+- 讯飞云端 Provider（Key 申请）
+- 模型自动下载器（GitHub Release 拉取解压）
+- 图片上传 + vision 模型识别归位
+- 课堂页快速提问面板
 
 ## M2 — 知识网络与预回答
 

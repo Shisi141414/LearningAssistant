@@ -12,7 +12,9 @@ export default defineConfig({
     },
     build: {
       rollupOptions: {
-        input: { index: resolve(__dirname, 'src/main/index.ts') }
+        input: { index: resolve(__dirname, 'src/main/index.ts') },
+        // 可选原生依赖（VM 构建机不安装，运行时动态加载；不声明则 rolldown 试图打包而失败）
+        external: ['sherpa-onnx-node']
       }
     }
   },

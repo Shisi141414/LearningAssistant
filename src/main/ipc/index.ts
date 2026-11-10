@@ -7,6 +7,8 @@ import { registerProvidersIpc } from './providers.ipc'
 import { registerNotesIpc } from './notes.ipc'
 import { registerChatIpc } from './chat.ipc'
 import { registerInspirationsIpc } from './inspirations.ipc'
+import { registerClassroomIpc } from './classroom.ipc'
+import { registerConfigIpc } from './config.ipc'
 
 export function registerAllIpc(): void {
   registerSubjectsIpc()
@@ -15,4 +17,6 @@ export function registerAllIpc(): void {
   registerNotesIpc()
   registerChatIpc()
   registerInspirationsIpc()
+  registerClassroomIpc()
+  registerConfigIpc()
 }

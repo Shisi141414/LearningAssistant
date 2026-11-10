@@ -10,6 +10,7 @@ import { NoteDetail } from './pages/NoteDetail'
 import { ActivitiesPage } from './pages/ActivitiesPage'
 import { ActivityDetail } from './pages/ActivityDetail'
 import { ChatPage } from './pages/ChatPage'
+import { ClassroomPage } from './pages/ClassroomPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InspirationPage } from './pages/InspirationPage'
 import { Placeholder } from './pages/Placeholder'
@@ -48,7 +49,7 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/classroom" element={<Placeholder title="课堂模式" stage="M1" desc="实时语音转写、双视图整理、转写流标注、图片识别归位。架构与接口已预留（见 docs/02-architecture.md），下一阶段实现。" />} />
+        <Route path="/classroom" element={<ClassroomPage />} />
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/notes/:noteId" element={<NoteDetail />} />
         <Route path="/activities" element={<ActivitiesPage />} />

@@ -78,7 +78,7 @@ db.prepare('INSERT INTO chat_messages (id, session_id, role, content, context_js
 const msgBack = db.prepare("SELECT role FROM chat_messages WHERE id = 'msg-1'").get() as { role: string }
 assert(msgBack.role === 'user', '会话消息写入正常')
 
-console.log('7. 迁移版本与活动实体（002）')
+console.log('7. 迁移版本与活动实体（002）+ 应用配置（003）')
 const uv = db.pragma('user_version', { simple: true }) as number
 assert(uv === MIGRATIONS[MIGRATIONS.length - 1].version, `user_version = ${uv}（等于最新迁移版本）`)
 const activityTables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='activities'").all() as unknown[]).length
@@ -87,6 +87,11 @@ const notesActivityCol = (db.prepare("SELECT 1 FROM pragma_table_info('notes') W
 assert(notesActivityCol === 1, 'notes.activity_id 列已添加')
 const chatActivityCol = (db.prepare("SELECT 1 FROM pragma_table_info('chat_sessions') WHERE name='activity_id'").all() as unknown[]).length
 assert(chatActivityCol === 1, 'chat_sessions.activity_id 列已添加')
+const cfgTables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='app_config'").all() as unknown[]).length
+assert(cfgTables === 1, 'app_config 表已创建（003 迁移）')
+db.prepare('INSERT INTO app_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run('asr.model_dir', 'D:/models/zipformer')
+const cfgBack = (db.prepare("SELECT value FROM app_config WHERE key = 'asr.model_dir'").get() as { value: string }).value
+assert(cfgBack === 'D:/models/zipformer', 'app_config upsert 写读正常')
 
 console.log('8. 活动链路（活动→笔记挂载→删除活动笔记保留）')
 db.prepare('INSERT INTO activities (id, title, kind, happened_at, subject_id, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run('act-1', '力学前沿讲座', 'lecture', Date.now(), subjId, '', Date.now())

@@ -39,6 +39,18 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 >
 > （详见 docs/01-research.md §1.2）
 
+## 语音引擎（课堂模式）
+
+课堂实时转写走本地引擎（离线优先），首次使用：
+
+1. `npm install`（自动安装可选依赖 sherpa-onnx-node 及平台二进制）
+2. 下载流式中英双语模型：GitHub `k2-fsa/sherpa-onnx` 的 **asr-models** Release 页，推荐
+   `sherpa-onnx-streaming-zipformer-zh-en-2023-11-20`（选带 `int8` 的压缩包，约几百 MB），解压到任意目录
+3. 应用内：设置 → 语音引擎 → 模型目录选择解压目录 → 保存（状态应显示"模型就绪"）
+4. 课堂页 → 开始课堂 → 🎤 开始录音
+
+推荐同时填写热词表（每行一个学科术语，如"柯西中值定理"），可显著提升专有名词识别率（需 transducer 系模型）。
+
 ## 文档
 
 - [产品总览](docs/00-overview.md)

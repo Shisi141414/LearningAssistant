@@ -233,8 +233,8 @@ function buildContextText(refs: ContextRef[]): string {
   return parts.join('\n\n---\n\n')
 }
 
-/** 模型选择：指定 id > 第一个启用供应商下的第一个模型 */
-function pickModel(modelDbId: ID | null): { provider_id: string; model_id: string; display_name: string } {
+/** 模型选择：指定 id > 第一个启用供应商下的第一个模型（organize 等后台任务复用） */
+export function pickModel(modelDbId: ID | null): { provider_id: string; model_id: string; display_name: string } {
   const db = getDb()
   if (modelDbId) {
     const m = db.prepare(
