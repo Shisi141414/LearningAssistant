@@ -170,6 +170,72 @@ export async function completeChat(
   return streamChat(endpoint, model, messages, new AbortController().signal, { onChunk: () => undefined })
 }
 
+/* ---------------- 识图（vision 多模态） ---------------- */
+
+export interface VisionImage {
+  /** 如 image/png */
+  mime: string
+  base64: string
+}
+
+/**
+ * 识图测试/图片识别归位（M1b）用：一张图 + 一句指令。
+ * openai 格式：content 数组 image_url(data: URL)；anthropic 格式：image block base64 source。
+ */
+export async function completeVision(
+  endpoint: LlmEndpoint,
+  model: string,
+  prompt: string,
+  image: VisionImage
+): Promise<string> {
+  const { default: OpenAI } = await import('openai')
+
+  if (endpoint.api_format === 'anthropic') {
+    const res = await fetch(joinUrl(endpoint.base_url, '/messages'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': endpoint.apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 1024,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: image.mime, data: image.base64 } },
+              { type: 'text', text: prompt }
+            ]
+          }
+        ]
+      }),
+      signal: AbortSignal.timeout(60_000)
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${await safeText(res)}`)
+    const json = (await res.json()) as { content?: Array<{ text?: string }> }
+    return (json.content ?? []).map((c) => c.text ?? '').join('').trim()
+  }
+
+  // openai 兼容格式（DeepSeek-VL/Qwen-VL/GLM-4V/GPT-4o 等）
+  const client = new OpenAI({ baseURL: endpoint.base_url, apiKey: endpoint.apiKey, timeout: 60_000 })
+  const res = await client.chat.completions.create({
+    model,
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: `data:${image.mime};base64,${image.base64}` } }
+        ]
+      }
+    ]
+  })
+  return (res.choices[0]?.message?.content ?? '').trim()
+}
+
 /* ---------------- 工具 ---------------- */
 
 function authHeaders(endpoint: LlmEndpoint): Record<string, string> {

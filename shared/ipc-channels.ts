@@ -62,6 +62,12 @@ export const IPC = {
   StorageMigrate: 'storage:migrate',
   StorageReset: 'storage:reset',
 
+  /* 功能自检（诊断） */
+  DiagnosticsAsr: 'diag:asr',
+  DiagnosticsChat: 'diag:chat',
+  DiagnosticsOrganize: 'diag:organize',
+  DiagnosticsVision: 'diag:vision',
+
   /* 标注 */
   AnnotationsAdd: 'annotations:add',
   AnnotationsUpdate: 'annotations:update',

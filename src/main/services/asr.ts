@@ -141,6 +141,54 @@ class AsrService {
     this.events = null
     this.lastText = ''
   }
+
+  /** 整段识别（自检用）：喂完全部样本后取完整结果，不动端点状态。
+   *  需先 start()；复用课堂单例引擎，避免模型重复加载（enc int8 约 180MB）。 */
+  recognizeSamples(samples: Float32Array): string {
+    if (!this.recognizer || !this.stream) throw new Error('识别引擎未启动')
+    const CHUNK = 4000 // 与课堂实时喂入粒度一致
+    for (let i = 0; i < samples.length; i += CHUNK) {
+      this.stream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples: samples.subarray(i, i + CHUNK) })
+      while (this.recognizer.isReady(this.stream)) this.recognizer.decode(this.stream)
+    }
+    const text = this.recognizer.getResult(this.stream).text.trim()
+    this.recognizer.reset(this.stream)
+    this.lastText = ''
+    return text
+  }
+}
+
+/** 解析 PCM WAV（RIFF）为 { sampleRate, samples }。仅支持未压缩 PCM（sherpa 官方 test_wavs 即此格式）。 */
+export function parseWav(buf: Buffer): { sampleRate: number; samples: Float32Array } {
+  if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') {
+    throw new Error('不是合法 WAV 文件')
+  }
+  let offset = 12
+  let sampleRate = SAMPLE_RATE
+  let bitsPerSample = 16
+  let channels = 1
+  let data: Buffer | null = null
+  while (offset + 8 <= buf.length) {
+    const id = buf.toString('ascii', offset, offset + 4)
+    const size = buf.readUInt32LE(offset + 4)
+    if (id === 'fmt ') {
+      channels = buf.readUInt16LE(offset + 10)
+      sampleRate = buf.readUInt32LE(offset + 12)
+      bitsPerSample = buf.readUInt16LE(offset + 22)
+    } else if (id === 'data') {
+      data = buf.subarray(offset + 8, offset + 8 + size)
+      break
+    }
+    offset += 8 + size + (size % 2)
+  }
+  if (!data) throw new Error('WAV 缺少 data 块')
+  if (bitsPerSample !== 16) throw new Error(`仅支持 16bit PCM（实际 ${bitsPerSample}bit）`)
+  const i16 = new Int16Array(data.buffer, data.byteOffset, Math.floor(data.byteLength / 2))
+  // 立体声简单取左声道；采样率与引擎不同时直接按原样喂入（zipformer 特征提取按配置采样率，16k 模型遇非 16k 音频会在 asr:status 引导用户）
+  const take = channels > 1 ? (n: number) => i16[n * channels] : (n: number) => i16[n]
+  const samples = new Float32Array(Math.floor(i16.length / channels))
+  for (let i = 0; i < samples.length; i++) samples[i] = take(i) / 32768
+  return { sampleRate, samples }
 }
 
 export const asrService = new AsrService()

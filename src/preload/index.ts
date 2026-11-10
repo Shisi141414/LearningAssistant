@@ -13,7 +13,8 @@ import type {
   InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID,
   Activity, ActivityInput, ActivityKind,
   AsrStatus, ClassroomStartResult, ClassroomPartialEvent, ClassroomFinalEvent,
-  SegmentOrganizedEvent, StorageInfo
+  SegmentOrganizedEvent, StorageInfo,
+  DiagAsrResult, DiagChatResult, DiagOrganizeResult, DiagVisionResult
 } from '@shared/types'
 
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
@@ -84,6 +85,12 @@ const api = {
     /** 迁移数据到新目录（旧数据保留作保险）；返回新的存储信息 */
     migrate: (newDir: string) => invoke<StorageInfo>(IPC.StorageMigrate, newDir),
     resetToDefault: () => invoke<StorageInfo>(IPC.StorageReset)
+  },
+  diag: {
+    asr: () => invoke<DiagAsrResult>(IPC.DiagnosticsAsr),
+    chat: () => invoke<DiagChatResult>(IPC.DiagnosticsChat),
+    organize: () => invoke<DiagOrganizeResult>(IPC.DiagnosticsOrganize),
+    vision: () => invoke<DiagVisionResult>(IPC.DiagnosticsVision)
   },
   chat: {
     listSessions: () => invoke<ChatSession[]>(IPC.ChatListSessions),

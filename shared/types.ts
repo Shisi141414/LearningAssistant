@@ -347,3 +347,32 @@ export interface StorageInfo {
   dbSizeBytes: number
   custom: boolean
 }
+
+/* ---------- 功能自检（诊断） ---------- */
+
+export interface DiagAsrResult {
+  /** 模型目录 test_wavs 里被识别的文件名 */
+  wavFile: string
+  text: string
+  latencyMs: number
+}
+
+export interface DiagChatResult {
+  reply: string
+  model: string
+  latencyMs: number
+}
+
+export interface DiagOrganizeResult {
+  seg_type: SegmentType
+  organized_text: string
+  fallback: boolean
+  model: string
+  latencyMs: number
+}
+
+export interface DiagVisionResult {
+  reply: string
+  model: string
+  latencyMs: number
+}

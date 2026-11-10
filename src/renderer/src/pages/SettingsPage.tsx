@@ -7,6 +7,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Provider, ProviderInput, ModelInfo, ApiFormat, SpeedTier, AsrStatus, StorageInfo } from '@shared/types'
 import { PROVIDER_PRESETS } from '@shared/presets'
+import { chunkText } from '@shared/textChunk'
+import { DIAG_CHUNK_SAMPLE } from '@shared/diagSamples'
 import { useAppStore } from '../stores/app'
 
 type ProviderTestState = Record<string, 'testing' | { ok: boolean; latencyMs: number; error?: string }>
@@ -118,7 +120,157 @@ export function SettingsPage() {
 
       <AsrCard />
       <StorageCard />
+      <DiagnosticsCard />
     </div>
+  )
+}
+
+/* ================= 功能自检 ================= */
+
+type DiagState = { running: boolean; ok?: boolean; text?: string }
+
+function DiagRow({
+  title,
+  desc,
+  state,
+  onRun,
+  disabled
+}: {
+  title: string
+  desc: string
+  state: DiagState
+  onRun: () => void
+  disabled?: boolean
+}) {
+  return (
+    <div className="row-item" style={{ alignItems: 'flex-start' }}>
+      <div className="grow">
+        <div style={{ fontWeight: 700 }}>{title}</div>
+        <div className="meta" style={{ marginBottom: 4 }}>{desc}</div>
+        {state.text && (
+          <div
+            style={{
+              fontSize: 12.5,
+              lineHeight: 1.6,
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: state.ok ? '#f0fdf4' : '#fef2f2',
+              color: state.ok ? '#166534' : '#b91c1c',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              maxHeight: 160,
+              overflowY: 'auto'
+            }}
+          >
+            {state.text}
+          </div>
+        )}
+      </div>
+      <button disabled={state.running || disabled} onClick={onRun} style={{ minWidth: 88 }}>
+        {state.running ? '测试中…' : '运行测试'}
+      </button>
+    </div>
+  )
+}
+
+function DiagnosticsCard() {
+  const [asr, setAsr] = useState<DiagState>({})
+  const [chat, setChat] = useState<DiagState>({})
+  const [organize, setOrganize] = useState<DiagState>({})
+  const [vision, setVision] = useState<DiagState>({})
+  const [chunk, setChunk] = useState<DiagState>({})
+
+  const wrap = async (setter: (s: DiagState) => void, fn: () => Promise<string>): Promise<void> => {
+    setter({ running: true })
+    try {
+      const text = await fn()
+      setter({ running: false, ok: true, text })
+    } catch (e) {
+      setter({ running: false, ok: false, text: e instanceof Error ? e.message : String(e) })
+    }
+  }
+
+  return (
+    <>
+      <div className="section-title">功能自检</div>
+      <div className="card">
+        <div className="muted" style={{ marginBottom: 10 }}>
+          逐项验证各能力链路（引擎加载、模型服务、整理管线、识图、切块），排查配置问题。语音链路用模型自带测试音频，不经过麦克风——麦克风需在课堂页实测。
+        </div>
+        <div className="row-list">
+          <DiagRow
+            title="① 语音识别（本地引擎）"
+            desc="加载 sherpa-onnx 引擎并转写模型自带的测试音频，验证模型目录完整性与引擎可用"
+            state={asr}
+            onRun={() =>
+              void wrap(setAsr, async () => {
+                const r = await window.api.diag.asr()
+                if (!r.ok) throw new Error(r.error)
+                return `识别文件：${r.data.wavFile}\n耗时：${r.data.latencyMs}ms（含引擎加载）\n识别结果：${r.data.text || '（空）'}`
+              })
+            }
+          />
+          <DiagRow
+            title="② 文本对话（LLM 服务）"
+            desc="向默认模型发送最小补全请求，验证供应商 baseURL / API Key / 网络"
+            state={chat}
+            onRun={() =>
+              void wrap(setChat, async () => {
+                const r = await window.api.diag.chat()
+                if (!r.ok) throw new Error(r.error)
+                return `模型：${r.data.model}\n耗时：${r.data.latencyMs}ms\n回复：${r.data.reply.slice(0, 100)}`
+              })
+            }
+          />
+          <DiagRow
+            title="③ 笔记整理（转写→分类纠错管线）"
+            desc="用含同音错字的固定样例（"科西中值定理…"）走完整整理管线，应返回 JSON 分类与纠错文本"
+            state={organize}
+            onRun={() =>
+              void wrap(setOrganize, async () => {
+                const r = await window.api.diag.organize()
+                if (!r.ok) throw new Error(r.error)
+                return `模型：${r.data.model} · 耗时 ${r.data.latencyMs}ms · 分类：${r.data.seg_type}${r.data.fallback ? '（回退原文）' : ''}\n整理结果：${r.data.organized_text.slice(0, 300)}`
+              })
+            }
+          />
+          <DiagRow
+            title="④ 识图（vision 多模态）"
+            desc="发送内嵌 64×64 红色方块图给第一个识图模型，应回答"红色"类描述"
+            state={vision}
+            onRun={() =>
+              void wrap(setVision, async () => {
+                const r = await window.api.diag.vision()
+                if (!r.ok) throw new Error(r.error)
+                return `模型：${r.data.model} · 耗时 ${r.data.latencyMs}ms\n回答：${r.data.reply}`
+              })
+            }
+          />
+          <DiagRow
+            title="⑤ 文件切分（知识库切块器）"
+            desc="本地运行（不联网）：把样例教材文本按标题/段落切块，预览块结构"
+            state={chunk}
+            onRun={() => {
+              setChunk({ running: true })
+              // 纯共享逻辑，渲染层直接跑（同步计算，微任务展示）
+              setTimeout(() => {
+                const chunks = chunkText(DIAG_CHUNK_SAMPLE)
+                const sizes = chunks.map((c) => c.text.length)
+                setChunk({
+                  running: false,
+                  ok: true,
+                  text: `共 ${chunks.length} 块（长度 ${Math.min(...sizes)}~${Math.max(...sizes)} 字符）\n` +
+                    chunks
+                      .slice(0, 4)
+                      .map((c, i) => `[${i + 1}] ${c.heading || '（无标题）'}：${c.text.slice(0, 40)}…`)
+                      .join('\n')
+                })
+              }, 30)
+            }}
+          />
+        </div>
+      </div>
+    </>
   )
 }
 
