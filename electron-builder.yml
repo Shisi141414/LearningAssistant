@@ -1,0 +1,15 @@
+# electron-builder 打包配置（M5 打磨期再细化）
+appId: cn.tsinghua.learningassistant
+productName: LearningAssistant
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+win:
+  target:
+    - nsis
+  # icon: resources/icon.ico  # M5 补图标
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

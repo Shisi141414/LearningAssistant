@@ -1,0 +1,42 @@
+{
+  "name": "learning-assistant",
+  "productName": "LearningAssistant",
+  "version": "0.1.0",
+  "description": "面向大学生的 AI 学习助手桌面应用",
+  "main": "./out/main/index.js",
+  "author": "hhq & claude",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "build:win": "electron-vite build && electron-builder --win",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "nanoid": "^6.0.2",
+    "openai": "^7.54.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.1",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.7"
+  }
+}

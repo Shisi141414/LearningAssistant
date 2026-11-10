@@ -1,0 +1,16 @@
+# 依赖
+node_modules/
+
+# 构建产物
+out/
+dist/
+out-tmp/
+*.tsbuildinfo
+
+# 日志与本地文件
+*.log
+.DS_Store
+
+# 环境与密钥（不应入库）
+.env
+.env.*
