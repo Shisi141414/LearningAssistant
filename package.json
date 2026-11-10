@@ -38,5 +38,9 @@
     "electron-vite": "^6.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.7"
+  },
+  "allowScripts": {
+    "electron@45.2.3": true,
+    "better-sqlite3@13.0.3": true
   }
 }
