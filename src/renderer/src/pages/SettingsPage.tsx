@@ -224,7 +224,7 @@ function DiagnosticsCard() {
           />
           <DiagRow
             title="③ 笔记整理（转写→分类纠错管线）"
-            desc="用含同音错字的固定样例（"科西中值定理…"）走完整整理管线，应返回 JSON 分类与纠错文本"
+            desc="用含同音错字的固定样例（科西中值定理样例）走完整整理管线，应返回 JSON 分类与纠错文本"
             state={organize}
             onRun={() =>
               void wrap(setOrganize, async () => {
@@ -236,7 +236,7 @@ function DiagnosticsCard() {
           />
           <DiagRow
             title="④ 识图（vision 多模态）"
-            desc="发送内嵌 64×64 红色方块图给第一个识图模型，应回答"红色"类描述"
+            desc="发送内嵌 64×64 红色方块图给第一个识图模型，应回答红色类描述"
             state={vision}
             onRun={() =>
               void wrap(setVision, async () => {
