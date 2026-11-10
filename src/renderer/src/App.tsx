@@ -4,6 +4,7 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { Layout } from './app/Layout'
+import { ErrorBoundary } from './app/ErrorBoundary'
 import { Dashboard } from './pages/Dashboard'
 import { NotesPage } from './pages/NotesPage'
 import { NoteDetail } from './pages/NoteDetail'
@@ -47,7 +48,8 @@ export default function App() {
 
   return (
     <Layout>
-      <Routes>
+      <ErrorBoundary>
+        <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/classroom" element={<ClassroomPage />} />
         <Route path="/notes" element={<NotesPage />} />
@@ -61,7 +63,8 @@ export default function App() {
         <Route path="/review" element={<Placeholder title="作业与复习" stage="M4" desc="learnx 作业同步、FSRS 遗忘曲线复习调度、桌面小组件。" />} />
         <Route path="/inspirations" element={<InspirationPage />} />
         <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
+        </Routes>
+      </ErrorBoundary>
     </Layout>
   )
 }
