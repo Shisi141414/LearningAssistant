@@ -30,7 +30,14 @@ npm run build          # 构建
 npm run build:win      # 打包 Windows 安装包（NSIS）
 ```
 
-> Windows 首次运行 `npm run dev` 若报 `NODE_MODULE_VERSION mismatch`，执行 `npm run rebuild` 即可（需要 Python 3 与 VS Build Tools；见 docs/01-research.md §1.2）。
+> **Windows 首次运行排坑**
+>
+> 1. `npm run dev` 报 `Error: Electron uninstall`：npm 12+ 的安装脚本白名单拦截了 electron 的 postinstall，二进制没下载。执行
+>    `npm install-scripts approve electron better-sqlite3`，然后
+>    `$env:ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"; node node_modules\electron\install.js`
+> 2. 报 `NODE_MODULE_VERSION mismatch`：执行 `npm run rebuild`（重编译 better-sqlite3 为 Electron ABI，需要 Python 3 与 VS Build Tools）
+>
+> （详见 docs/01-research.md §1.2）
 
 ## 文档
 
