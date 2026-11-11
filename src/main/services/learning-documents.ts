@@ -73,17 +73,22 @@ export function prepareLearningDocument(versionId: string): Promise<LearningDocu
   preparing.set(versionId, { promise, stop })
   return promise
 }
-export function changeLearningDocument(change: LearningChange): LearningDocument {
-  editableVersion(change.version_id)
+export function publishLearningRevision(document: LearningDocument, state: LearningState): LearningDocument {
+  editableVersion(document.version_id)
   return getDb().transaction(() => {
-    const document = getLearningDocument({ version_id: change.version_id })
-    if (!document) throw new Error('请先建立学习文档')
-    if (document.current_revision_id !== change.expected_revision_id) throw new Error('学习文档已有更新，请刷新当前修订后再修改')
-    const state: LearningState = changeLearningState(document.state, document.sources, change, nanoid)
+    const row = getDb().prepare('SELECT current_revision_id FROM learning_documents WHERE id = ? AND version_id = ?').get(document.id, document.version_id) as { current_revision_id: string } | undefined
+    if (row?.current_revision_id !== document.current_revision_id) throw new Error('学习文档已有更新，请刷新当前修订后再修改')
+    validateLearningState(state, document.sources)
     const revision = nanoid()
     getDb().prepare('INSERT INTO learning_revisions (id, document_id, parent_revision_id, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?)').run(revision, document.id, document.current_revision_id, JSON.stringify(state), Date.now())
     getDb().prepare('UPDATE learning_documents SET current_revision_id = ? WHERE id = ? AND current_revision_id = ?').run(revision, document.id, document.current_revision_id)
-    return getLearningDocument({ version_id: change.version_id })!
+    return getLearningDocument({ version_id: document.version_id })!
   })()
+}
+export function changeLearningDocument(change: LearningChange): LearningDocument {
+  const document = getLearningDocument({ version_id: change.version_id })
+  if (!document) throw new Error('请先建立学习文档')
+  if (document.current_revision_id !== change.expected_revision_id) throw new Error('学习文档已有更新，请刷新当前修订后再修改')
+  return publishLearningRevision(document, changeLearningState(document.state, document.sources, change, nanoid))
 }
 export function stopLearningPreparation(): void { stopping = true; for (const pending of [...preparing.values()]) pending.stop() }

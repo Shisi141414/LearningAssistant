@@ -21,8 +21,9 @@ export function validateLearningState(state: LearningState, sourceList: Learning
   const coverage = new Map<string, [number, number][]>()
   let lastOrdinal = -1, lastEnd = -1
   for (const entry of state.entries) {
-    if (!entry.id || ids.has(entry.id) || !Object.hasOwn(learningTypes, entry.type) || entry.title.length > 500 || !entry.sources.length) throw new Error('条目 ID、类型、标题或来源不合法')
+    if (!entry.id || ids.has(entry.id) || !Object.hasOwn(learningTypes, entry.type) || entry.title.length > 500 || entry.title.includes('\0') || !entry.sources.length) throw new Error('条目 ID、类型、标题或来源不合法')
     ids.add(entry.id)
+    if (!['extracted', 'manual', 'ai'].includes(entry.analysis.method) || !['unreviewed', 'confirmed'].includes(entry.analysis.review_status) || entry.analysis.method === 'ai' && !entry.analysis.model.trim()) throw new Error('条目整理来源或模型标识缺失')
     for (const ref of entry.sources) {
       const source = sources.get(ref.source_id)
       if (!source) throw new Error('条目引用的来源不存在')
@@ -43,7 +44,7 @@ export function validateLearningState(state: LearningState, sourceList: Learning
   const byId = new Map(state.entries.map(e => [e.id, e])), related = new Set<string>()
   for (const relation of state.relations) {
     const from = byId.get(relation.from), to = byId.get(relation.to)
-    if (!from || !to || from.id === to.id || related.has(from.id) || !relationAllowed(from.type, to.type) || relation.type !== (from.type === 'proof' ? 'proves' : 'solves')) throw new Error('证明/解答的关联目标或方向无效')
+    if (!from || !to || from.id === to.id || related.has(from.id) || !relationAllowed(from.type, to.type) || !['unreviewed', 'confirmed'].includes(relation.review_status) || relation.type !== (from.type === 'proof' ? 'proves' : 'solves')) throw new Error('证明/解答的关联目标或方向无效')
     related.add(from.id)
   }
 }

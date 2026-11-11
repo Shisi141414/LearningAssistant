@@ -63,6 +63,8 @@ const broken = path.join(source, '损坏.docx'); fs.writeFileSync(broken, 'not a
 let selectedFile
 const opened = []
 const problems = []
+let semanticServer
+app.on('before-quit',()=>{semanticServer?.closeAllConnections();semanticServer?.close()})
 class HiddenWindow extends electron.BrowserWindow {
   constructor(options) { super({ ...options, webPreferences: { ...options.webPreferences, backgroundThrottling: false, offscreen: true } }) }
   show() {}
@@ -117,6 +119,10 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const savedAi = JSON.parse(fs.readFileSync(path.join(root, 'learning-ai-test.json'), 'utf8'))
+        assert.equal((await call('learning','get',{version_id:savedAi.version})).state.entries[0].analysis.method,'ai')
+        assert.equal((await call('learning','suggestGet',savedAi.interrupted)).status,'cancelled')
+        assert.match((await call('learning','suggestGet',savedAi.interrupted)).error,/未自动发送/)
         const savedLearning = JSON.parse(fs.readFileSync(path.join(root, 'learning-test.json'), 'utf8'))
         const learning = await call('learning', 'get', { version_id: savedLearning.version })
         assert.equal(learning.state.entries[0].title, '基础力学定理')
@@ -335,6 +341,50 @@ app.on('browser-window-created', (_event, win) => {
       assert.deepEqual(slideSources.sources.map(s=>JSON.parse(s.locator_json).slide), [1,2])
       assert.match(slideSources.sources[0].raw_text, /First slide/)
       console.log('LEARNING_TEST_OK canonical sources, blank page, actual editor, semantic split, type filter, relations, history, concept links and original classroom references')
+      // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
+      let semanticMode='valid', semanticRequests=0
+      semanticServer=require('node:http').createServer(async(req,res)=>{
+        let body='';for await(const chunk of req)body+=chunk
+        const request=JSON.parse(body),fragments=JSON.parse(request.messages.find(m=>m.role==='user').content)
+        semanticRequests++
+        res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders()
+        const value=semanticMode==='bad'?{entries:[],relations:[]}:{entries:[{start:fragments[0].id,end:fragments.at(-1).id,type:'theorem',title:'牛顿第二定律'}],relations:[]}
+        res.write('data: '+JSON.stringify({choices:[{index:0,delta:{content:semanticMode==='hold'?'{':JSON.stringify(value)}}]})+'\n\n')
+        if(semanticMode!=='hold')res.end('data: [DONE]\n\n')
+      })
+      await new Promise(resolve=>semanticServer.listen(0,'127.0.0.1',resolve))
+      const semanticProvider=await call('providers','save',{name:'本地模拟语义模型',base_url:`http://127.0.0.1:${semanticServer.address().port}/v1`,api_format:'openai',api_key:'local-test-key',enabled:true})
+      await call('models','save',{provider_id:semanticProvider.id,model_id:'local-semantic-model'})
+      await win.webContents.executeJavaScript(`location.hash='/library?material=${sourceDocMaterial.id}&version=${sourceDocMaterial.current_version_id}'`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'AI 学习文档入口')
+      await click('学习文档')
+      await waitUi(`!!document.querySelector('.learning-suggestions')`,'AI 建议入口')
+      await win.webContents.executeJavaScript(`document.querySelector('.learning-suggestions').open=true`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='生成本批建议（发送文字）'&&!b.disabled)`,'选择本地语义模型')
+      await click('生成本批建议（发送文字）')
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='采纳为新修订'&&!b.disabled)`,'AI 候选预览')
+      assert.equal((await call('learning','get',{version_id:sourceDocMaterial.current_version_id})).revision_id,docSources.revision_id,'生成不能发布修订')
+      assert.match(await win.webContents.executeJavaScript(`document.querySelector('.learning-suggestion-result').textContent`),/牛顿第二定律/)
+      fs.writeFileSync(path.join(root,'learning-ai-preview.png'),(await captureRendered(win)).toPNG())
+      await click('采纳为新修订')
+      await waitUi(`document.querySelector('.learning-reader')?.textContent.includes('AI 建议 · 已核对')`,'采纳为新修订')
+      const aiPublished=await call('learning','get',{version_id:sourceDocMaterial.current_version_id})
+      assert.notEqual(aiPublished.revision_id,docSources.revision_id)
+      semanticMode='hold'
+      await click('生成本批建议（发送文字）')
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='取消 AI 生成')`,'可取消的 AI 任务')
+      await click('取消 AI 生成')
+      await waitUi(`document.querySelector('.learning-suggestion-result')?.textContent.includes('已取消')`,'取消 AI 生成保留文档')
+      await new Promise(r=>setTimeout(r,100));semanticMode='bad'
+      await click('生成本批建议（发送文字）')
+      await waitUi(`document.querySelector('.learning-suggestion-result')?.textContent.includes('生成失败')`,'模型坏输出被拒绝')
+      assert.equal((await call('learning','get',{version_id:sourceDocMaterial.current_version_id})).revision_id,aiPublished.revision_id)
+      const interrupted=(await call('learning','suggestList',sourceDocMaterial.current_version_id))[0].id
+      const suggestionDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
+      suggestionDb.prepare("UPDATE learning_suggestions SET status='running' WHERE id=?").run(interrupted);suggestionDb.close()
+      fs.writeFileSync(path.join(root,'learning-ai-test.json'),JSON.stringify({version:sourceDocMaterial.current_version_id,interrupted}))
+      assert.equal(semanticRequests,3)
+      console.log('LEARNING_AI_TEST_OK local model, selected range, preview, explicit adoption, cancellation, invalid output and manual protection')
       const recovery = await importFile(docx('待恢复.docx', '恢复任务：中断导入应在重启后继续。'), input)
       await call('materials', 'cancel', recovery.current_version_id)
       // 模拟应用异常退出后留下的 processing 状态；随后真正关闭、重新启动应用。

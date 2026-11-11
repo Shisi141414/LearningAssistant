@@ -73,6 +73,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [概念别名自动关联、使用说明与真实教材验收](docs/10-concept-alias-links.md)
 - [扫描 PDF 本地识别、人工校正与验收](docs/11-local-ocr.md)
 - [学习文档来源、人工语义条目与修订](docs/12-semantic-entries.md)
+- [AI 语义拆分建议、人工审核与保护](docs/13-ai-semantic-review.md)
 
 ## 开发约定
 

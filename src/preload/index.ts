@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  LearningDocument, LearningChange,
+  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
@@ -23,6 +23,12 @@ const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...a
 
 const api = {
   learning: {
+    suggestStart: (input: LearningSuggestInput) => invoke<LearningSuggestion>(IPC.LearningSuggestStart, input),
+    suggestList: (versionId: ID) => invoke<LearningSuggestion[]>(IPC.LearningSuggestList, versionId),
+    suggestGet: (id: ID) => invoke<LearningSuggestionDetail>(IPC.LearningSuggestGet, id),
+    suggestCancel: (id: ID) => invoke<boolean>(IPC.LearningSuggestCancel, id),
+    suggestDismiss: (id: ID) => invoke<boolean>(IPC.LearningSuggestDismiss, id),
+    suggestApply: (id: ID) => invoke<LearningDocument>(IPC.LearningSuggestApply, id),
     get: (input: { version_id: ID; revision_id?: ID }) => invoke<LearningDocument | null>(IPC.LearningGet, input),
     prepare: (id: ID) => invoke<LearningDocument>(IPC.LearningPrepare, id),
     change: (input: LearningChange) => invoke<LearningDocument>(IPC.LearningChange, input)

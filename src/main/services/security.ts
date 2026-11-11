@@ -40,6 +40,7 @@ const patch = (fields: Record<string, Check>): Record<string, Check> => Object.f
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.LearningSuggestStart]: [record({ version_id: id, expected_revision_id: id, entry_ids: (v) => Array.isArray(v) && v.length > 0 && v.length <= 20 && v.every(id), model_db_id: id })],
   [IPC.LearningGet]: [record({ version_id: id, revision_id: optional(id) })],
   [IPC.LearningPrepare]: [id],
   [IPC.LearningChange]: [(value) => {
@@ -88,6 +89,7 @@ for (const channel of [IPC.SubjectsRemove, IPC.ActivitiesRemove, IPC.ProvidersRe
 for (const channel of [IPC.SubjectsList, IPC.ProvidersList, IPC.PresetsList, IPC.ClassroomStop, IPC.ClassroomFlush, IPC.AsrStatus, IPC.AsrPickDir, IPC.StorageInfo, IPC.StoragePick, IPC.StorageReset, IPC.DiagnosticsAsr, IPC.DiagnosticsChat, IPC.DiagnosticsOrganize, IPC.DiagnosticsVision, IPC.ChatListSessions, IPC.InspirationsList]) rules[channel] = []
 
 for (const channel of [IPC.MaterialsGet, IPC.MaterialsCancel, IPC.MaterialsRetry, IPC.MaterialsArchive, IPC.MaterialsOpen, IPC.MaterialsAnchor, IPC.MaterialsReferences, IPC.ClassroomPosition]) rules[channel] = [id]
+for (const channel of [IPC.LearningSuggestList, IPC.LearningSuggestGet, IPC.LearningSuggestCancel, IPC.LearningSuggestDismiss, IPC.LearningSuggestApply]) rules[channel] = [id]
 
 export function validateIpc(channel: string, args: unknown[]): void {
   const checks = rules[channel]

@@ -12,6 +12,7 @@ import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
 import { stopLearningPreparation } from './services/learning-documents'
+import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
 
 declareMaterialProtocol()
 
@@ -65,6 +66,7 @@ app.whenReady().then(() => {
   registerMaterialProtocol()
   stopRecovery = startOrganizationRecovery()
   startMaterialRecovery()
+  recoverLearningSuggestions()
   createWindow()
 
   app.on('activate', () => {
@@ -82,5 +84,6 @@ app.on('before-quit', () => {
   stopAllChats()
   stopMaterialJobs()
   stopLearningPreparation()
+  stopLearningSuggestions()
   closeDb()
 })

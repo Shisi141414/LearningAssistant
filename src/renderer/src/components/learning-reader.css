@@ -22,3 +22,9 @@
 .learning-editor input { min-width: 140px; flex: 1; }
 .learning-editor select { max-width: 100%; }
 .learning-source-preview { max-width: 720px; margin: 20px 0; padding: 16px; border: 1px solid var(--border); background: var(--bg); }
+.learning-suggestions { border: 1px solid var(--border); background: var(--bg); padding: 12px 16px; margin: 16px 0; }
+.learning-suggestions > summary { cursor: pointer; font-weight: 600; }
+.learning-suggestion-editor { padding-top: 4px; }
+.learning-suggestion-editor input[type=number] { width: 80px; }
+.learning-suggestion-editor select { max-width: 100%; }
+.learning-suggestion-result { overflow-wrap: anywhere; }

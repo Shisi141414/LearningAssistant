@@ -435,9 +435,9 @@ export interface LearningSource { id: ID; ordinal: number; raw_text: string; hea
 export interface LearningSourceRef { source_id: ID; text_range?: [number, number] }
 export interface LearningEntry {
   id: ID; type: LearningEntryType; title: string; sources: LearningSourceRef[]
-  analysis: { method: 'extracted' | 'manual'; review_status: 'unreviewed' | 'confirmed' }
+  analysis: { method: 'extracted' | 'manual'; review_status: 'unreviewed' | 'confirmed' } | { method: 'ai'; model: string; review_status: 'unreviewed' | 'confirmed' }
 }
-export interface LearningRelation { from: ID; to: ID; type: 'proves' | 'solves'; review_status: 'confirmed' }
+export interface LearningRelation { from: ID; to: ID; type: 'proves' | 'solves'; review_status: 'unreviewed' | 'confirmed' }
 export interface LearningState { entries: LearningEntry[]; relations: LearningRelation[] }
 export interface LearningDocument {
   id: ID; version_id: ID; current_revision_id: ID; revision_id: ID; created_at: number
@@ -449,3 +449,11 @@ export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_i
   { action: 'merge' } |
   { action: 'relate'; target_id: ID | null }
 )
+export interface LearningSuggestInput { version_id: ID; expected_revision_id: ID; entry_ids: ID[]; model_db_id: ID }
+export type LearningSuggestionStatus = 'running' | 'ready' | 'failed' | 'cancelled' | 'applied' | 'dismissed'
+export interface LearningProposal { entries: LearningEntry[]; relations: LearningRelation[] }
+export interface LearningSuggestion {
+  id: ID; version_id: ID; base_revision_id: ID; entry_ids: ID[]; provider_name: string; model_id: string
+  status: LearningSuggestionStatus; error: string | null; created_at: number; applied_revision_id: ID | null
+}
+export interface LearningSuggestionDetail extends LearningSuggestion { proposal: LearningProposal | null }

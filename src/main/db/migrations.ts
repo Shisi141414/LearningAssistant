@@ -346,5 +346,26 @@ CREATE TABLE learning_revisions (
 );
 CREATE INDEX idx_learning_revisions_document ON learning_revisions(document_id, created_at);
 `
+  },
+  {
+    version: 10,
+    name: 'learning_ai_suggestions',
+    sql: `
+CREATE TABLE learning_suggestions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE RESTRICT,
+  version_id TEXT NOT NULL REFERENCES material_versions(id) ON DELETE RESTRICT,
+  base_revision_id TEXT NOT NULL REFERENCES learning_revisions(id) ON DELETE RESTRICT,
+  request_json TEXT NOT NULL,
+  provider_name TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error TEXT,
+  proposal_json TEXT,
+  created_at INTEGER NOT NULL,
+  applied_revision_id TEXT REFERENCES learning_revisions(id) ON DELETE RESTRICT
+);
+CREATE INDEX idx_learning_suggestions_document ON learning_suggestions(document_id, created_at);
+`
   }
 ]

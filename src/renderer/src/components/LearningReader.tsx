@@ -4,6 +4,7 @@ import { entryText, learningTypes, relationAllowed } from '@shared/learning-docu
 import { MarkdownSegment } from './MarkdownSegment'
 import { PdfPage } from './PdfPage'
 import './learning-reader.css'
+import { LearningSuggestions } from './LearningSuggestions'
 
 function sourceLabel(source: LearningSource): string {
   const locator = JSON.parse(source.locator_json) as MaterialLocator
@@ -53,13 +54,14 @@ export function LearningReader({ versionId, subjectId }: { versionId: string; su
         <button disabled={busy} onClick={() => void revision()}>刷新当前修订</button>
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
+      {current && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
       {!current && <button disabled={busy} onClick={() => void revision()}>回到当前修订</button>}
       {preview && <aside className="learning-source-preview"><div className="toolbar"><strong>{sourceLabel(preview)} · 原件对照</strong><button onClick={() => setPreview(null)}>关闭对照</button></div>{(JSON.parse(preview.locator_json) as MaterialLocator).kind === 'pdf' ? <PdfPage versionId={versionId} pageNumber={(JSON.parse(preview.locator_json) as MaterialLocator).page!} /> : <button onClick={() => void window.api.materials.open(versionId).then(r => { if (!r.ok) setError(r.error) })}>打开原件查看</button>}</aside>}
       {filtered.slice(offset, offset + 100).map(({ entry, index, text }) => {
         const related = document.state.relations.find(relation => relation.from === entry.id)
         const target = related && document.state.entries.find(e => e.id === related.to)
         return <article className={`learning-entry learning-${entry.type}`} id={`learning-${entry.id}`} key={entry.id}>
-          <div className="learning-entry-heading"><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title || (entry.type === 'narrative' ? '待整理正文' : learningTypes[entry.type])}</h3><span className="muted">{entry.analysis.review_status === 'confirmed' ? '人工确认' : '待整理'}</span></div>
+          <div className="learning-entry-heading"><span className="muted">第 {index + 1} 条</span><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title || (entry.type === 'narrative' ? '待整理正文' : learningTypes[entry.type])}</h3><span className="muted" title={entry.analysis.method === 'ai' ? entry.analysis.model : undefined}>{entry.analysis.method === 'ai' ? entry.analysis.review_status === 'confirmed' ? 'AI 建议 · 已核对' : 'AI 建议 · 待核对' : entry.analysis.review_status === 'confirmed' ? '人工确认' : '待整理'}</span></div>
           <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => setPreview(sources.get(ref.source_id)!)}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
           {text.trim() ? <div className="learning-entry-text"><MarkdownSegment text={text} subjectId={subjectId} /></div> : <p className="muted">此来源尚无可提取文字，请对照原件；扫描页可先完成 OCR 后建立新版学习文档。</p>}
           {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => { setType(''); setQuery(''); setOffset(Math.floor(document.state.entries.findIndex(e => e.id === target.id) / 100) * 100); setTimeout(() => window.document.getElementById(`learning-${target.id}`)?.scrollIntoView({ block: 'center' }), 50) }}>{target.title || learningTypes[target.type]}</button></p>}
