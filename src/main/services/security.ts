@@ -2,6 +2,7 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC } from '@shared/ipc-channels'
 import { learningTypes } from '@shared/learning-document'
+import { evidenceRoles } from '@shared/evidence'
 
 export function trustedRenderer(url: string): boolean {
   try {
@@ -38,8 +39,18 @@ const subject = { name: title, color: optional(text(64)), description: optional(
 const activity = { title, kind: optional(kind), happened_at: opt(number), subject_id: opt(id), description: optional(content) }
 const patch = (fields: Record<string, Check>): Record<string, Check> => Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, optional(v)]))
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
+const evidenceSource: Check = value => [
+  record({ kind: choice('learning'), material_id: id, version_id: id, revision_id: id, entry_id: id }),
+  record({ kind: choice('note'), note_id: id, segment_id: id, field: choice('raw_text', 'organized_text') })
+].some(check => check(value))
+const conceptInput = { subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) }
+const evidenceInput = { source: evidenceSource, expected_note_text: optional(text(40_000)), role: choice(...Object.keys(evidenceRoles)), memo: text(2000) }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.EvidenceAdd]: [record({ ...evidenceInput, concept_id: id })],
+  [IPC.EvidenceCreateConcept]: [record({ ...evidenceInput, concept: record(conceptInput) })],
+  [IPC.EvidenceList]: [(value) => [record({ concept_id: id, offset: optional(number) }), record({ source: evidenceSource, offset: optional(number) })].some(check => check(value))],
+  [IPC.EvidenceRemove]: [id],
   [IPC.LearningSuggestStart]: [record({ version_id: id, expected_revision_id: id, entry_ids: (v) => Array.isArray(v) && v.length > 0 && v.length <= 20 && v.every(id), model_db_id: id })],
   [IPC.LearningGet]: [record({ version_id: id, revision_id: optional(id) })],
   [IPC.LearningPrepare]: [id],
@@ -58,7 +69,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.MaterialsOcrPage]: [record({ version_id: id, page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000 })],
   [IPC.MaterialsOcrCorrect]: [record({ version_id: id, page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000, text: text(100_000, true) })],
   [IPC.ConceptsList]: [],
-  [IPC.ConceptsSave]: [record({ id: optional(id), revision: optional(number), subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) })],
+  [IPC.ConceptsSave]: [record({ id: optional(id), revision: optional(number), ...conceptInput })],
   [IPC.ConceptsReferences]: [record({ id, offset: optional((v) => number(v) && (v as number) <= 10_000_000) })],
   [IPC.ClassroomCalibrate]: [record({ note_id: id, block_id: nullable(id) })],
   [IPC.MaterialsLocate]: [record({ version_id: id, unit: choice('block', 'page', 'slide'), index: (v) => number(v) && (v as number) >= 1 && (v as number) <= 50_000 })],

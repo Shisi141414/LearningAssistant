@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus,
+  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
@@ -22,6 +22,12 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  evidence: {
+    add: (input: EvidenceInput) => invoke<{ evidence: Evidence; created: boolean }>(IPC.EvidenceAdd, input),
+    createConcept: (input: ConceptFromEvidenceInput) => invoke<{ concept: Concept; evidence: Evidence }>(IPC.EvidenceCreateConcept, input),
+    list: (input: EvidenceListInput) => invoke<EvidencePage>(IPC.EvidenceList, input),
+    remove: (id: ID) => invoke<boolean>(IPC.EvidenceRemove, id)
+  },
   learning: {
     suggestStart: (input: LearningSuggestInput) => invoke<LearningSuggestion>(IPC.LearningSuggestStart, input),
     suggestList: (versionId: ID) => invoke<LearningSuggestion[]>(IPC.LearningSuggestList, versionId),

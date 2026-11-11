@@ -11,6 +11,10 @@
  */
 
 export const IPC = {
+  EvidenceAdd: 'evidence:add',
+  EvidenceCreateConcept: 'evidence:createConcept',
+  EvidenceList: 'evidence:list',
+  EvidenceRemove: 'evidence:remove',
   MaterialsConverterStatus: 'materials:converterStatus',
   MaterialsConverterPick: 'materials:converterPick',
   MaterialsConverterAuto: 'materials:converterAuto',

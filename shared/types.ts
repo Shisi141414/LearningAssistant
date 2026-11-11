@@ -431,6 +431,17 @@ export interface ConceptBacklink {
   material_id?: ID; ordinal?: number; locator_json?: string
 }
 export interface ConceptReferences { items: ConceptBacklink[]; next_offset: number | null; scanned: number }
+export type EvidenceRole = 'source' | 'definition' | 'proof' | 'example' | 'counterexample' | 'application'
+export type EvidenceSource = { kind: 'learning'; material_id: ID; version_id: ID; revision_id: ID; entry_id: ID } | { kind: 'note'; note_id: ID; segment_id: ID; field: 'raw_text' | 'organized_text' }
+export interface EvidenceInput { concept_id: ID; source: EvidenceSource; expected_note_text?: string; role: EvidenceRole; memo: string }
+export interface Evidence {
+  id: ID; concept_id: ID; source: EvidenceSource; role: EvidenceRole; memo: string; quote: string; quote_sha256: string
+  source_title: string; source_subject_id: ID | null; location: string; entry_title: string; entry_type: LearningEntryType | null
+  created_at: number; source_status: 'current' | 'historical' | 'changed' | 'archived' | 'deleted'
+}
+export type EvidenceListInput = ({ concept_id: ID } | { source: EvidenceSource }) & { offset?: number }
+export interface EvidencePage { items: Evidence[]; total: number; next_offset: number | null }
+export type ConceptFromEvidenceInput = Omit<EvidenceInput, 'concept_id'> & { concept: Omit<ConceptInput, 'id' | 'revision'> }
 
 export type LearningEntryType = 'section' | 'narrative' | 'definition' | 'theorem' | 'proposition' | 'lemma' | 'corollary' | 'proof' | 'example' | 'exercise' | 'solution' | 'figure' | 'table' | 'equation' | 'note'
 export interface LearningSource { id: ID; ordinal: number; raw_text: string; heading: string; locator_json: string; extraction: 'native' | 'ocr' | 'manual' }

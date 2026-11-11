@@ -381,5 +381,33 @@ CREATE TABLE material_conversions (
   created_at INTEGER NOT NULL
 );
 `
+  },
+  {
+    version: 12,
+    name: 'knowledge_source_evidence',
+    sql: `
+CREATE TABLE knowledge_evidence (
+  id TEXT PRIMARY KEY,
+  concept_id TEXT NOT NULL REFERENCES knowledge_points(id) ON DELETE RESTRICT,
+  version_id TEXT REFERENCES material_versions(id) ON DELETE RESTRICT,
+  revision_id TEXT REFERENCES learning_revisions(id) ON DELETE RESTRICT,
+  note_segment_id TEXT REFERENCES note_segments(id) ON DELETE SET NULL,
+  source_json TEXT NOT NULL,
+  source_lookup TEXT NOT NULL,
+  source_key TEXT NOT NULL,
+  role TEXT NOT NULL,
+  memo TEXT NOT NULL,
+  quote TEXT NOT NULL,
+  quote_sha256 TEXT NOT NULL,
+  source_title TEXT NOT NULL,
+  source_subject_id TEXT,
+  location TEXT NOT NULL,
+  entry_title TEXT NOT NULL,
+  entry_type TEXT,
+  created_at INTEGER NOT NULL,
+  UNIQUE(concept_id, source_key)
+);
+CREATE INDEX idx_evidence_source ON knowledge_evidence(source_lookup, created_at);
+`
   }
 ]

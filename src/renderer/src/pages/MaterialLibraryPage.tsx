@@ -18,6 +18,7 @@ export function MaterialLibraryPage() {
   const [params, setParams] = useSearchParams()
   const selectedId = params.get('material') ?? ''
   const requestedVersion = params.get('version') ?? ''
+  const linkedRevision = params.get('revision') ?? '', linkedEntry = params.get('entry') ?? ''
   const [items, setItems] = useState<Material[]>([])
   const [detail, setDetail] = useState<MaterialDetail | null>(null)
   const [blocks, setBlocks] = useState<MaterialBlock[]>([])
@@ -36,7 +37,7 @@ export function MaterialLibraryPage() {
   useEffect(() => { setSubject(currentSubjectId ?? '') }, [currentSubjectId])
   const linkedOffset = params.get('offset') ?? '0'
   const linkedBlock = params.get('block') ?? ''
-  useEffect(() => { setView('source') }, [versionId, linkedBlock])
+  useEffect(() => { setView(linkedEntry || linkedRevision ? 'learning' : 'source') }, [versionId, linkedBlock, linkedEntry, linkedRevision])
   useEffect(() => {
     setNoteRefs([])
     if (!linkedBlock) return
@@ -153,7 +154,7 @@ export function MaterialLibraryPage() {
           </>}
           {selectedVersion?.status === 'ready' && <>
             <div className="toolbar"><button aria-pressed={view === 'source'} onClick={() => setView('source')}>来源检索</button><button aria-pressed={view === 'learning'} onClick={() => setView('learning')}>学习文档</button></div>
-            {view === 'learning' ? <LearningReader key={versionId} versionId={versionId} subjectId={detail.material.subject_id} /> : <>
+            {view === 'learning' ? <LearningReader key={`${versionId}:${linkedRevision}:${linkedEntry}`} materialId={detail.material.id} versionId={versionId} subjectId={detail.material.subject_id} initialRevisionId={linkedRevision} targetEntryId={linkedEntry} archived={!!detail.material.archived} /> : <>
             {selectedVersion.format === 'pdf' && <MaterialOcrPanel key={versionId} version={selectedVersion} onVersion={async id => {
               const next = await window.api.materials.get(selectedId)
               if (next.ok) setDetail(next.data)

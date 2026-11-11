@@ -13,8 +13,10 @@ import { registerDiagnosticsIpc } from './diagnostics.ipc'
 import { registerMaterialsIpc } from './materials.ipc'
 import { registerConceptsIpc } from './concepts.ipc'
 import { registerLearningIpc } from './learning.ipc'
+import { registerEvidenceIpc } from './evidence.ipc'
 
 export function registerAllIpc(): void {
+  registerEvidenceIpc()
   registerLearningIpc()
   registerSubjectsIpc()
   registerActivitiesIpc()

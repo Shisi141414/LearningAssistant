@@ -1,0 +1,14 @@
+.knowledge-evidence { margin: 14px 0; border-top: 1px solid var(--border); padding-top: 10px; }
+.knowledge-evidence > summary, .evidence-record summary { cursor: pointer; }
+.evidence-editor { display: grid; gap: 12px; padding: 12px 0; }
+.evidence-editor > label, .evidence-new-concept > label { display: grid; gap: 6px; }
+.evidence-editor input, .evidence-editor select, .evidence-editor textarea { width: 100%; max-width: 100%; }
+.evidence-editor > button { justify-self: start; }
+.evidence-new-concept { display: grid; gap: 12px; padding: 14px; background: var(--bg); border: 1px solid var(--border); }
+.evidence-record { padding: 14px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.evidence-record blockquote, .evidence-quote { margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--border); font: 15px/1.8 SimSun, serif; white-space: pre-wrap; }
+.evidence-record p { margin: 8px 0; }
+.evidence-record .evidence-memo { white-space: pre-wrap; }
+.concept-evidence { margin-top: 28px; }
+.evidence-target { background: var(--accent-weak); }
+.concept-list > select { width: 100%; margin-bottom: 12px; }

@@ -5,6 +5,7 @@ import { conceptKey } from '@shared/concept-matcher'
 import { useAppStore } from '../stores/app'
 import { useConceptStore } from '../stores/concepts'
 import './knowledge.css'
+import { EvidenceList } from '../components/KnowledgeEvidence'
 
 const empty = (): ConceptInput => ({ name: '', aliases: [], summary: '', subject_id: null })
 export function KnowledgePage() {
@@ -14,6 +15,7 @@ export function KnowledgePage() {
   const id = params.get('concept') ?? ''
   const selected = items.find(c => c.id === id)
   const [query, setQuery] = useState('')
+  const [subjectFilter, setSubjectFilter] = useState('all')
   const [draft, setDraft] = useState<ConceptInput>(empty)
   const [aliases, setAliases] = useState('')
   const [saving, setSaving] = useState(false)
@@ -63,7 +65,7 @@ export function KnowledgePage() {
     } finally { saveLock.current = false; setSaving(false) }
   }
   const needle = conceptKey(query.trim())
-  const filtered = items.filter(c => [c.name, ...c.aliases, c.summary ?? ''].some(s => conceptKey(s).includes(needle)))
+  const filtered = items.filter(c => (subjectFilter === 'all' || (c.subject_id ?? 'general') === subjectFilter) && [c.name, ...c.aliases, c.summary ?? ''].some(s => conceptKey(s).includes(needle)))
   return <div className="page knowledge-page">
     <h1>知识与概念</h1>
     <p className="muted">为同一定理、方法和知识点登记不同名称，材料和笔记中的提及会自动关联。</p>
@@ -72,6 +74,7 @@ export function KnowledgePage() {
       <aside className="concept-list" aria-label="概念列表">
         <div className="toolbar"><button disabled={saving} onClick={() => { setParams({}); setDraft(empty()); setAliases('') }}>新建概念</button><button disabled={saving} onClick={() => void load()}>重新载入</button></div>
         <input aria-label="搜索概念与别名" value={query} onChange={e => setQuery(e.target.value)} placeholder="名称、别名或释义" />
+        <select aria-label="知识点学科筛选" value={subjectFilter} onChange={event => setSubjectFilter(event.target.value)}><option value="all">全部学科</option><option value="general">通用概念</option>{subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select>
         {!filtered.length && <p className="muted">尚无匹配概念。可新建并登记已确认的别名。</p>}
         {filtered.map(c => <button key={c.id} className={`concept-row ${c.id === id ? 'selected' : ''}`} disabled={saving} onClick={() => setParams({ concept: c.id })}><strong>{c.name}</strong><span>{subjects.find(s => s.id === c.subject_id)?.name ?? '通用概念'}</span>{c.aliases.length > 0 && <small>{c.aliases.join('、')}</small>}</button>)}
       </aside>
@@ -86,6 +89,7 @@ export function KnowledgePage() {
             <p className="muted">登记后，主名称和别名都能自动关联。同名多义会列出候选，不会自动合并。AI 发现别名尚未接入。</p>
             <button className="primary" type="submit" disabled={saving || !draft.name.trim()}>{saving ? '正在保存…' : '保存概念'}</button>
           </form>
+          {selected && <section className="concept-evidence" aria-label="知识点来源证据"><h2>已确认的来源证据</h2><p className="muted">保留引用时正文与位置。引用角色由用户选择，不代表系统已认证内容正确。</p><EvidenceList key={selected.id} input={{ concept_id: selected.id }} /></section>}
           {selected && <section className="concept-references" aria-label="概念提及">
             <h2>材料与笔记中的提及</h2>
             <p className="muted">已扫描 {scanned} 个文字块；{next === null && !loadingRefs ? '本次扫描完成。' : '可继续查找。'}仅列出含义明确的提及，每个来源字段显示首次命中；包含材料历史版本。</p>

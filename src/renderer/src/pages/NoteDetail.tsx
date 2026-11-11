@@ -7,13 +7,14 @@
  * - 标注：段落级 重点/疑问 + 备注；每段 DOM 带 data-segment-id，
  *   供全局快捷栏"选中内容 → 标注"定位
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import type { NoteWithSegments, NoteSegment, SegmentType, Annotation } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
 import { useAppStore } from '../stores/app'
 import { materialHref, materialLocation } from '../utils/material'
 import { ConceptText } from '../components/ConceptText'
+import { KnowledgeEvidence } from '../components/KnowledgeEvidence'
 
 type ViewMode = 'organized' | 'raw'
 
@@ -23,7 +24,7 @@ export function NoteDetail() {
   const linkedSegment = params.get('segment') ?? ''
   const showToast = useAppStore((s) => s.showToast)
   const [note, setNote] = useState<NoteWithSegments | null>(null)
-  const [view, setView] = useState<ViewMode>('organized')
+  const [view, setView] = useState<ViewMode>(params.get('view') === 'raw' ? 'raw' : 'organized')
   const [title, setTitle] = useState('')
 
   const reload = useCallback(async () => {
@@ -44,6 +45,8 @@ export function NoteDetail() {
   useEffect(() => {
     if (linkedSegment && note) document.getElementById(`note-segment-${linkedSegment}`)?.scrollIntoView({ block: 'center' })
   }, [linkedSegment, note])
+  const linkedView = params.get('view')
+  useEffect(() => { if (linkedView === 'raw' || linkedView === 'organized') setView(linkedView) }, [linkedView])
 
   if (!note) return <div className="page">加载中…</div>
 
@@ -57,6 +60,7 @@ export function NoteDetail() {
   const saveSegment = async (seg: NoteSegment, patch: Partial<NoteSegment>): Promise<void> => {
     const res = await window.api.notes.updateSegment(seg.id, patch as { seg_type?: SegmentType; raw_text?: string; organized_text?: string })
     if (!res.ok) showToast(`保存失败：${res.error}`)
+    else setNote(previous => previous?.id === seg.note_id ? { ...previous, segments: previous.segments.map(segment => segment.id === seg.id ? { ...segment, ...patch, updated_at: res.data.updated_at } : segment) } : previous)
   }
 
   const removeSegment = async (id: string): Promise<void> => {
@@ -216,10 +220,13 @@ function SegmentEditor({
 }) {
   const field = view === 'organized' ? 'organized_text' : 'raw_text'
   const [text, setText] = useState(segment[field])
+  const saved = useRef({ id: segment.id, field, text: segment[field] })
 
   // 视图切换或外部刷新时同步
   useEffect(() => {
-    setText(segment[field])
+    const previous = saved.current
+    setText(current => previous.id !== segment.id || previous.field !== field || current === previous.text ? segment[field] : current)
+    saved.current = { id: segment.id, field, text: segment[field] }
   }, [segment.id, field, segment[field]])
 
   return (
@@ -230,6 +237,7 @@ function SegmentEditor({
       onBlur={() => {
         if (text !== segment[field]) onSave({ [field]: text })
       }}
-    /><details className="concept-reading"><summary>查看概念关联</summary><div><ConceptText text={text} subjectId={subjectId} /></div></details></>
+    /><details className="concept-reading"><summary>查看概念关联</summary><div><ConceptText text={text} subjectId={subjectId} /></div></details>
+    <KnowledgeEvidence key={segment.id + field} source={{ kind: 'note', note_id: segment.note_id, segment_id: segment.id, field }} title="" subjectId={subjectId} quoteLength={text.length} expectedNoteText={text} disabled={text !== segment[field]} /></>
   )
 }

@@ -5,12 +5,13 @@ import { MarkdownSegment } from './MarkdownSegment'
 import { PdfPage } from './PdfPage'
 import './learning-reader.css'
 import { LearningSuggestions } from './LearningSuggestions'
+import { KnowledgeEvidence } from './KnowledgeEvidence'
 
 function sourceLabel(source: LearningSource): string {
   const locator = JSON.parse(source.locator_json) as MaterialLocator
   return locator.page ? `PDF 第 ${locator.page} 页` : locator.slide ? `幻灯片 ${locator.slide}` : `来源段落 ${source.ordinal + 1}`
 }
-export function LearningReader({ versionId, subjectId }: { versionId: string; subjectId: string | null }) {
+export function LearningReader({ materialId, versionId, subjectId, initialRevisionId = '', targetEntryId = '', archived = false }: { materialId: string; versionId: string; subjectId: string | null; initialRevisionId?: string; targetEntryId?: string; archived?: boolean }) {
   const [document, setDocument] = useState<LearningDocument | null>(null)
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [query, setQuery] = useState(''), [type, setType] = useState('')
@@ -18,12 +19,19 @@ export function LearningReader({ versionId, subjectId }: { versionId: string; su
   const [preview, setPreview] = useState<LearningSource | null>(null)
   useEffect(() => {
     let alive = true
-    void window.api.learning.get({ version_id: versionId }).then(result => {
+    void window.api.learning.get({ version_id: versionId, ...(initialRevisionId ? { revision_id: initialRevisionId } : {}) }).then(result => {
       if (!alive) return
-      setLoading(false); if (result.ok) setDocument(result.data); else setError(result.error)
+      setLoading(false)
+      if (result.ok) {
+        setDocument(result.data)
+        const index = result.data?.state.entries.findIndex(entry => entry.id === targetEntryId) ?? -1
+        if (targetEntryId && index < 0) setError('所引修订中没有此条目，请核对引用链接')
+        else if (index >= 0) setOffset(Math.floor(index / 100) * 100)
+      } else setError(result.error)
     })
     return () => { alive = false }
-  }, [versionId])
+  }, [versionId, initialRevisionId, targetEntryId])
+  useEffect(() => { if (targetEntryId && document) window.document.getElementById(`learning-${targetEntryId}`)?.scrollIntoView({ block: 'center' }) }, [document?.revision_id, targetEntryId])
   const sources = useMemo(() => new Map(document?.sources.map(source => [source.id, source]) ?? []), [document])
   const rows = useMemo(() => document?.state.entries.map((entry, index) => ({ entry, index, text: entryText(entry, sources) })) ?? [], [document, sources])
   const filtered = useMemo(() => rows.filter(row => (!type || row.entry.type === type) && (!query.trim() || (row.text + '\n' + row.entry.title).toLowerCase().includes(query.trim().toLowerCase()))), [rows, type, query])
@@ -46,7 +54,7 @@ export function LearningReader({ versionId, subjectId }: { versionId: string; su
   if (loading) return <p role="status">正在读取学习文档…</p>
   return <section className="learning-reader" aria-label="学习文档">
     {error && <p className="material-error" role="alert">{error}</p>}
-    {!document ? <div className="learning-intro"><h3>先保留来源，再整理语义</h3><p>从原件建立连续的来源文字，再把同页内容拆为定义、定理、证明等条目。原有课堂引用会保留。</p><p className="muted">扫描 PDF 请先识别需要的页面；本步不会自动 OCR，也不会自动判断内容类型。</p><button className="primary" disabled={busy} onClick={() => void prepare()}>{busy ? '正在建立来源文字…' : '建立学习文档'}</button></div> : <>
+    {!document ? initialRevisionId ? <p>无法打开指定学习修订。<button disabled={busy} onClick={() => void revision()}>读取当前修订</button></p> : <div className="learning-intro"><h3>先保留来源，再整理语义</h3><p>从原件建立连续的来源文字，再把同页内容拆为定义、定理、证明等条目。原有课堂引用会保留。</p><p className="muted">扫描 PDF 请先识别需要的页面；本步不会自动 OCR，也不会自动判断内容类型。</p><button className="primary" disabled={busy || archived} onClick={() => void prepare()}>{busy ? '正在建立来源文字…' : '建立学习文档'}</button></div> : <>
       <div className="toolbar learning-toolbar">
         <label>修订 <select aria-label="学习文档修订" disabled={busy} value={document.revision_id} onChange={e => void revision(e.target.value)}>{document.history.map((item, i) => <option key={item.id} value={item.id}>修订 {document.history.length - i}{item.id === document.current_revision_id ? '（当前）' : ''} · {new Date(item.created_at).toLocaleTimeString()}</option>)}</select></label>
         <select aria-label="学习条目类型筛选" value={type} onChange={e => { setType(e.target.value); setOffset(0) }}><option value="">全部类型</option>{Object.entries(learningTypes).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select>
@@ -54,19 +62,21 @@ export function LearningReader({ versionId, subjectId }: { versionId: string; su
         <button disabled={busy} onClick={() => void revision()}>刷新当前修订</button>
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
-      {current && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
+      {archived && <p className="muted">材料已归档，学习文档只读，已有引用仍可查看。</p>}
+      {current && !archived && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
       {!current && <button disabled={busy} onClick={() => void revision()}>回到当前修订</button>}
       {preview && <aside className="learning-source-preview"><div className="toolbar"><strong>{sourceLabel(preview)} · 原件对照</strong><button onClick={() => setPreview(null)}>关闭对照</button></div>{(JSON.parse(preview.locator_json) as MaterialLocator).kind === 'pdf' ? <PdfPage versionId={versionId} pageNumber={(JSON.parse(preview.locator_json) as MaterialLocator).page!} /> : <button onClick={() => void window.api.materials.open(versionId).then(r => { if (!r.ok) setError(r.error) })}>打开原件查看</button>}</aside>}
       {filtered.slice(offset, offset + 100).map(({ entry, index, text }) => {
         const related = document.state.relations.find(relation => relation.from === entry.id)
         const target = related && document.state.entries.find(e => e.id === related.to)
-        return <article className={`learning-entry learning-${entry.type}`} id={`learning-${entry.id}`} key={entry.id}>
+        return <article className={`learning-entry learning-${entry.type}${entry.id === targetEntryId ? ' evidence-target' : ''}`} id={`learning-${entry.id}`} key={entry.id}>
           <div className="learning-entry-heading"><span className="muted">第 {index + 1} 条</span><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title || (entry.type === 'narrative' ? '待整理正文' : learningTypes[entry.type])}</h3><span className="muted" title={entry.analysis.method === 'ai' ? entry.analysis.model : undefined}>{entry.analysis.method === 'ai' ? entry.analysis.review_status === 'confirmed' ? 'AI 建议 · 已核对' : 'AI 建议 · 待核对' : entry.analysis.review_status === 'confirmed' ? '人工确认' : '待整理'}</span></div>
           <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => setPreview(sources.get(ref.source_id)!)}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
           {text.trim() ? <div className="learning-entry-text"><MarkdownSegment text={text} subjectId={subjectId} /></div> : <p className="muted">此来源尚无可提取文字，请对照原件；扫描页可先完成 OCR 后建立新版学习文档。</p>}
           {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => { setType(''); setQuery(''); setOffset(Math.floor(document.state.entries.findIndex(e => e.id === target.id) / 100) * 100); setTimeout(() => window.document.getElementById(`learning-${target.id}`)?.scrollIntoView({ block: 'center' }), 50) }}>{target.title || learningTypes[target.type]}</button></p>}
-          {current && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
-          {current && editing === entry.id && <EntryEditor key={document.revision_id + entry.id} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
+          {current && !archived && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
+          {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
+          <KnowledgeEvidence key={`evidence:${document.revision_id}:${entry.id}`} source={{ kind: 'learning', material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entry.id }} title={entry.title} subjectId={subjectId} quoteLength={text.length} />
         </article>
       })}
       {!filtered.length && <p className="empty">没有匹配的学习条目。</p>}
