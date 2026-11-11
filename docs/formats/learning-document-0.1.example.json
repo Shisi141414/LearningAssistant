@@ -1,0 +1,99 @@
+{
+  "format": "learning-assistant/document",
+  "schema_version": "0.1",
+  "id": "demo-learning-document",
+  "revision": 1,
+  "material_version_id": "demo-material-version",
+  "title": "微分学短讲义（格式演示，非真实导入）",
+  "subject_ids": ["demo-mathematical-analysis"],
+  "original": {
+    "file_name": "演示讲义.pdf",
+    "media_type": "application/pdf",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "path": "source/original.pdf"
+  },
+  "source_units": [
+    { "id": "s-heading", "raw_text": "第一章 导数", "extraction": "native", "locator": { "kind": "pdf", "page": 1 } },
+    { "id": "s-intro", "raw_text": "本讲从局部变化率出发讨论导数。", "extraction": "native", "locator": { "kind": "pdf", "page": 1 } },
+    { "id": "s-definition", "raw_text": "定义 1：若差商在增量趋于零时有有限极限，则称函数在该点可导。", "extraction": "native", "locator": { "kind": "pdf", "page": 1 } },
+    { "id": "s-theorem", "raw_text": "定理 1：函数在一点可导，则在该点连续。", "extraction": "native", "locator": { "kind": "pdf", "page": 1 } },
+    { "id": "s-proof-a", "raw_text": "证明：将函数增量写成差商与自变量增量的乘积。", "extraction": "native", "locator": { "kind": "pdf", "page": 1 } },
+    { "id": "s-proof-b", "raw_text": "差商有有限极限，增量趋于零，因此函数增量趋于零。证毕。", "extraction": "native", "locator": { "kind": "pdf", "page": 2 } },
+    { "id": "s-proposition", "raw_text": "命题 1：常值函数在每一点可导，导数为零。", "extraction": "native", "locator": { "kind": "pdf", "page": 2 } },
+    { "id": "s-example", "raw_text": "例题 1：求 f(x)=x² 的导数。", "extraction": "native", "locator": { "kind": "pdf", "page": 2 } },
+    { "id": "s-solution", "raw_text": "解：差商为 2x+h，令 h 趋于零，得 f′(x)=2x。", "extraction": "native", "locator": { "kind": "pdf", "page": 2 } },
+    { "id": "s-figure", "raw_text": "图 1：割线趋近于切线。", "extraction": "native", "locator": { "kind": "pdf", "page": 2, "region": [0.1, 0.6, 0.9, 0.9] } }
+  ],
+  "assets": [
+    {
+      "id": "a-secant",
+      "media_type": "image/png",
+      "path": "assets/secant.png",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sources": [{ "source_id": "s-figure" }]
+    }
+  ],
+  "entries": [
+    {
+      "id": "e-chapter", "kind": "heading", "title": "第一章 导数", "parent_id": null,
+      "content": [{ "type": "text", "text": "第一章 导数" }],
+      "sources": [{ "source_id": "s-heading" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-intro", "kind": "narrative", "title": "", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "本讲从局部变化率出发讨论导数。" }],
+      "sources": [{ "source_id": "s-intro" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-definition", "kind": "definition", "title": "定义 1", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "若差商在增量趋于零时有有限极限，则称函数在该点可导。" }],
+      "sources": [{ "source_id": "s-definition" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-theorem", "kind": "theorem", "title": "定理 1", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "函数在一点可导，则在该点连续。" }],
+      "sources": [{ "source_id": "s-theorem" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-proof", "kind": "proof", "title": "定理 1 的证明", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "将函数增量写成差商与自变量增量的乘积。差商有有限极限，增量趋于零，因此函数增量趋于零。证毕。" }],
+      "sources": [{ "source_id": "s-proof-a" }, { "source_id": "s-proof-b" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-proposition", "kind": "proposition", "title": "命题 1", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "常值函数在每一点可导，导数为零。" }],
+      "sources": [{ "source_id": "s-proposition" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-example", "kind": "example", "title": "例题 1", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "求 " }, { "type": "math", "latex": "f(x)=x^2", "display": false }, { "type": "text", "text": " 的导数。" }],
+      "sources": [{ "source_id": "s-example" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-solution", "kind": "solution", "title": "例题 1 的解答", "parent_id": "e-chapter",
+      "content": [{ "type": "text", "text": "差商为 2x+h，令 h 趋于零，得 " }, { "type": "math", "latex": "f'(x)=2x", "display": false }, { "type": "text", "text": "。" }],
+      "sources": [{ "source_id": "s-solution" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    },
+    {
+      "id": "e-figure", "kind": "figure", "title": "图 1", "parent_id": "e-chapter",
+      "content": [{ "type": "asset", "asset_id": "a-secant", "alt": "演示图片占位：割线趋近切线" }, { "type": "text", "text": "割线趋近于切线。" }],
+      "sources": [{ "source_id": "s-figure" }],
+      "analysis": { "method": "manual", "review_status": "confirmed" }
+    }
+  ],
+  "relations": [
+    { "from": "e-proof", "to": "e-theorem", "type": "proves", "review_status": "confirmed" },
+    { "from": "e-solution", "to": "e-example", "type": "solves", "review_status": "confirmed" },
+    { "from": "e-figure", "to": "e-definition", "type": "illustrates", "review_status": "confirmed" },
+    { "from": "e-theorem", "to": "e-definition", "type": "depends_on", "review_status": "confirmed" }
+  ],
+  "extensions": { "demo_only": true, "note": "手工编写的格式示例；原件、图片、散列均为占位，未运行 AI。" }
+}

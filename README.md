@@ -69,6 +69,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [可靠性修复记录](docs/06-build-progress-2026-11-11.md)
 - [材料库选型、使用边界与交付记录](docs/07-material-library.md)
 - [课堂材料联动与格式转换方案](docs/08-classroom-material-link.md)
+- [统一学习文档格式草案、结构示例与建设顺序](docs/09-learning-document-format.md)
 
 ## 开发约定
 

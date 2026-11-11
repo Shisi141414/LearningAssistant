@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LearningAssistant learning document 0.1 (draft)",
+  "description": "Exchange snapshot draft; cross-reference, coverage, hash and filesystem validation remain required.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "schema_version", "id", "revision", "material_version_id", "title", "subject_ids", "original", "source_units", "assets", "entries", "relations"],
+  "properties": {
+    "format": { "const": "learning-assistant/document" },
+    "schema_version": { "const": "0.1" },
+    "id": { "$ref": "#/$defs/id" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "material_version_id": { "$ref": "#/$defs/id" },
+    "title": { "type": "string", "minLength": 1 },
+    "subject_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "original": {
+      "type": "object", "additionalProperties": false,
+      "required": ["file_name", "media_type", "sha256", "path"],
+      "properties": {
+        "file_name": { "type": "string", "minLength": 1 },
+        "media_type": { "type": "string", "minLength": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "path": { "type": "string", "pattern": "^source/[A-Za-z0-9_-][A-Za-z0-9_.-]*$" }
+      }
+    },
+    "source_units": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceUnit" } },
+    "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } },
+    "entries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/entry" } },
+    "relations": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relation" } },
+    "extensions": { "type": "object" }
+  },
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceRef": {
+      "type": "object", "additionalProperties": false,
+      "required": ["source_id"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/id" },
+        "text_range": {
+          "description": "UTF-16 code units, [start,end); runtime must check end > start and bounds.",
+          "type": "array", "prefixItems": [{ "type": "integer", "minimum": 0 }, { "type": "integer", "minimum": 1 }],
+          "items": false, "minItems": 2, "maxItems": 2
+        }
+      }
+    },
+    "sourceUnit": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "raw_text", "extraction", "locator"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "raw_text": { "type": "string" },
+        "extraction": { "enum": ["native", "ocr", "manual"] },
+        "legacy_block_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "locator": {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {
+            "kind": { "enum": ["pdf", "docx", "pptx", "image", "other"] },
+            "page": { "type": "integer", "minimum": 1 },
+            "slide": { "type": "integer", "minimum": 1 },
+            "structure_path": { "type": "string", "minLength": 1 },
+            "region": {
+              "description": "Optional normalized [left,top,right,bottom], top-left origin; no fabricated precision.",
+              "type": "array", "minItems": 4, "maxItems": 4,
+              "items": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          },
+          "anyOf": [{ "required": ["page"] }, { "required": ["slide"] }, { "required": ["structure_path"] }]
+        }
+      }
+    },
+    "asset": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "media_type", "path", "sha256", "sources"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "media_type": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "pattern": "^assets/([A-Za-z0-9_-][A-Za-z0-9_.-]*/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceRef" } }
+      }
+    },
+    "content": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "text"],
+          "properties": { "type": { "const": "text" }, "text": { "type": "string" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "latex", "display"],
+          "properties": { "type": { "const": "math" }, "latex": { "type": "string", "minLength": 1 }, "display": { "type": "boolean" } }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["type", "asset_id", "alt"],
+          "properties": { "type": { "const": "asset" }, "asset_id": { "$ref": "#/$defs/id" }, "alt": { "type": "string" } }
+        },
+        {
+          "description": "Simple rectangular table; merged cells require a future version or source asset.",
+          "type": "object", "additionalProperties": false, "required": ["type", "rows"],
+          "properties": { "type": { "const": "table" }, "rows": { "type": "array", "minItems": 1, "items": { "type": "array", "minItems": 1, "items": { "type": "string" } } } }
+        }
+      ]
+    },
+    "entry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "title", "parent_id", "content", "sources", "analysis"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "enum": ["heading", "narrative", "definition", "theorem", "proposition", "lemma", "corollary", "proof", "example", "exercise", "solution", "figure", "table", "equation", "note"] },
+        "title": { "type": "string" },
+        "parent_id": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "content": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/content" } },
+        "sources": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/sourceRef" } },
+        "analysis": {
+          "type": "object", "additionalProperties": false,
+          "required": ["method", "review_status"],
+          "properties": {
+            "method": { "enum": ["extracted", "rule", "ai", "manual"] },
+            "review_status": { "enum": ["unreviewed", "confirmed"] },
+            "model": { "type": "string", "minLength": 1 },
+            "confidence": { "description": "Optional heuristic/model score, not verified accuracy.", "type": "number", "minimum": 0, "maximum": 1 }
+          },
+          "if": { "properties": { "method": { "const": "ai" } } },
+          "then": { "required": ["model"] }
+        }
+      }
+    },
+    "relation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["from", "to", "type", "review_status"],
+      "properties": {
+        "from": { "$ref": "#/$defs/id" }, "to": { "$ref": "#/$defs/id" },
+        "type": { "enum": ["proves", "solves", "illustrates", "depends_on", "refers_to"] },
+        "review_status": { "enum": ["unreviewed", "confirmed"] }
+      }
+    }
+  }
+}
