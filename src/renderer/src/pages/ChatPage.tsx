@@ -56,7 +56,7 @@ export function ChatPage() {
     }
   }
 
-  const streamingMsgId = [...chat.streamingIds][0]
+  const streamingMsgId = Object.entries(chat.streamSessions).find(([, sessionId]) => sessionId === chat.activeSessionId)?.[0]
 
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

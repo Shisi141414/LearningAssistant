@@ -17,6 +17,7 @@ interface ChatState {
   messages: ChatMessage[]
   /** 正在生成的 message id 集合 */
   streamingIds: Set<ID>
+  streamSessions: Record<ID, ID>
   /** 各 assistant 消息的模型标注 */
   modelLabels: Record<ID, string>
   loadSessions: () => Promise<void>
@@ -35,6 +36,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSessionId: null,
   messages: [],
   streamingIds: new Set(),
+  streamSessions: {},
   modelLabels: {},
 
   loadSessions: async () => {
@@ -100,32 +102,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   appendChunk: (sessionId, messageId, delta) => {
     const st = get()
-    if (st.activeSessionId !== sessionId) return
     set({
-      messages: upsertAssistant(st.messages, sessionId, messageId, delta, true),
-      streamingIds: new Set([...st.streamingIds, messageId])
+      messages: st.activeSessionId === sessionId ? upsertAssistant(st.messages, sessionId, messageId, delta, true) : st.messages,
+      streamingIds: new Set([...st.streamingIds, messageId]),
+      streamSessions: { ...st.streamSessions, [messageId]: sessionId }
     })
   },
 
   finishMessage: (sessionId, messageId, content, modelDisplay) => {
     const st = get()
-    if (st.activeSessionId !== sessionId) return
     const streaming = new Set(st.streamingIds)
     streaming.delete(messageId)
+    const streamSessions = { ...st.streamSessions }
+    delete streamSessions[messageId]
     const modelLabels = { ...st.modelLabels, [messageId]: modelDisplay }
     // 内容以 DB 为准（中断时保留已生成部分）
     set({
-      messages: upsertAssistant(st.messages, sessionId, messageId, content),
+      messages: st.activeSessionId === sessionId ? upsertAssistant(st.messages, sessionId, messageId, content) : st.messages,
       streamingIds: streaming,
+      streamSessions,
       modelLabels
     })
   },
 
   failMessage: (sessionId, messageId, error) => {
     const st = get()
-    if (st.activeSessionId !== sessionId) return
     const streaming = new Set(st.streamingIds)
     streaming.delete(messageId)
+    const streamSessions = { ...st.streamSessions }
+    delete streamSessions[messageId]
+    set({ streamingIds: streaming, streamSessions })
+    if (st.activeSessionId !== sessionId) return
     if (messageId === '' || !st.messages.some((m) => m.id === messageId)) {
       // 发送前就失败：把错误挂到最后一条消息后
       set({ streamingIds: streaming })
