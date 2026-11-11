@@ -7,6 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
+  LearningDocument, LearningChange,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
@@ -21,6 +22,11 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  learning: {
+    get: (input: { version_id: ID; revision_id?: ID }) => invoke<LearningDocument | null>(IPC.LearningGet, input),
+    prepare: (id: ID) => invoke<LearningDocument>(IPC.LearningPrepare, id),
+    change: (input: LearningChange) => invoke<LearningDocument>(IPC.LearningChange, input)
+  },
   concepts: {
     list: () => invoke<import('@shared/types').Concept[]>(IPC.ConceptsList),
     save: (input: import('@shared/types').ConceptInput) => invoke<import('@shared/types').Concept>(IPC.ConceptsSave, input),

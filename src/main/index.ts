@@ -11,6 +11,7 @@ import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
+import { stopLearningPreparation } from './services/learning-documents'
 
 declareMaterialProtocol()
 
@@ -80,5 +81,6 @@ app.on('before-quit', () => {
   stopClassroom()
   stopAllChats()
   stopMaterialJobs()
+  stopLearningPreparation()
   closeDb()
 })

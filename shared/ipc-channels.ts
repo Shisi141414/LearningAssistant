@@ -11,6 +11,9 @@
  */
 
 export const IPC = {
+  LearningGet: 'learning:get',
+  LearningPrepare: 'learning:prepare',
+  LearningChange: 'learning:change',
   ConceptsList: 'concepts:list',
   ConceptsSave: 'concepts:save',
   ConceptsReferences: 'concepts:references',

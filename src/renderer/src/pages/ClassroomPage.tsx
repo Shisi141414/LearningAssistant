@@ -60,6 +60,7 @@ async function startMic(onChunk: (pcm: Int16Array) => void): Promise<MicHandle> 
 }
 
 export function ClassroomPage() {
+  const mountedRef = useRef(true)
   const [params, setParams] = useSearchParams()
   const resumeId = params.get('note') ?? ''
   const [resumeNote, setResumeNote] = useState<NoteWithSegments | null>(null)
@@ -193,7 +194,9 @@ export function ClassroomPage() {
 
   /** 离开页面/卸载清理 */
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
       micRef.current?.stop()
       micRef.current = null
       void window.api.classroom.stop()
@@ -281,13 +284,16 @@ export function ClassroomPage() {
   }
 
   const endSession = async (): Promise<void> => {
+    const route = window.location.href
     micRef.current?.stop()
     micRef.current = null
     setRecording(false)
     const stopped = await window.api.classroom.stop()
+    if (!mountedRef.current || window.location.href !== route) return
     if (!stopped.ok) { showToast(stopped.error); return }
     if (noteRef.current) {
       const [saved, cursor] = await Promise.all([window.api.notes.get(noteRef.current), window.api.classroom.position(noteRef.current)])
+      if (!mountedRef.current || window.location.href !== route) return
       if (saved.ok) { setNote(saved.data); setResumeNote(saved.data) }
       if (cursor.ok) { setPosition(cursor.data); setStartAnchor(cursor.data?.block ?? null) }
       setParams({ note: noteRef.current })

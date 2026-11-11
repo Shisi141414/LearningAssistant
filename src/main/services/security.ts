@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC } from '@shared/ipc-channels'
+import { learningTypes } from '@shared/learning-document'
 
 export function trustedRenderer(url: string): boolean {
   try {
@@ -39,6 +40,17 @@ const patch = (fields: Record<string, Check>): Record<string, Check> => Object.f
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.LearningGet]: [record({ version_id: id, revision_id: optional(id) })],
+  [IPC.LearningPrepare]: [id],
+  [IPC.LearningChange]: [(value) => {
+    const base = { version_id: id, expected_revision_id: id, entry_id: id }
+    return [
+      record({ ...base, action: choice('edit'), type: choice(...Object.keys(learningTypes)), title: text(500) }),
+      record({ ...base, action: choice('split'), position: (v) => number(v) && (v as number) <= 2_000_000 }),
+      record({ ...base, action: choice('merge') }),
+      record({ ...base, action: choice('relate'), target_id: nullable(id) })
+    ].some(check => check(value))
+  }],
   [IPC.MaterialsOcrModels]: [],
   [IPC.MaterialsOcrPrepare]: [],
   [IPC.MaterialsOcrStart]: [record({ version_id: id, from_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000, to_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000 })],

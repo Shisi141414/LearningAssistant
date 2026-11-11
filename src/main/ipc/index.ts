@@ -12,8 +12,10 @@ import { registerConfigIpc } from './config.ipc'
 import { registerDiagnosticsIpc } from './diagnostics.ipc'
 import { registerMaterialsIpc } from './materials.ipc'
 import { registerConceptsIpc } from './concepts.ipc'
+import { registerLearningIpc } from './learning.ipc'
 
 export function registerAllIpc(): void {
+  registerLearningIpc()
   registerSubjectsIpc()
   registerActivitiesIpc()
   registerProvidersIpc()

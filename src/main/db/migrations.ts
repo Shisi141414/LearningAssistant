@@ -316,5 +316,35 @@ CREATE TABLE material_ocr_pages (
   PRIMARY KEY(version_id, page)
 );
 `
+  },
+  {
+    version: 9,
+    name: 'learning_source_revisions',
+    sql: `
+CREATE TABLE learning_documents (
+  id TEXT PRIMARY KEY,
+  version_id TEXT NOT NULL UNIQUE REFERENCES material_versions(id) ON DELETE RESTRICT,
+  current_revision_id TEXT REFERENCES learning_revisions(id) ON DELETE RESTRICT,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE learning_sources (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE RESTRICT,
+  ordinal INTEGER NOT NULL,
+  raw_text TEXT NOT NULL,
+  heading TEXT NOT NULL,
+  locator_json TEXT NOT NULL,
+  extraction TEXT NOT NULL,
+  UNIQUE(document_id, ordinal)
+);
+CREATE TABLE learning_revisions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE RESTRICT,
+  parent_revision_id TEXT REFERENCES learning_revisions(id) ON DELETE RESTRICT,
+  snapshot_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_learning_revisions_document ON learning_revisions(document_id, created_at);
+`
   }
 ]

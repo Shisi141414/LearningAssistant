@@ -1,0 +1,24 @@
+.learning-reader { margin-top: 20px; }
+.learning-intro { padding: 12px 0; line-height: 1.8; }
+.learning-toolbar input { flex: 1; min-width: 160px; }
+.learning-entry { --entry-color: #6b7280; padding: 20px 0 20px 18px; margin: 18px 0; border-left: 3px solid var(--entry-color); border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }
+.learning-definition { --entry-color: #0e7490; }
+.learning-theorem, .learning-proposition, .learning-lemma, .learning-corollary { --entry-color: #6d28d9; }
+.learning-proof, .learning-solution { --entry-color: #15803d; }
+.learning-example, .learning-exercise { --entry-color: #b45309; }
+.learning-figure, .learning-table, .learning-equation { --entry-color: #0369a1; }
+.learning-note { --entry-color: #be123c; }
+.learning-section { --entry-color: #1f2328; }
+.learning-entry-heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; }
+.learning-entry-heading h3 { font-family: SimHei, sans-serif; font-size: 18px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.learning-type { color: var(--entry-color); font: 600 12px/1.6 SimHei, sans-serif; }
+.learning-source-links { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0; }
+.learning-source-links button, .learning-relation button { color: var(--accent); background: transparent; border: 0; padding: 2px 0; font-size: 12px; }
+.learning-entry-text { font: 16px/1.9 SimSun, serif; white-space: pre-wrap; overflow-wrap: anywhere; }
+.learning-proof .learning-entry-text, .learning-solution .learning-entry-text { font-family: KaiTi, SimSun, serif; }
+.learning-section .learning-entry-text { font-family: SimHei, sans-serif; font-weight: 600; }
+.learning-editor { background: var(--bg); padding: 16px; border: 1px solid var(--border); margin-top: 12px; }
+.learning-editor textarea { display: block; width: 100%; height: 180px; margin: 8px 0; resize: vertical; font: 15px/1.8 SimSun, serif; }
+.learning-editor input { min-width: 140px; flex: 1; }
+.learning-editor select { max-width: 100%; }
+.learning-source-preview { max-width: 720px; margin: 20px 0; padding: 16px; border: 1px solid var(--border); background: var(--bg); }

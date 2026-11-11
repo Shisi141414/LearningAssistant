@@ -6,6 +6,7 @@ import './materials.css'
 import { materialLocation, materialHref } from '../utils/material'
 import { ConceptText } from '../components/ConceptText'
 import { MaterialOcrPanel } from '../components/MaterialOcrPanel'
+import { LearningReader } from '../components/LearningReader'
 
 const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲义', slides: '课件', supplement: '补充材料' }
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
@@ -27,12 +28,14 @@ export function MaterialLibraryPage() {
   const [kind, setKind] = useState<MaterialKind>('textbook')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [view, setView] = useState<'source' | 'learning'>('source')
   const versionId = requestedVersion || detail?.material.current_version_id || ''
   const selectedVersion = detail?.versions.find(v => v.id === versionId)
 
   useEffect(() => { setSubject(currentSubjectId ?? '') }, [currentSubjectId])
   const linkedOffset = params.get('offset') ?? '0'
   const linkedBlock = params.get('block') ?? ''
+  useEffect(() => { setView('source') }, [versionId, linkedBlock])
   useEffect(() => {
     setNoteRefs([])
     if (!linkedBlock) return
@@ -145,6 +148,8 @@ export function MaterialLibraryPage() {
             {selectedVersion.warnings_json !== '[]' && <details className="material-warnings"><summary>提取说明与待处理内容</summary>{(JSON.parse(selectedVersion.warnings_json) as string[]).map((warning, i) => <p key={i}>{warning}</p>)}</details>}
           </>}
           {selectedVersion?.status === 'ready' && <>
+            <div className="toolbar"><button aria-pressed={view === 'source'} onClick={() => setView('source')}>来源检索</button><button aria-pressed={view === 'learning'} onClick={() => setView('learning')}>学习文档</button></div>
+            {view === 'learning' ? <LearningReader key={versionId} versionId={versionId} subjectId={detail.material.subject_id} /> : <>
             {selectedVersion.format === 'pdf' && <MaterialOcrPanel key={versionId} version={selectedVersion} onVersion={async id => {
               const next = await window.api.materials.get(selectedId)
               if (next.ok) setDetail(next.data)
@@ -158,6 +163,7 @@ export function MaterialLibraryPage() {
             </article>)}
             {!blocks.length && <div className="empty">没有匹配的条目。</div>}
             <div className="toolbar"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>上一批</button><span className="muted">{total ? offset + 1 : 0}–{Math.min(total, offset + 100)} / {total}</span><button disabled={offset + 100 >= total} onClick={() => setOffset(offset + 100)}>下一批</button></div>
+            </>}
           </>}
         </>}
       </section>

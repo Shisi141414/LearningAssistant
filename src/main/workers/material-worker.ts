@@ -3,9 +3,9 @@ import { parseMaterial } from '../services/material-parser'
 import type { MaterialFormat, OcrInput } from '@shared/types'
 import { recognizeMaterial } from '../services/material-ocr'
 
-const { file, format, ocr, modelDirectory, modelJson } = workerData as { file: string; format: MaterialFormat; ocr?: OcrInput; modelDirectory: string; modelJson: string }
+const { file, format, ocr, modelDirectory, modelJson, captureSources } = workerData as { file: string; format: MaterialFormat; ocr?: OcrInput; modelDirectory: string; modelJson: string; captureSources?: boolean }
 const progress = (value: number): void => { parentPort?.postMessage({ type: 'progress', progress: value }) }
-const job = ocr ? recognizeMaterial(file, ocr, modelDirectory, modelJson, progress) : parseMaterial(file, format, progress)
+const job = ocr ? recognizeMaterial(file, ocr, modelDirectory, modelJson, progress) : parseMaterial(file, format, progress, captureSources)
 job
   .then(result => parentPort?.postMessage({ type: 'done', ...result }))
   .catch(error => { console.error('材料处理失败', error); parentPort?.postMessage({ type: 'error', error: error instanceof Error ? error.message : String(error) }) })

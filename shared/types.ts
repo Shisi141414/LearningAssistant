@@ -429,3 +429,23 @@ export interface ConceptBacklink {
   material_id?: ID; ordinal?: number; locator_json?: string
 }
 export interface ConceptReferences { items: ConceptBacklink[]; next_offset: number | null; scanned: number }
+
+export type LearningEntryType = 'section' | 'narrative' | 'definition' | 'theorem' | 'proposition' | 'lemma' | 'corollary' | 'proof' | 'example' | 'exercise' | 'solution' | 'figure' | 'table' | 'equation' | 'note'
+export interface LearningSource { id: ID; ordinal: number; raw_text: string; heading: string; locator_json: string; extraction: 'native' | 'ocr' | 'manual' }
+export interface LearningSourceRef { source_id: ID; text_range?: [number, number] }
+export interface LearningEntry {
+  id: ID; type: LearningEntryType; title: string; sources: LearningSourceRef[]
+  analysis: { method: 'extracted' | 'manual'; review_status: 'unreviewed' | 'confirmed' }
+}
+export interface LearningRelation { from: ID; to: ID; type: 'proves' | 'solves'; review_status: 'confirmed' }
+export interface LearningState { entries: LearningEntry[]; relations: LearningRelation[] }
+export interface LearningDocument {
+  id: ID; version_id: ID; current_revision_id: ID; revision_id: ID; created_at: number
+  sources: LearningSource[]; state: LearningState; history: { id: ID; created_at: number }[]
+}
+export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_id: ID } & (
+  { action: 'edit'; type: LearningEntryType; title: string } |
+  { action: 'split'; position: number } |
+  { action: 'merge' } |
+  { action: 'relate'; target_id: ID | null }
+)

@@ -1,6 +1,6 @@
 // 可选的真实材料验收：配置文件/教材放在仓库外或被忽略的目录，始终使用隔离应用数据。
 // node scripts/test-real-materials.cjs <local-config.json>
-// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?}], unsupported?:[path]}
+// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?}], unsupported?:[path]}
 const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
@@ -75,7 +75,15 @@ app.on('browser-window-created', (_event, win) => {
           } while (scanOffset !== null)
           assert.ok(found, '真实材料中的概念可反向定位')
         }
-        report.cases.push({ format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
+        let semanticSources
+        if (test.learning) {
+          const learning = await call('learning', 'prepare', version.id)
+          semanticSources = learning.sources.length
+          if (test.query) assert.ok(learning.sources.some(source => source.raw_text.includes(test.query)), '规范来源应含真实文字')
+          if (version.format === 'pptx' && test.expectPages) assert.equal(new Set(learning.sources.map(s=>JSON.parse(s.locator_json).slide)).size,test.expectPages)
+          assert.equal((await call('learning','prepare',version.id)).sources[0].id,learning.sources[0].id,'规范来源不能重建 ID')
+        }
+        report.cases.push({ format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, semanticSources, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
       }
       for (const file of config.unsupported ?? []) {
         selectedFile = path.resolve(file)

@@ -88,6 +88,7 @@ app.on('browser-window-created', (_event, win) => {
         assert.match((await call('materials', 'ocrPage', { version_id: r.pending, page: 1 })).corrected_text, /热力学第一定律/)
         assert.match((await call('materials', 'ocrPage', { version_id: r.pending, page: 2 })).raw_text, /thermodynamics/i)
         assert.equal((await call('notes', 'get', r.note)).segments[0].material_ref.id, r.oldBlock)
+        assert.match((await call('learning', 'get', { version_id: r.correction })).sources[0].raw_text, /校正后的中文正文/)
         console.log('OCR_RESTART_OK persisted OCR, manual correction, original references, interrupted job recovery')
         clearTimeout(deadline); app.quit(); return
       }
@@ -132,6 +133,10 @@ app.on('browser-window-created', (_event, win) => {
       await until(async () => { correction = (await call('materials', 'get', m.id)).versions.find(v => v.derivation === 'correction'); return !!correction }, '校正版本')
       assert.match((await call('materials', 'ocrPage', { version_id: correction.id, page: 1 })).corrected_text, /热力学第一定律/)
       assert.equal((await call('materials', 'ocrPage', { version_id: ocr.id, page: 1 })).corrected_text, null)
+      const learningCorrected = await call('learning', 'prepare', correction.id)
+      assert.match(learningCorrected.sources[0].raw_text, /校正后的中文正文/)
+      assert.equal(learningCorrected.sources[0].extraction, 'manual')
+      assert.equal((await call('learning', 'prepare', correction.id)).sources[0].id, learningCorrected.sources[0].id)
       assert.equal((await call('notes', 'get', note.id)).segments[0].material_ref.id, oldBlocks[0].id)
       const second = await call('materials', 'ocrStart', { version_id: correction.id, from_page: 2, to_page: 3 })
       await ready(m.id, second)
@@ -147,11 +152,16 @@ app.on('browser-window-created', (_event, win) => {
         const originalHash = hash(config.real.file), real = await importFile(config.real.file)
         const started = Date.now(), id = await call('materials', 'ocrStart', { version_id: real.current_version_id, from_page: config.real.from, to_page: config.real.to })
         await ready(real.id, id)
+        const ocrSeconds = (Date.now() - started) / 1000
         const pages = []
         for (let page = config.real.from; page <= config.real.to; page++) pages.push(await call('materials', 'ocrPage', { version_id: id, page }))
         assert.ok(pages.every(page => page.raw_text.trim().length > 20))
         if (config.real.query) assert.ok((await call('materials', 'blocks', { version_id: id, query: config.real.query })).total > 0, '真实教材关键词应可检索')
         assert.equal(hash(config.real.file), originalHash, '原件不变')
+        const learningReal = await call('learning', 'prepare', id)
+        assert.equal(learningReal.sources.length, 353)
+        assert.equal(learningReal.sources[config.real.from - 1].extraction, 'ocr')
+        assert.match(learningReal.sources[config.real.from - 1].raw_text, /热力学/)
         const concept = await call('concepts', 'save', { subject_id: subject, name: '热力学', summary: 'OCR 概念关联验收', aliases: ['工程热力学'] })
         let offset = 0, linked = false
         while (offset !== null) {
@@ -160,7 +170,7 @@ app.on('browser-window-created', (_event, win) => {
           offset = refs.next_offset
         }
         assert.equal(linked, true, 'OCR 正文应进入确认概念的反向引用')
-        report.real = { from: config.real.from, to: config.real.to, seconds: (Date.now() - started) / 1000, conceptBacklinks: linked, pages: pages.map(p => ({ page: p.page, confidence: p.confidence, text: p.raw_text })) }
+        report.real = { from: config.real.from, to: config.real.to, seconds: ocrSeconds, includingLearningPreparationSeconds: (Date.now() - started) / 1000, conceptBacklinks: linked, pages: pages.map(p => ({ page: p.page, confidence: p.confidence, text: p.raw_text })) }
         await js(`location.hash='/library?material=${real.id}&version=${id}'`)
       } else await js(`location.hash='/library?material=${m.id}&version=${correction.id}'`)
       await until(() => js(`!!document.querySelector('.material-ocr')`), '最终页面')
@@ -180,7 +190,7 @@ app.on('browser-window-created', (_event, win) => {
       const db = new (require('better-sqlite3'))(path.join(root, 'learning-assistant.db'))
       db.prepare("UPDATE material_versions SET status = 'parsing' WHERE id = ?").run(pending)
       db.close()
-      report.resume = { material: m.id, pending, note: note.id, oldBlock: oldBlocks[0].id }
+      report.resume = { material: m.id, pending, correction: correction.id, note: note.id, oldBlock: oldBlocks[0].id }
       fs.writeFileSync(path.join(root, 'ocr-report.json'), JSON.stringify(report, null, 2))
       globalThis.fetch = originalFetch
       assert.deepEqual(problems, [])
