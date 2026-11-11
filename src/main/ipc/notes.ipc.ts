@@ -1,15 +1,15 @@
 /**
  * ipc/notes.ipc.ts —— 笔记、段落与标注
  */
-import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type {
   Note, NoteSegment, NoteWithSegments, Annotation, AnnotationKind,
   SegmentType, ID, Timestamp
 } from '@shared/types'
 import { getDb } from '../services/db'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
+import { addSegment } from '../services/segments'
 
 interface NoteRow {
   id: string
@@ -135,27 +135,7 @@ export function registerNotesIpc(): void {
   /* ---------- 段落（双视图核心） ---------- */
 
   ipcMain.handle(IPC.NotesAddSegment, (_e, input: { note_id: ID; seg_type?: SegmentType; raw_text?: string; organized_text?: string }) =>
-    handleResult(() => {
-      const db = getDb()
-      const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM note_segments WHERE note_id = ?').get(input.note_id) as { m: number }
-      const now = Date.now()
-      const seg: NoteSegment = {
-        id: nanoid(),
-        note_id: input.note_id,
-        sort_order: max.m + 1,
-        seg_type: input.seg_type ?? 'other',
-        raw_text: input.raw_text ?? '',
-        organized_text: input.organized_text ?? input.raw_text ?? '',
-        image_path: null,
-        created_at: now,
-        updated_at: now
-      }
-      db.prepare(
-        'INSERT INTO note_segments (id, note_id, sort_order, seg_type, raw_text, organized_text, image_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(seg.id, seg.note_id, seg.sort_order, seg.seg_type, seg.raw_text, seg.organized_text, seg.image_path, seg.created_at, seg.updated_at)
-      touchNote(db, input.note_id)
-      return seg
-    })
+    handleResult(() => addSegment(input))
   )
 
   ipcMain.handle(IPC.NotesUpdateSegment, (_e, { id, ...patch }: { id: ID; seg_type?: SegmentType; raw_text?: string; organized_text?: string }) =>
@@ -164,7 +144,7 @@ export function registerNotesIpc(): void {
       const cur = db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as SegmentRow | undefined
       if (!cur) throw new Error('段落不存在')
       const next: NoteSegment = { ...rowToSegment(cur), ...patch, updated_at: Date.now() }
-      db.prepare('UPDATE note_segments SET seg_type = ?, raw_text = ?, organized_text = ?, updated_at = ? WHERE id = ?').run(
+      db.prepare("UPDATE note_segments SET seg_type = ?, raw_text = ?, organized_text = ?, updated_at = ?, revision = revision + 1, organized_by = 'user', organize_status = 'idle', organize_error = NULL WHERE id = ?").run(
         next.seg_type, next.raw_text, next.organized_text, next.updated_at, id
       )
       touchNote(db, cur.note_id)

@@ -82,6 +82,10 @@ export function NoteDetail() {
     <div className="page">
       <div className="toolbar">
         <Link to="/notes">← 笔记</Link>
+        <button onClick={() => void window.api.classroom.retryPending(note.id).then((result) => {
+          showToast(result.ok ? `已补整理 ${result.data} 段；未成功的条目保留待重试` : result.error)
+          void reload()
+        })}>补整理</button>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}

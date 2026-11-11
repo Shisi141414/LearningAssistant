@@ -5,6 +5,12 @@
 import { create } from 'zustand'
 import type { ChatSession, ChatMessage, ContextRef, ID } from '@shared/types'
 
+function upsertAssistant(messages: ChatMessage[], sessionId: ID, id: ID, content: string, append = false): ChatMessage[] {
+  const exists = messages.some((m) => m.id === id)
+  if (exists) return messages.map((m) => m.id === id ? { ...m, content: append ? m.content + content : content } : m)
+  return [...messages, { id, session_id: sessionId, role: 'assistant', content, context_json: null, created_at: Date.now() }]
+}
+
 interface ChatState {
   sessions: ChatSession[]
   activeSessionId: ID | null
@@ -96,7 +102,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const st = get()
     if (st.activeSessionId !== sessionId) return
     set({
-      messages: st.messages.map((m) => (m.id === messageId ? { ...m, content: m.content + delta } : m)),
+      messages: upsertAssistant(st.messages, sessionId, messageId, delta, true),
       streamingIds: new Set([...st.streamingIds, messageId])
     })
   },
@@ -109,7 +115,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const modelLabels = { ...st.modelLabels, [messageId]: modelDisplay }
     // 内容以 DB 为准（中断时保留已生成部分）
     set({
-      messages: st.messages.map((m) => (m.id === messageId ? { ...m, content } : m)),
+      messages: upsertAssistant(st.messages, sessionId, messageId, content),
       streamingIds: streaming,
       modelLabels
     })
@@ -126,7 +132,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       throw new Error(error)
     }
     set({
-      messages: st.messages.map((m) => (m.id === messageId ? { ...m, content: `[生成失败] ${error}` } : m)),
+      messages: upsertAssistant(st.messages, sessionId, messageId, `${st.messages.find((m) => m.id === messageId)?.content ?? ''}\n\n[生成失败] ${error}`),
       streamingIds: streaming
     })
   }

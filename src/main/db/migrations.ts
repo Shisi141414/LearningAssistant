@@ -203,5 +203,18 @@ CREATE TABLE IF NOT EXISTS app_config (
   value TEXT NOT NULL
 );
 `
+  },
+  {
+    version: 4,
+    name: 'reliable_organization',
+    sql: `
+ALTER TABLE note_segments ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE note_segments ADD COLUMN organized_by TEXT NOT NULL DEFAULT 'initial';
+ALTER TABLE note_segments ADD COLUMN organize_status TEXT NOT NULL DEFAULT 'idle';
+ALTER TABLE note_segments ADD COLUMN organize_error TEXT;
+ALTER TABLE note_segments ADD COLUMN organize_attempts INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE note_segments ADD COLUMN organize_retry_at INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_segments_organize ON note_segments(organize_status, organize_retry_at);
+`
   }
 ]

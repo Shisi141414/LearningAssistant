@@ -4,7 +4,6 @@
  * ASR 测试用模型自带 test_wavs（无需麦克风，验证引擎加载+识别全链路）；
  * LLM 类测试用默认模型（识图测试挑第一个 vision 模型）。
  */
-import { ipcMain } from 'electron'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { IPC } from '@shared/ipc-channels'
@@ -17,12 +16,13 @@ import { completeChat, completeVision } from '../services/llm'
 import { buildOrganizePrompt, parseOrganizedResponse } from '../services/organize'
 import { getProviderWithKey } from './providers.ipc'
 import { pickModel } from './chat.ipc'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 
 export function registerDiagnosticsIpc(): void {
   /** 语音识别：加载引擎 + 转写模型自带测试音频（不用麦克风，课堂页再实测麦克风） */
   ipcMain.handle(IPC.DiagnosticsAsr, () =>
     handleResult(async (): Promise<DiagAsrResult> => {
+      if (asrService.running) throw new Error('请先结束课堂再运行语音自检，避免影响课堂音频')
       const modelDir = configGet('asr.model_dir')
       if (!modelDir) throw new Error('未配置语音模型目录（设置 → 语音引擎）')
       const wavs = readdirSync(modelDir).filter((f) => f.endsWith('.wav'))

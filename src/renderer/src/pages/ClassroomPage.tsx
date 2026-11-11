@@ -116,6 +116,7 @@ export function ClassroomPage() {
   const triggerOrganize = useCallback(async (segmentId: string): Promise<void> => {
     setOrganizingIds((s) => new Set([...s, segmentId]))
     const res = await window.api.classroom.organizeSegment(segmentId)
+    setOrganizingIds((s) => { const next = new Set(s); next.delete(segmentId); return next })
     if (!res.ok) {
       // 整理失败不阻断课堂（离线优先降级）：保留原文
       setOrganizingIds((s) => {
@@ -130,11 +131,10 @@ export function ClassroomPage() {
 
   /** 事件订阅（live 阶段挂载） */
   useEffect(() => {
-    if (phase !== 'live') return
     const offPartial = window.api.onClassroomPartial((e) => setPartial(e.text))
     const offFinal = window.api.onClassroomFinal((e) => {
       setPartial('')
-      void appendSegment(e.text)
+      setNote((n) => n?.id === e.segment.note_id && !n.segments.some(s => s.id === e.segment.id) ? { ...n, segments: [...n.segments, e.segment] } : n)
     })
     const offOrg = window.api.onSegmentOrganized((e) => {
       setOrganizingIds((s) => {
@@ -158,7 +158,7 @@ export function ClassroomPage() {
       offFinal()
       offOrg()
     }
-  }, [phase, appendSegment])
+  }, [])
 
   /** 离开页面/卸载清理 */
   useEffect(() => {
@@ -197,6 +197,7 @@ export function ClassroomPage() {
       ])
       setAutoOrganize(autoOrganizeRes.ok ? autoOrganizeRes.data !== '0' : true) // 默认开
 
+      setPhase('live') // 事件订阅已在挂载时安装，录音前先显示课堂。
       const startRes = await window.api.classroom.start(res.data.id)
       if (startRes.ok) {
         setAsrMode(startRes.data.mode === 'asr')
@@ -227,6 +228,8 @@ export function ClassroomPage() {
       micRef.current?.stop()
       micRef.current = null
       setRecording(false)
+      const flush = await window.api.classroom.flush()
+      if (!flush.ok) showToast(flush.error)
       return
     }
     if (!asrMode) {
@@ -241,11 +244,12 @@ export function ClassroomPage() {
     }
   }
 
-  const endSession = (): void => {
+  const endSession = async (): Promise<void> => {
     micRef.current?.stop()
     micRef.current = null
     setRecording(false)
-    void window.api.classroom.stop()
+    const stopped = await window.api.classroom.stop()
+    if (!stopped.ok) { showToast(stopped.error); return }
     setPhase('setup')
     setPartial('')
   }
@@ -345,7 +349,7 @@ export function ClassroomPage() {
         )}
         <span style={{ flex: 1 }} />
         <label style={{ fontSize: 13, color: 'var(--text-2)', display: 'flex', gap: 4, alignItems: 'center' }}>
-          <input type="checkbox" checked={autoOrganize} onChange={(e) => setAutoOrganize(e.target.checked)} /> 自动整理
+          <input type="checkbox" checked={autoOrganize} onChange={(e) => { setAutoOrganize(e.target.checked); void window.api.config.set('classroom.autoOrganize', e.target.checked ? '1' : '0') }} /> 自动整理
         </label>
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
           <button
@@ -366,7 +370,8 @@ export function ClassroomPage() {
             {recording ? '⏹ 停止录音' : '🎤 开始录音'}
           </button>
         )}
-        <button onClick={endSession}>结束课堂</button>
+        <button onClick={() => void window.api.classroom.retryPending(note?.id).then(r => showToast(r.ok ? `已补整理 ${r.data} 段；失败项稍后可重试` : r.error))}>重试待整理</button>
+        <button onClick={() => void endSession()}>结束课堂</button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

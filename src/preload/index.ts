@@ -63,6 +63,8 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.AnnotationsRemove, id)
   },
   classroom: {
+    flush: () => invoke<boolean>(IPC.ClassroomFlush),
+    retryPending: (noteId?: ID) => invoke<number>(IPC.NotesRetryPending, noteId),
     /** 返回 mode: 'asr'（语音就绪）| 'manual'（手动转写模式） */
     start: (noteId: ID) => invoke<ClassroomStartResult>(IPC.ClassroomStart, noteId),
     stop: () => invoke<boolean>(IPC.ClassroomStop),

@@ -138,7 +138,19 @@ class AsrService {
     }
   }
 
+  flush(): void {
+    if (!this.recognizer || !this.stream) return
+    this.stream.acceptWaveform({ sampleRate: SAMPLE_RATE, samples: new Float32Array(SAMPLE_RATE / 2) })
+    this.stream.inputFinished()
+    while (this.recognizer.isReady(this.stream)) this.recognizer.decode(this.stream)
+    const text = this.recognizer.getResult(this.stream).text.trim() || this.lastText
+    if (text) this.events?.onFinal(text)
+    this.stream = this.recognizer.createStream()
+    this.lastText = ''
+  }
+
   stop(): void {
+    this.flush()
     this.recognizer = null
     this.stream = null
     this.events = null

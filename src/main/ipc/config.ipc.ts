@@ -1,12 +1,12 @@
 /**
  * ipc/config.ipc.ts —— KV 配置与存储位置管理
  */
-import { ipcMain, dialog } from 'electron'
+import { dialog } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { StorageInfo } from '@shared/types'
 import { configGet, configSet } from '../services/config'
 import { storageInfo, migrateStorage, resetStorage } from '../services/storage'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 
 export function registerConfigIpc(): void {
   ipcMain.handle(IPC.ConfigGet, (_e, key: string) => handleResult(() => configGet(key)))

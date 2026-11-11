@@ -163,6 +163,10 @@ export interface Note {
 }
 
 export interface NoteSegment {
+  revision?: number
+  organized_by?: 'initial' | 'ai' | 'user'
+  organize_status?: 'idle' | 'pending' | 'processing' | 'done' | 'failed' | 'conflict'
+  organize_error?: string | null
   id: ID
   note_id: ID
   sort_order: number
@@ -329,6 +333,7 @@ export interface ClassroomPartialEvent {
 
 export interface ClassroomFinalEvent {
   text: string
+  segment: NoteSegment
 }
 
 export interface SegmentOrganizedEvent {

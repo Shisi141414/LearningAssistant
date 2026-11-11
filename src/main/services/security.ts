@@ -1,0 +1,68 @@
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { IPC } from '@shared/ipc-channels'
+
+export function trustedRenderer(url: string): boolean {
+  try {
+    const candidate = new URL(url)
+    if (process.env.ELECTRON_RENDERER_URL) {
+      const expected = new URL(process.env.ELECTRON_RENDERER_URL)
+      return candidate.origin === expected.origin && candidate.pathname === expected.pathname && !candidate.search
+    }
+    return candidate.protocol === 'file:' && resolve(fileURLToPath(candidate)) === resolve(join(__dirname, '../renderer/index.html')) && !candidate.search
+  } catch { return false }
+}
+export function safeExternal(url: string): boolean {
+  try { return ['https:', 'http:', 'mailto:'].includes(new URL(url).protocol) } catch { return false }
+}
+
+type Check = (value: unknown) => boolean
+const text = (max = 200_000, nonempty = false): Check => (v) => typeof v === 'string' && v.length <= max && (!nonempty || !!v.trim()) && !v.includes('\0')
+const id = text(128, true), title = text(500, true), content = text()
+const optional = (check: Check): Check => (v) => v === undefined || check(v)
+const nullable = (check: Check): Check => (v) => v === null || check(v)
+const opt = (check: Check): Check => optional(nullable(check))
+const choice = (...values: string[]): Check => (v) => typeof v === 'string' && values.includes(v)
+const number: Check = (v) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
+const bool: Check = (v) => typeof v === 'boolean'
+const record = (fields: Record<string, Check>): Check => (value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const object = value as Record<string, unknown>
+  return Object.keys(object).every(key => Object.hasOwn(fields, key)) && Object.entries(fields).every(([key, check]) => check(object[key]))
+}
+const kind = choice('lecture', 'seminar', 'meeting', 'other')
+const segmentType = choice('definition', 'proposition', 'example', 'proof', 'solution', 'note', 'other')
+const attachment = { subject_id: opt(id), activity_id: opt(id) }
+const subject = { name: title, color: optional(text(64)), description: optional(content) }
+const activity = { title, kind: optional(kind), happened_at: opt(number), subject_id: opt(id), description: optional(content) }
+const patch = (fields: Record<string, Check>): Record<string, Check> => Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, optional(v)]))
+const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
+
+const rules: Partial<Record<string, Check[]>> = {
+  [IPC.SubjectsCreate]: [record(subject)], [IPC.SubjectsUpdate]: [record({ ...patch(subject), id })],
+  [IPC.ActivitiesList]: [optional(record({ kind: optional(kind), subject_id: optional(id) }))],
+  [IPC.ActivitiesCreate]: [record(activity)], [IPC.ActivitiesUpdate]: [record({ ...patch(activity), id })],
+  [IPC.ProvidersSave]: [record({ id: optional(id), name: title, base_url: (v) => text(2048, true)(v) && safeExternal(v as string) && /^(https?):/.test(v as string), api_format: choice('openai', 'anthropic'), api_key: optional(text(16384)), enabled: optional(bool) })],
+  [IPC.ModelsList]: [optional(id)],
+  [IPC.ModelsSave]: [record({ id: optional(id), provider_id: id, model_id: title, display_name: optional(title), context_length: opt(number), supports_vision: optional(bool), speed_tier: opt(choice('fast', 'medium', 'slow')), notes: optional(content) })],
+  [IPC.NotesList]: [optional(record(attachment))],
+  [IPC.NotesCreate]: [record({ title, ...attachment, source: optional(choice('manual', 'class', 'import')) })],
+  [IPC.NotesUpdate]: [record({ id, title: optional(title), ...attachment })],
+  [IPC.NotesAddSegment]: [record({ note_id: id, seg_type: optional(segmentType), raw_text: optional(content), organized_text: optional(content) })],
+  [IPC.NotesUpdateSegment]: [record({ id, seg_type: optional(segmentType), raw_text: optional(content), organized_text: optional(content) })],
+  [IPC.AnnotationsAdd]: [record({ segment_id: id, kind: choice('keypoint', 'question'), comment: optional(content) })],
+  [IPC.AnnotationsUpdate]: [record({ id, comment: content })],
+  [IPC.ChatCreateSession]: [record({ ...attachment, title: optional(title) })],
+  [IPC.ChatSend]: [record({ session_id: id, content: (v) => content(v) && !!(v as string).trim(), model_db_id: opt(id), context_refs: optional((v) => Array.isArray(v) && v.length <= 50 && v.every(record({ type: choice('note', 'note_segment'), id }))) })],
+  [IPC.InspirationsAdd]: [record({ content: (v) => content(v) && !!(v as string).trim(), subject_id: opt(id), context_text: optional(content) })],
+  [IPC.ConfigGet]: [configKey], [IPC.ConfigSet]: [configKey, nullable(text(50_000))],
+  [IPC.StorageMigrate]: [text(4096, true)], [IPC.NotesRetryPending]: [optional(id)],
+  [IPC.ClassroomFeedAudio]: [(v) => v instanceof Uint8Array && v.byteLength > 0 && v.byteLength <= 64_000 && v.byteLength % 2 === 0 && v.byteOffset % 2 === 0]
+}
+for (const channel of [IPC.SubjectsRemove, IPC.ActivitiesRemove, IPC.ProvidersRemove, IPC.ProvidersTest, IPC.ModelsImport, IPC.ModelsRemove, IPC.NotesGet, IPC.NotesRemove, IPC.NotesRemoveSegment, IPC.NotesOrganizeSegment, IPC.AnnotationsRemove, IPC.ChatRemoveSession, IPC.ChatGetMessages, IPC.ChatAbort, IPC.InspirationsRemove, IPC.ClassroomStart]) rules[channel] = [id]
+for (const channel of [IPC.SubjectsList, IPC.ProvidersList, IPC.PresetsList, IPC.ClassroomStop, IPC.ClassroomFlush, IPC.AsrStatus, IPC.AsrPickDir, IPC.StorageInfo, IPC.StoragePick, IPC.StorageReset, IPC.DiagnosticsAsr, IPC.DiagnosticsChat, IPC.DiagnosticsOrganize, IPC.DiagnosticsVision, IPC.ChatListSessions, IPC.InspirationsList]) rules[channel] = []
+
+export function validateIpc(channel: string, args: unknown[]): void {
+  const checks = rules[channel]
+  if (!checks || args.length > checks.length || !checks.every((check, index) => check(args[index]))) throw new Error('请求参数无效或超出限制')
+}

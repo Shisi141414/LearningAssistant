@@ -50,6 +50,8 @@ export const IPC = {
   /* 课堂模式（M1） */
   ClassroomStart: 'classroom:start',
   ClassroomStop: 'classroom:stop',
+  ClassroomFlush: 'classroom:flush',
+  NotesRetryPending: 'notes:retryPending',
   ClassroomFeedAudio: 'classroom:feedAudio', // 单向 send（高频音频块）
   AsrStatus: 'asr:status',
   AsrPickDir: 'asr:pickDir',

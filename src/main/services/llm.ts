@@ -119,7 +119,7 @@ async function streamAnthropic(
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({ model, system: system || undefined, messages: rest, stream: true, max_tokens: 8192 }),
-    signal
+    signal: AbortSignal.any([signal, AbortSignal.timeout(120_000)])
   })
   if (!res.ok) throw new Error(`HTTP ${res.status} ${await safeText(res)}`)
   if (!res.body) throw new Error('无响应体')
@@ -127,36 +127,33 @@ async function streamAnthropic(
   let full = ''
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
-  let buf = ''
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buf += decoder.decode(value, { stream: true })
-    // SSE：事件以空行分隔，每行 `event: x` / `data: {...}`
-    const events = buf.split('\n\n')
-    buf = events.pop() ?? ''
-    for (const ev of events) {
-      for (const line of ev.split('\n')) {
-        if (!line.startsWith('data:')) continue
-        const payload = line.slice(5).trim()
-        if (!payload || payload === '[DONE]') continue
-        try {
-          const obj = JSON.parse(payload) as {
-            type: string
-            delta?: { text?: string }
-            error?: { message?: string }
-          }
-          if (obj.type === 'content_block_delta' && obj.delta?.text) {
-            full += obj.delta.text
-            cb.onChunk(obj.delta.text)
-          } else if (obj.type === 'error') {
-            throw new Error(obj.error?.message ?? '上游错误')
-          }
-        } catch {
-          // 忽略无法解析的行（心跳等）
-        }
-      }
+  let buffer = ''
+  const consume = (event: string): void => {
+    const data = event.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
+    if (!data || data === '[DONE]') return
+    let obj: { type?: string; delta?: { text?: string }; error?: { message?: string } }
+    try { obj = JSON.parse(data) } catch { return }
+    if (obj.type === 'error') throw new Error(obj.error?.message ?? '上游错误')
+    if (obj.type === 'content_block_delta' && typeof obj.delta?.text === 'string') {
+      full += obj.delta.text
+      cb.onChunk(obj.delta.text)
     }
+  }
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true })
+      let boundary: RegExpExecArray | null
+      while ((boundary = /\r?\n\r?\n/.exec(buffer))) {
+        consume(buffer.slice(0, boundary.index))
+        buffer = buffer.slice(boundary.index + boundary[0].length)
+      }
+      if (done) { if (buffer.trim()) consume(buffer); break }
+      if (buffer.length > 1_000_000) throw new Error('模型流事件过大')
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined)
+    reader.releaseLock()
   }
   return full
 }

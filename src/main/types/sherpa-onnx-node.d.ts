@@ -7,6 +7,7 @@
  */
 declare module 'sherpa-onnx-node' {
   export interface OnlineStream {
+    inputFinished(): void
     acceptWaveform(input: { sampleRate: number; samples: Float32Array }): void
   }
 

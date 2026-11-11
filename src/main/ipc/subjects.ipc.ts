@@ -1,11 +1,10 @@
 /**
  * ipc/subjects.ipc.ts —— 学科 CRUD
  */
-import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { Subject, SubjectInput, ID } from '@shared/types'
 import { getDb } from '../services/db'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 
 interface SubjectRow {

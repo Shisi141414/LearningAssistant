@@ -1,14 +1,15 @@
 /**
  * ipc/chat.ipc.ts —— 智能体对话：上下文组装（ADR-2）+ 流式转发 + 中断
  */
-import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { type IpcMainInvokeEvent, type WebContents } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { ChatSession, ChatMessage, ChatSendInput, ContextRef, ID, LlmMessage } from '@shared/types'
 import { getDb } from '../services/db'
 import { streamChat } from '../services/llm'
 import { getProviderWithKey } from './providers.ipc'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
+import { withWork } from '../services/work'
 
 interface SessionRow {
   id: string
@@ -33,6 +34,11 @@ const rowToMessage = (r: MessageRow): ChatMessage => ({ ...r })
 
 /** 进行中的流：messageId -> AbortController */
 const activeStreams = new Map<ID, AbortController>()
+const flushStreams = new Map<ID, () => void>()
+export function stopAllChats(): void {
+  for (const flush of flushStreams.values()) flush()
+  for (const controller of activeStreams.values()) controller.abort()
+}
 
 /** 历史消息条数上限（控制上下文长度；M2 换成基于 token 的裁剪） */
 const HISTORY_LIMIT = 20
@@ -51,6 +57,7 @@ export function registerChatIpc(): void {
     handleResult(() => {
       const db = getDb()
       const now = Date.now()
+      if (input.subject_id && input.activity_id) throw new Error('会话不能同时挂学科与活动')
       const s: ChatSession = {
         id: nanoid(),
         subject_id: input.subject_id ?? null,
@@ -84,11 +91,11 @@ export function registerChatIpc(): void {
 
   ipcMain.handle(IPC.ChatSend, async (event: IpcMainInvokeEvent, input: ChatSendInput) => {
     try {
-      await runChat(event.sender, input)
+      await withWork('对话生成', () => runChat(event.sender, input))
       return { ok: true as const, data: true }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
-      event.sender.send(IPC_EVENTS.LlmError, { session_id: input.session_id, message_id: '', error: msg })
+      if (!event.sender.isDestroyed()) event.sender.send(IPC_EVENTS.LlmError, { session_id: input.session_id, message_id: '', error: msg })
       return { ok: false as const, error: msg }
     }
   })
@@ -173,7 +180,13 @@ async function runChat(sender: WebContents, input: ChatSendInput): Promise<void>
   // 7. 流式调用与转发
   const ac = new AbortController()
   activeStreams.set(assistantMsg.id, ac)
+  const onDestroyed = (): void => { flushStreams.get(assistantMsg.id)?.(); ac.abort() }
+  sender.once('destroyed', onDestroyed)
+  // 提前公布 ID，即使模型尚未输出首 token 也可以中止。
+  sender.send(IPC_EVENTS.LlmChunk, { session_id: session.id, message_id: assistantMsg.id, delta: '' })
   let full = ''
+  flushStreams.set(assistantMsg.id, () => db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(full, assistantMsg.id))
+  let lastSaved = 0
   try {
     full = await streamChat(
       { base_url: provider.base_url, api_format: provider.api_format, apiKey },
@@ -182,8 +195,12 @@ async function runChat(sender: WebContents, input: ChatSendInput): Promise<void>
       ac.signal,
       {
         onChunk: (delta) => {
-          // full 由 streamChat 返回值统一负责，这里只负责实时转发
-          sender.send(IPC_EVENTS.LlmChunk, { session_id: session.id, message_id: assistantMsg.id, delta })
+          full += delta
+          if (Date.now() - lastSaved >= 250) {
+            db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(full, assistantMsg.id)
+            lastSaved = Date.now()
+          }
+          if (!sender.isDestroyed()) sender.send(IPC_EVENTS.LlmChunk, { session_id: session.id, message_id: assistantMsg.id, delta })
         }
       }
     )
@@ -192,17 +209,19 @@ async function runChat(sender: WebContents, input: ChatSendInput): Promise<void>
     const aborted = ac.signal.aborted
     if (!aborted) {
       const msg = e instanceof Error ? e.message : String(e)
-      db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(`[生成失败] ${msg}`, assistantMsg.id)
-      sender.send(IPC_EVENTS.LlmError, { session_id: session.id, message_id: assistantMsg.id, error: msg })
+      db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(`${full}\n\n[生成失败] ${msg}`, assistantMsg.id)
+      if (!sender.isDestroyed()) sender.send(IPC_EVENTS.LlmError, { session_id: session.id, message_id: assistantMsg.id, error: msg })
       return
     }
   } finally {
     activeStreams.delete(assistantMsg.id)
+    flushStreams.delete(assistantMsg.id)
+    sender.removeListener('destroyed', onDestroyed)
   }
 
   // 8. 落库并通知完成
   db.prepare('UPDATE chat_messages SET content = ? WHERE id = ?').run(full, assistantMsg.id)
-  sender.send(IPC_EVENTS.LlmDone, {
+  if (!sender.isDestroyed()) sender.send(IPC_EVENTS.LlmDone, {
     session_id: session.id,
     message_id: assistantMsg.id,
     content: full,

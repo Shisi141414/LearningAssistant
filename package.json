@@ -14,11 +14,12 @@
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
     "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
     "test:chunk": "node --experimental-strip-types scripts/smoke-chunk.ts",
-    "test": "npm run test:db && npm run test:organize && npm run test:chunk",
+    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability",
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "build:win": "electron-vite build && electron-builder --win",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "test:reliability": "node --import ./scripts/test-support.mjs --test scripts/*.test.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

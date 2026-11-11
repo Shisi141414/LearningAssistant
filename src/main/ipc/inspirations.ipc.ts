@@ -1,11 +1,10 @@
 /**
  * ipc/inspirations.ipc.ts —— 灵感库
  */
-import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { Inspiration, InspirationInput, ID } from '@shared/types'
 import { getDb } from '../services/db'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 
 interface Row {

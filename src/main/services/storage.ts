@@ -4,11 +4,13 @@
  * 迁移流程：WAL checkpoint 截断 → 复制 .db 到新目录 → 写引导配置 → 热切换连接。
  * 旧目录文件保留（不删，作为回滚保险），用户确认无误后可手动删除。
  */
-import { copyFileSync, existsSync, statSync } from 'fs'
-import { join } from 'path'
+import { constants, copyFileSync, cpSync, existsSync, statSync, realpathSync, mkdtempSync, renameSync, unlinkSync, rmdirSync } from 'fs'
+import { join, resolve } from 'path'
+import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { closeDb, dbFilePath, getDb } from './db'
 import { readBootConfig, writeBootConfig, resolveDataDir } from './bootConfig'
+import { assertIdle } from './work'
 
 export interface StorageInfo {
   dataDir: string
@@ -35,27 +37,59 @@ export function storageInfo(): StorageInfo {
 
 /** 迁移到新目录（目录必须已存在）。成功后数据库连接已指向新位置。 */
 export function migrateStorage(newDir: string): StorageInfo {
-  if (!existsSync(newDir)) throw new Error('目标目录不存在')
-  closeDb() // 内部做 WAL 截断，.db 单文件自洽
-  const src = dbFilePath() // closeDb 之后 resolveDataDir 仍指向旧目录
-  const dst = join(newDir, 'learning-assistant.db')
-  if (src === dst) throw new Error('新目录与当前目录相同')
-  if (!existsSync(src)) throw new Error('当前数据库文件不存在')
-  copyFileSync(src, dst)
-  writeBootConfig({ ...readBootConfig(), dataDir: newDir })
-  getDb() // 立即重开（新目录），失败会抛错
-  return storageInfo()
+  return moveStorage(newDir, false)
 }
 
 /** 重置为默认位置（userData）——同样走复制迁移 */
 export function resetStorage(): StorageInfo {
-  closeDb()
-  const src = dbFilePath()
-  const dst = join(app.getPath('userData'), 'learning-assistant.db')
-  if (src !== dst && existsSync(src)) {
-    copyFileSync(src, dst)
-  }
-  writeBootConfig({ ...readBootConfig(), dataDir: undefined })
+  return moveStorage(app.getPath('userData'), true)
+}
+
+function moveStorage(directory: string, reset: boolean): StorageInfo {
+  assertIdle()
+  if (!existsSync(directory) || !statSync(directory).isDirectory()) throw new Error('目标必须是已存在的目录')
   getDb()
-  return storageInfo()
+  const previous = readBootConfig()
+  const sourceDir = realpathSync(resolveDataDir())
+  const newDir = realpathSync(resolve(directory))
+  const canonical = (p: string): string => process.platform === 'win32' ? p.toLowerCase() : p
+  if (canonical(sourceDir) === canonical(newDir)) return storageInfo()
+  const src = dbFilePath()
+  const dst = join(newDir, 'learning-assistant.db')
+  const attachments = join(newDir, 'materials')
+  if ([dst, dst + '-wal', dst + '-shm', attachments].some(existsSync)) throw new Error('目标目录已有数据库或材料，未覆盖；请选择空的数据目录，或先自行备份并移走已有数据')
+  const staging = mkdtempSync(join(newDir, '.learning-assistant-move-'))
+  let publishedDb = false
+  let publishedMaterials = false
+  try {
+    closeDb()
+    const stagedDb = join(staging, 'learning-assistant.db')
+    copyFileSync(src, stagedDb, constants.COPYFILE_EXCL)
+    const verify = new Database(stagedDb, { readonly: true })
+    try {
+      if (verify.pragma('integrity_check', { simple: true }) !== 'ok') throw new Error('迁移副本完整性检查失败')
+    } finally { verify.close() }
+    if (existsSync(join(sourceDir, 'materials'))) {
+      cpSync(join(sourceDir, 'materials'), join(staging, 'materials'), { recursive: true, force: false, errorOnExist: true })
+      renameSync(join(staging, 'materials'), attachments)
+      publishedMaterials = true
+    }
+    copyFileSync(stagedDb, dst, constants.COPYFILE_EXCL)
+    publishedDb = true
+    writeBootConfig({ ...previous, dataDir: reset ? undefined : newDir })
+    getDb()
+    for (const file of [stagedDb, stagedDb + '-wal', stagedDb + '-shm']) if (existsSync(file)) unlinkSync(file)
+    rmdirSync(staging)
+    return storageInfo()
+  } catch (error) {
+    closeDb()
+    if (JSON.stringify(readBootConfig()) !== JSON.stringify(previous)) writeBootConfig(previous)
+    getDb()
+    // 仅撤回本次创建的目标；原库和原附件一直保留。失败的暂存副本保留供排查。
+    if (publishedMaterials) renameSync(attachments, join(staging, 'materials'))
+    if (publishedDb) {
+      for (const file of [dst, dst + '-wal', dst + '-shm']) if (existsSync(file)) unlinkSync(file)
+    }
+    throw error
+  }
 }

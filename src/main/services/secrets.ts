@@ -8,9 +8,9 @@
 import { safeStorage } from 'electron'
 
 export function encryptSecret(plain: string): Buffer | null {
+  if (!plain) return null
   if (!safeStorage.isEncryptionAvailable()) {
-    // DPAPI 不可用时退化为明文存储并标记（后续可提醒用户），Windows 正常环境不会走到这里
-    return Buffer.from(`plain:${plain}`, 'utf-8')
+    throw new Error('系统密钥加密不可用，未保存 API Key；请恢复系统加密服务后重试')
   }
   return safeStorage.encryptString(plain)
 }
@@ -18,8 +18,8 @@ export function encryptSecret(plain: string): Buffer | null {
 export function decryptSecret(encrypted: Buffer | null): string | null {
   if (!encrypted || encrypted.length === 0) return null
   const s = encrypted.toString('utf-8')
-  if (s.startsWith('plain:')) return s.slice(6)
-  if (!safeStorage.isEncryptionAvailable()) return null
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('系统密钥加密不可用，暂时无法使用 API Key')
+  if (s.startsWith('plain:')) return s.slice(6) // 仅供主进程兼容读取，调用方立即升级加密。
   try {
     return safeStorage.decryptString(encrypted)
   } catch {

@@ -22,7 +22,8 @@ export interface ChunkOptions {
 
 export function chunkText(md: string, opts: ChunkOptions = {}): TextChunk[] {
   const maxChars = opts.maxChars ?? 500
-  const overlap = Math.min(opts.overlap ?? 50, maxChars - 1)
+  const overlap = opts.overlap ?? Math.min(50, maxChars - 1)
+  if (!Number.isInteger(maxChars) || maxChars < 1 || !Number.isInteger(overlap) || overlap < 0 || overlap >= maxChars) throw new Error('切块长度必须为正整数，重叠必须在 0 到长度减 1 之间')
   const chunks: TextChunk[] = []
   const headingStack: string[] = []
 
@@ -35,24 +36,19 @@ export function chunkText(md: string, opts: ChunkOptions = {}): TextChunk[] {
   const splitLong = (text: string): string[] => {
     if (text.length <= maxChars) return [text]
     const out: string[] = []
-    const sentences = text.split(/(?<=[。！？!?；;\n])/)
-    let cur = ''
-    for (const s of sentences) {
-      // 单句超长（无标点的长公式/长行）：硬切
-      if (s.length > maxChars) {
-        for (let i = 0; i < s.length; i += maxChars - overlap) {
-          out.push(s.slice(i, i + maxChars))
-        }
-        continue
+    let start = 0
+    while (start < text.length) {
+      let end = Math.min(start + maxChars, text.length)
+      if (end < text.length) {
+        const window = text.slice(start, end)
+        const matches = [...window.matchAll(/[。！？!?；;\n]/g)]
+        const boundary = matches.at(-1)
+        if (boundary && boundary.index + 1 > Math.max(overlap, maxChars / 2)) end = start + boundary.index + 1
       }
-      if ((cur + s).length > maxChars && cur) {
-        out.push(cur)
-        cur = overlap > 0 ? cur.slice(-overlap) + s : s
-      } else {
-        cur += s
-      }
+      out.push(text.slice(start, end))
+      if (end === text.length) break
+      start = end - overlap
     }
-    if (cur.trim()) out.push(cur)
     return out
   }
 

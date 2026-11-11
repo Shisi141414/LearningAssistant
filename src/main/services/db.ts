@@ -15,28 +15,28 @@ import { resolveDataDir } from './bootConfig'
 let db: Database.Database | null = null
 
 export function dbFilePath(): string {
-  return join(resolveDataDir(), 'learning-assistant.db')
+  return db?.name ?? join(resolveDataDir(), 'learning-assistant.db')
 }
 
 export function getDb(): Database.Database {
   if (db) return db
   const filePath = dbFilePath()
-  db = new Database(filePath)
-  db.pragma('journal_mode = WAL') // 课堂高频写入场景，WAL 提高并发与耐久性
-  db.pragma('foreign_keys = ON')
-  migrate(db)
-  seed(db)
+  const candidate = new Database(filePath)
+  try {
+  candidate.pragma('journal_mode = WAL') // 课堂高频写入场景，WAL 提高并发与耐久性
+  candidate.pragma('foreign_keys = ON')
+  migrate(candidate)
+  seed(candidate)
+  db = candidate
   return db
+  } catch (error) { candidate.close(); throw error }
 }
 
 export function closeDb(): void {
   if (db) {
     // 截断 WAL，让 .db 单文件自洽（迁移/备份场景依赖这一点）
-    try {
-      db.pragma('wal_checkpoint(TRUNCATE)')
-    } catch {
-      /* ignore */
-    }
+    const result = db.pragma('wal_checkpoint(TRUNCATE)') as Array<{ busy: number }>
+    if (result.some((row) => row.busy !== 0)) throw new Error('数据库正在使用，暂时无法安全关闭')
     db.close()
   }
   db = null

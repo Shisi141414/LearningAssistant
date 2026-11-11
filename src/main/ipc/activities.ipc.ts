@@ -1,11 +1,10 @@
 /**
  * ipc/activities.ipc.ts —— 活动（讲座/会议/讨论）管理，ADR-5
  */
-import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { Activity, ActivityInput, ActivityKind, ID } from '@shared/types'
 import { getDb } from '../services/db'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 
 interface ActivityRow {

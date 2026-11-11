@@ -1,10 +1,16 @@
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
-import { app, shell, BrowserWindow, session } from 'electron'
+import { app, shell, BrowserWindow, session, dialog } from 'electron'
 import { join } from 'node:path'
 import { registerAllIpc } from './ipc'
 import { closeDb, getDb } from './services/db'
+import { safeExternal, trustedRenderer } from './services/security'
+import { startOrganizationRecovery } from './services/organizer'
+import { stopClassroom } from './ipc/classroom.ipc'
+import { stopAllChats } from './ipc/chat.ipc'
+
+let stopRecovery: (() => void) | undefined
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -28,9 +34,10 @@ function createWindow(): void {
 
   // 外部链接交给系统浏览器，不在应用内导航（防钓鱼/安全）
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    if (safeExternal(url)) void shell.openExternal(url)
     return { action: 'deny' }
   })
+  win.webContents.on('will-navigate', (event, url) => { if (!trustedRenderer(url)) event.preventDefault() })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     // 开发模式：electron-vite dev server
@@ -43,23 +50,27 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   // 课堂模式需要麦克风：只放行媒体权限（'media' 含音视频采集），其余默认拒绝
-  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    callback(permission === 'media')
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    callback(permission === 'media' && trustedRenderer(wc.getURL()) && details.isMainFrame)
   })
 
   getDb() // 初始化数据库（迁移 + 种子）
   registerAllIpc()
+  stopRecovery = startOrganizationRecovery()
   createWindow()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-})
+}).catch((error) => { dialog.showErrorBox('学习助手启动失败', error instanceof Error ? error.message : String(error)); app.quit() })
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {
+  stopRecovery?.()
+  stopClassroom()
+  stopAllChats()
   closeDb()
 })

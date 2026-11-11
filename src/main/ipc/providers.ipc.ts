@@ -3,13 +3,12 @@
  *
  * 安全：api_key 只接收、加密入库；list 下发 Provider（仅 has_key 布尔）。
  */
-import { ipcMain } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { Provider, ProviderInput, ProviderTestResult, ModelInfo, ModelInput, ID } from '@shared/types'
 import { getDb } from '../services/db'
 import { encryptSecret, decryptSecret } from '../services/secrets'
 import { testProvider, listRemoteModels } from '../services/llm'
-import { handleResult } from './helpers'
+import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 
 interface ProviderRow {
@@ -40,7 +39,11 @@ function rowToProvider(r: ProviderRow): Provider {
 export function getProviderWithKey(id: ID): { provider: Provider; apiKey: string | null } {
   const row = getDb().prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined
   if (!row) throw new Error('供应商不存在')
-  return { provider: rowToProvider(row), apiKey: decryptSecret(row.api_key_encrypted) }
+  const apiKey = decryptSecret(row.api_key_encrypted)
+  if (apiKey && row.api_key_encrypted?.subarray(0, 6).toString() === 'plain:') {
+    getDb().prepare('UPDATE providers SET api_key_encrypted = ? WHERE id = ?').run(encryptSecret(apiKey), id)
+  }
+  return { provider: rowToProvider(row), apiKey }
 }
 
 interface ModelRow {
