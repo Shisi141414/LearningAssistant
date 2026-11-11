@@ -498,7 +498,7 @@ export function ClassroomPage() {
               </div>
               {seg.material_ref && <button className="classroom-source" onClick={() => setFocusTarget({ anchor: seg.material_ref!, token: Date.now() })}>{seg.material_ref.material_title} · {materialLocation(seg.material_ref)} · 查看来源</button>}
               <div className="md-seg-wrap">
-                <MarkdownSegment text={text} />
+                <MarkdownSegment text={text} subjectId={note?.subject_id} />
               </div>
             </div>
           )

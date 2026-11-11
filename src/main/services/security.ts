@@ -39,6 +39,9 @@ const patch = (fields: Record<string, Check>): Record<string, Check> => Object.f
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ConceptsList]: [],
+  [IPC.ConceptsSave]: [record({ id: optional(id), revision: optional(number), subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) })],
+  [IPC.ConceptsReferences]: [record({ id, offset: optional((v) => number(v) && (v as number) <= 10_000_000) })],
   [IPC.ClassroomCalibrate]: [record({ note_id: id, block_id: nullable(id) })],
   [IPC.MaterialsLocate]: [record({ version_id: id, unit: choice('block', 'page', 'slide'), index: (v) => number(v) && (v as number) >= 1 && (v as number) <= 50_000 })],
   [IPC.MaterialsList]: [optional(id)],

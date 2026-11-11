@@ -11,6 +11,9 @@
  */
 
 export const IPC = {
+  ConceptsList: 'concepts:list',
+  ConceptsSave: 'concepts:save',
+  ConceptsReferences: 'concepts:references',
   MaterialsList: 'materials:list',
   MaterialsImport: 'materials:import',
   MaterialsGet: 'materials:get',

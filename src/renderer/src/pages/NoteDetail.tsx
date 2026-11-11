@@ -13,6 +13,7 @@ import type { NoteWithSegments, NoteSegment, SegmentType, Annotation } from '@sh
 import { SEGMENT_TYPE_META } from '@shared/types'
 import { useAppStore } from '../stores/app'
 import { materialHref, materialLocation } from '../utils/material'
+import { ConceptText } from '../components/ConceptText'
 
 type ViewMode = 'organized' | 'raw'
 
@@ -192,6 +193,7 @@ export function NoteDetail() {
               segment={seg}
               view={view}
               onSave={(patch) => void saveSegment(seg, patch)}
+              subjectId={note.subject_id}
             />
           </div>
         )
@@ -204,11 +206,13 @@ export function NoteDetail() {
 function SegmentEditor({
   segment,
   view,
-  onSave
+  onSave,
+  subjectId
 }: {
   segment: NoteSegment
   view: ViewMode
   onSave: (patch: { raw_text?: string; organized_text?: string }) => void
+  subjectId: string | null
 }) {
   const field = view === 'organized' ? 'organized_text' : 'raw_text'
   const [text, setText] = useState(segment[field])
@@ -219,13 +223,13 @@ function SegmentEditor({
   }, [segment.id, field, segment[field]])
 
   return (
-    <textarea
+    <><textarea
       value={text}
       placeholder={view === 'organized' ? '整理后的内容（支持 Markdown）…' : '原文/口语文本…'}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => {
         if (text !== segment[field]) onSave({ [field]: text })
       }}
-    />
+    /><details className="concept-reading"><summary>查看概念关联</summary><div><ConceptText text={text} subjectId={subjectId} /></div></details></>
   )
 }

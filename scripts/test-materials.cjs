@@ -19,6 +19,8 @@ if (!process.versions.electron) {
 }
 const electron = require('electron')
 const { app } = electron
+// 隔离验收使用软件离屏绘制，隐藏窗口也会生成新帧，避免截图落后于真实 DOM。
+app.disableHardwareAcceleration()
 const resumeIndex = process.argv.indexOf('--material-resume')
 const root = resumeIndex >= 0 ? process.argv[resumeIndex + 1] : fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'learning-assistant-materials-'))
 app.setPath('userData', root); app.setPath('sessionData', root)
@@ -62,8 +64,16 @@ let selectedFile
 const opened = []
 const problems = []
 class HiddenWindow extends electron.BrowserWindow {
-  constructor(options) { super({ ...options, webPreferences: { ...options.webPreferences, backgroundThrottling: false } }) }
+  constructor(options) { super({ ...options, webPreferences: { ...options.webPreferences, backgroundThrottling: false, offscreen: true } }) }
   show() {}
+}
+function captureRendered(win) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => { win.webContents.removeListener('paint', painted); reject(Error('离屏新帧超时')) }, 5000)
+    const painted = (_event, _dirty, image) => { clearTimeout(timeout); win.webContents.removeListener('paint', painted); resolve(image) }
+    win.webContents.on('paint', painted)
+    win.webContents.invalidate()
+  })
 }
 const Module = require('node:module'), originalLoad = Module._load
 Module._load = function (request, parent, isMain) {
@@ -107,6 +117,8 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const conceptFixture = JSON.parse(fs.readFileSync(path.join(root, 'concept-test.json'), 'utf8'))
+        assert.deepEqual((await call('concepts', 'list')).find(c => c.id === conceptFixture.id).aliases, ['Mechanics'])
         const resumed = await wait(process.argv[resumeIndex + 2])
         assert.match((await call('materials', 'blocks', { version_id: resumed.id })).blocks[0].text, /恢复任务/)
         const savedClass = JSON.parse(fs.readFileSync(path.join(root, 'classroom-test.json'), 'utf8'))
@@ -153,6 +165,42 @@ app.on('browser-window-created', (_event, win) => {
       const pdfBlocks = (await call('materials', 'blocks', { version_id: pdfVersion.id })).blocks
       assert.match(pdfBlocks[0].text, /Mechanics page one/); assert.equal(JSON.parse(pdfBlocks[1].locator_json).page, 2)
       assert.match(pdfVersion.warnings_json, /OCR/)
+      // 从真实表单创建别名，验证正文卡片、反向查找和同名多义，不依赖 DOM 假数据。
+      await win.webContents.executeJavaScript(`location.hash = '/knowledge'`)
+      await waitUi(`!!document.querySelector('.concept-detail input')`, '概念创建表单')
+      await win.webContents.executeJavaScript(`(() => { for (const [selector, value] of [['.concept-detail input','基础力学'],['[aria-label="已确认别名"]','Mechanics'],['.concept-detail textarea[maxlength="4000"]','概念卡片释义测试']]) {const node=document.querySelector(selector); const proto=node.tagName==='INPUT'?HTMLInputElement.prototype:HTMLTextAreaElement.prototype; Object.getOwnPropertyDescriptor(proto,'value').set.call(node,value); node.dispatchEvent(new Event('input',{bubbles:true}));} })()`)
+      await click('保存概念')
+      await waitUi(`document.querySelector('.concept-row')?.textContent.includes('基础力学')`, '保存概念及别名')
+      const concept = (await call('concepts', 'list')).find(c => c.name === '基础力学')
+      assert.deepEqual(concept.aliases, ['Mechanics'])
+      fs.writeFileSync(path.join(root, 'concept-test.json'), JSON.stringify({ id: concept.id }))
+      await waitUi(`document.querySelector('.concept-references')?.textContent.includes('Mechanics page one')`, '概念到材料反向查找')
+      await new Promise(resolve => setTimeout(resolve, 200))
+      fs.writeFileSync(path.join(root, 'concepts-preview.png'), (await captureRendered(win)).toPNG())
+      const linkedNote = await call('notes', 'create', { title: '概念关联笔记', subject_id: input.subject_id })
+      await call('notes', 'addSegment', { note_id: linkedNote.id, raw_text: '原文提到 Mechanics。', organized_text: '整理后提到 Mechanics。' })
+      await win.webContents.executeJavaScript(`location.hash = '/notes/${linkedNote.id}'`)
+      await waitUi(`!!document.querySelector('.concept-reading')`, '笔记关联阅读预览')
+      await win.webContents.executeJavaScript(`document.querySelector('.concept-reading').open = true`)
+      await waitUi(`!!document.querySelector('.concept-reading .concept-mention')`, '笔记正文自动关联别名')
+      await win.webContents.executeJavaScript(`location.hash = '/library?material=${pdfMaterial.id}&version=${pdfVersion.id}'`)
+      await waitUi(`!!document.querySelector('.material-block .concept-mention')`, '材料正文自动识别别名')
+      await win.webContents.executeJavaScript(`document.querySelector('.material-block .concept-mention').click()`)
+      await waitUi(`document.querySelector('[role="dialog"]')?.textContent.includes('概念卡片释义测试')`, '概念卡片')
+      assert.equal(await win.webContents.executeJavaScript(`document.activeElement.getAttribute('aria-label')`), '关闭概念卡片')
+      await win.webContents.executeJavaScript(`document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))`)
+      await waitUi(`!document.querySelector('[role="dialog"]')`, '键盘关闭概念卡片')
+      const other = await call('concepts', 'save', { name: '另一含义', aliases: ['Mechanics'], subject_id: null, summary: '另一个概念' })
+      await win.webContents.executeJavaScript(`location.hash = '/knowledge'`)
+      await waitUi(`document.querySelectorAll('.concept-row').length === 2`, '重新加载概念词典')
+      await win.webContents.executeJavaScript(`location.hash = '/library?material=${pdfMaterial.id}&version=${pdfVersion.id}'`)
+      await waitUi(`!!document.querySelector('.concept-mention.ambiguous')`, '同名多义保持候选')
+      await win.webContents.executeJavaScript(`document.querySelector('.concept-mention.ambiguous').click()`)
+      await waitUi(`document.querySelector('[role="dialog"]')?.textContent.includes('请选择')`, '选择概念含义')
+      await call('concepts', 'save', { id: other.id, revision: other.revision, name: other.name, aliases: [], subject_id: null, summary: other.summary })
+      await win.webContents.executeJavaScript(`location.hash = '/knowledge'`)
+      await waitUi(`document.querySelectorAll('.concept-row').length === 2`, '刷新去除歧义')
+      console.log('CONCEPT_TEST_OK real form, aliases, material links, card, keyboard, backlinks, ambiguity')
       const bad = await importFile(broken, input), badVersion = await wait(bad.id, 'failed')
       await call('materials', 'retry', badVersion.id); await wait(bad.id, 'failed')
       const cancellation = await importFile(docx('取消.docx', '取消后重试'), input)
@@ -169,9 +217,9 @@ app.on('browser-window-created', (_event, win) => {
       await new Promise(resolve => setTimeout(resolve, 100))
       assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.material-block.anchored').length`), 1)
       const preview = path.join(root, 'materials-preview.png')
-      await win.webContents.capturePage()
+      await captureRendered(win)
       await new Promise(resolve => setTimeout(resolve, 150))
-      fs.writeFileSync(preview, (await win.webContents.capturePage()).toPNG())
+      fs.writeFileSync(preview, (await captureRendered(win)).toPNG())
       assert.deepEqual(problems, [])
       await call('config', 'set', 'classroom.autoOrganize', '0')
       await win.webContents.executeJavaScript(`location.hash = '/classroom'`)
@@ -184,8 +232,9 @@ app.on('browser-window-created', (_event, win) => {
       await waitUi(`!!document.querySelector('.classroom-split')`, '课堂分屏')
       const classNote = (await call('notes', 'list')).find(n => n.source === 'class')
       assert.ok(classNote)
-      await enterManual('第一段：力等于质量乘加速度。')
+      await enterManual('第一段：Mechanics，力等于质量乘加速度。')
       await waitUi(`document.querySelectorAll('.classroom-transcript .segment').length === 1`, '课堂第一段')
+      await waitUi(`!!document.querySelector('.classroom-transcript .concept-mention')`, '课堂正文概念关联')
       const firstClassSegment = (await call('notes', 'get', classNote.id)).segments[0]
       assert.equal(firstClassSegment.material_ref.id, pdfBlocks[0].id)
       await click('下一条', "document.querySelector('.classroom-material')")
@@ -206,8 +255,8 @@ app.on('browser-window-created', (_event, win) => {
       await new Promise(resolve => setTimeout(resolve, 80))
       assert.equal(await win.webContents.executeJavaScript(`document.documentElement.scrollWidth <= window.innerWidth`), true, '最小窗口不应出现横向溢出')
       win.setSize(1360, 860)
-      await win.webContents.capturePage(); await new Promise(resolve => setTimeout(resolve, 100))
-      fs.writeFileSync(path.join(root, 'classroom-preview.png'), (await win.webContents.capturePage()).toPNG())
+      await captureRendered(win); await new Promise(resolve => setTimeout(resolve, 100))
+      fs.writeFileSync(path.join(root, 'classroom-preview.png'), (await captureRendered(win)).toPNG())
       await click('结束课堂')
       await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='继续课堂')`, '结束后可恢复')
       await win.webContents.executeJavaScript(`location.hash = '/notes/${classNote.id}?segment=${classSegments[0].id}'`)

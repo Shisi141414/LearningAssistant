@@ -18,6 +18,9 @@ import { Placeholder } from './pages/Placeholder'
 import { MaterialLibraryPage } from './pages/MaterialLibraryPage'
 import { useAppStore } from './stores/app'
 import { useChatStore } from './stores/chat'
+import { KnowledgePage } from './pages/KnowledgePage'
+import { useConceptStore } from './stores/concepts'
+import './pages/knowledge.css'
 
 export default function App() {
   const loadSubjects = useAppStore((s) => s.loadSubjects)
@@ -26,6 +29,7 @@ export default function App() {
 
   useEffect(() => {
     void loadSubjects()
+    void useConceptStore.getState().load()
   }, [loadSubjects])
 
   // 订阅 LLM 流式事件（全局一次）
@@ -58,7 +62,7 @@ export default function App() {
         <Route path="/activities" element={<ActivitiesPage />} />
         <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route path="/chat" element={<ChatPage />} />
-        <Route path="/knowledge" element={<Placeholder title="知识网络" stage="M2" desc="知识点抽取与关联、图谱可视化、跨学科引用、预回答缓存。" />} />
+        <Route path="/knowledge" element={<KnowledgePage />} />
         <Route path="/library" element={<MaterialLibraryPage />} />
         <Route path="/exercises" element={<Placeholder title="习题库" stage="M3" desc="习题条目化管理、思路图示、错误点标记、关联教材与笔记。" />} />
         <Route path="/review" element={<Placeholder title="作业与复习" stage="M4" desc="learnx 作业同步、FSRS 遗忘曲线复习调度、桌面小组件。" />} />

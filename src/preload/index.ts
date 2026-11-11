@@ -21,6 +21,11 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  concepts: {
+    list: () => invoke<import('@shared/types').Concept[]>(IPC.ConceptsList),
+    save: (input: import('@shared/types').ConceptInput) => invoke<import('@shared/types').Concept>(IPC.ConceptsSave, input),
+    references: (input: { id: ID; offset?: number }) => invoke<import('@shared/types').ConceptReferences>(IPC.ConceptsReferences, input)
+  },
   materials: {
     anchor: (id: ID) => invoke<MaterialAnchor>(IPC.MaterialsAnchor, id),
     locate: (input: MaterialLocateInput) => invoke<MaterialAnchor | null>(IPC.MaterialsLocate, input),

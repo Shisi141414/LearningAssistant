@@ -10,6 +10,7 @@
 import { Fragment, type ReactNode, useMemo } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { ConceptText } from './ConceptText'
 
 interface Block {
   type: 'text' | 'math'
@@ -53,7 +54,7 @@ function renderKatex(latex: string, displayMode: boolean, key: string): ReactNod
 }
 
 /** 行内解析：`code` 保护 → $...$ 公式 → **加粗** */
-function renderInline(text: string, keyPrefix: string): ReactNode[] {
+function renderInline(text: string, keyPrefix: string, subjectId?: string | null): ReactNode[] {
   const out: ReactNode[] = []
   text.split(/(`[^`\n]+`)/g).forEach((part, ci) => {
     if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
@@ -72,15 +73,15 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
       }
       seg.split(/(\*\*[^*\n]+\*\*)/g).forEach((b, bi) => {
         const bm = /^\*\*(.+)\*\*$/.exec(b)
-        if (bm) out.push(<strong key={`${keyPrefix}c${ci}i${si}b${bi}`}>{bm[1]}</strong>)
-        else if (b) out.push(<Fragment key={`${keyPrefix}c${ci}i${si}b${bi}`}>{b}</Fragment>)
+        if (bm) out.push(<strong key={`${keyPrefix}c${ci}i${si}b${bi}`}><ConceptText text={bm[1]} subjectId={subjectId} /></strong>)
+        else if (b) out.push(<ConceptText key={`${keyPrefix}c${ci}i${si}b${bi}`} text={b} subjectId={subjectId} />)
       })
     })
   })
   return out
 }
 
-export function MarkdownSegment({ text }: { text: string }): ReactNode {
+export function MarkdownSegment({ text, subjectId }: { text: string; subjectId?: string | null }): ReactNode {
   const nodes = useMemo(() => {
     const out: ReactNode[] = []
     parseBlocks(text).forEach((block, i) => {
@@ -88,12 +89,12 @@ export function MarkdownSegment({ text }: { text: string }): ReactNode {
         out.push(renderKatex(block.value, true, `m${i}`))
       } else {
         out.push(
-          <Fragment key={`t${i}`}>{renderInline(block.value, `t${i}`)}</Fragment>
+          <Fragment key={`t${i}`}>{renderInline(block.value, `t${i}`, subjectId)}</Fragment>
         )
       }
     })
     return out
-  }, [text])
+  }, [text, subjectId])
 
   return <div className="md-seg">{nodes}</div>
 }

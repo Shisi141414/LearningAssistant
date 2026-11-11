@@ -11,6 +11,7 @@ import { registerClassroomIpc } from './classroom.ipc'
 import { registerConfigIpc } from './config.ipc'
 import { registerDiagnosticsIpc } from './diagnostics.ipc'
 import { registerMaterialsIpc } from './materials.ipc'
+import { registerConceptsIpc } from './concepts.ipc'
 
 export function registerAllIpc(): void {
   registerSubjectsIpc()
@@ -23,4 +24,5 @@ export function registerAllIpc(): void {
   registerConfigIpc()
   registerDiagnosticsIpc()
   registerMaterialsIpc()
+  registerConceptsIpc()
 }

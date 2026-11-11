@@ -407,3 +407,17 @@ export interface MaterialAnchor extends MaterialBlock { material_id: ID; materia
 export interface ClassroomPosition { note_id: ID; block: MaterialAnchor | null; updated_at: number }
 export interface MaterialNoteRef { segment_id: ID; note_id: ID; title: string; raw_text: string }
 export interface MaterialLocateInput { version_id: ID; unit: 'block' | 'page' | 'slide'; index: number }
+
+/** 概念身份与教材条目分开；别名确认后参与自动关联。 */
+export interface Concept {
+  id: ID; subject_id: ID | null; name: string; summary: string | null
+  aliases: string[]; revision: number; created_at: number
+}
+export interface ConceptInput { id?: ID; revision?: number; subject_id: ID | null; name: string; summary: string; aliases: string[] }
+export interface ConceptMention { start: number; end: number; text: string; concept_ids: ID[]; status: 'linked' | 'ambiguous' }
+export interface ConceptBacklink {
+  type: 'material' | 'note'; id: ID; parent_id: ID; title: string; text: string
+  field: 'text' | 'raw_text' | 'organized_text'; mention: ConceptMention
+  material_id?: ID; ordinal?: number; locator_json?: string
+}
+export interface ConceptReferences { items: ConceptBacklink[]; next_offset: number | null; scanned: number }

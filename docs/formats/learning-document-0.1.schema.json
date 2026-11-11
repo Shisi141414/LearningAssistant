@@ -27,9 +27,35 @@
     "assets": { "type": "array", "items": { "$ref": "#/$defs/asset" } },
     "entries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/entry" } },
     "relations": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/relation" } },
+    "concepts": { "type": "array", "items": { "$ref": "#/$defs/concept" } },
     "extensions": { "type": "object" }
   },
   "$defs": {
+    "concept": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "aliases", "subject_ids", "summary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "description": "Confirmed equivalent names; proposed AI aliases must not be placed here.", "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "subject_ids": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "summary": { "type": "string" }
+      }
+    },
+    "mention": {
+      "type": "object", "additionalProperties": false,
+      "required": ["content_index", "start", "end", "concept_ids", "status"],
+      "properties": {
+        "content_index": { "type": "integer", "minimum": 0 },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 1 },
+        "concept_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "status": { "enum": ["linked", "ambiguous"] }
+      },
+      "if": { "properties": { "status": { "const": "linked" } } },
+      "then": { "properties": { "concept_ids": { "maxItems": 1 } } },
+      "else": { "properties": { "concept_ids": { "minItems": 2 } } }
+    },
     "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "sourceRef": {
@@ -123,6 +149,14 @@
           },
           "if": { "properties": { "method": { "const": "ai" } } },
           "then": { "required": ["model"] }
+        },
+        "mentions": { "description": "Derived snapshot over text content nodes, not a replacement for source text.", "type": "array", "items": { "$ref": "#/$defs/mention" } },
+        "concept_refs": {
+          "type": "array", "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["concept_id", "role"],
+            "properties": { "concept_id": { "$ref": "#/$defs/id" }, "role": { "enum": ["defines", "explains", "proves", "applies"] } }
+          }
         }
       }
     },

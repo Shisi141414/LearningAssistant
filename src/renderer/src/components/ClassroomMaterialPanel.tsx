@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/app'
 import { materialLocation } from '../utils/material'
 import { PdfPage } from './PdfPage'
 import './classroom-material.css'
+import { ConceptText } from './ConceptText'
 
 export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate, live = false, refsRevision = 0 }: {
   currentAnchor: MaterialAnchor | null
@@ -149,7 +150,7 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
       </div>}
       <h3>{block.material_title} · {materialLocation(block)}</h3>
       {locator?.page && block.format === 'pdf' ? <PdfPage versionId={block.version_id} pageNumber={locator.page} /> : <p className="muted">当前展示提取文字；完整图像、公式与排版请打开原件。</p>}
-      <div className="classroom-excerpt">{block.heading && <strong>{block.heading}</strong>}<p>{block.text}</p></div>
+      <div className="classroom-excerpt">{block.heading && <strong><ConceptText text={block.heading} subjectId={detail?.material.subject_id} /></strong>}<p><ConceptText text={block.text} subjectId={detail?.material.subject_id} /></p></div>
       {refs.length > 0 && <details className="classroom-backlinks"><summary>关联记录（{refs.length}）</summary>{refs.map(ref => <Link key={ref.segment_id} to={`/notes/${ref.note_id}?segment=${ref.segment_id}`}>{ref.title}：{ref.raw_text}</Link>)}</details>}
     </>}
   </section>

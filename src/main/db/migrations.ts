@@ -281,5 +281,19 @@ CREATE TABLE segment_material_refs (
 );
 CREATE INDEX idx_segment_material_block ON segment_material_refs(block_id);
 `
+  },
+  {
+    version: 7,
+    name: 'concept_aliases',
+    sql: `
+ALTER TABLE knowledge_points ADD COLUMN revision INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE concept_aliases (
+  concept_id TEXT NOT NULL REFERENCES knowledge_points(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  normalized TEXT NOT NULL,
+  PRIMARY KEY (concept_id, normalized)
+);
+CREATE INDEX idx_concept_alias_name ON concept_aliases(normalized);
+`
   }
 ]

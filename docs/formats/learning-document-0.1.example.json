@@ -33,9 +33,15 @@
       "sources": [{ "source_id": "s-figure" }]
     }
   ],
+  "concepts": [
+    { "id": "c-derivative", "name": "导数", "aliases": ["微商"], "subject_ids": ["demo-mathematical-analysis"], "summary": "函数在一点的瞬时变化率。" },
+    { "id": "c-differentiability", "name": "可导性", "aliases": ["可微性（一元函数）"], "subject_ids": ["demo-mathematical-analysis"], "summary": "本例仅讨论一元函数，避免混同多元函数的可微与偏导存在。" },
+    { "id": "c-continuity", "name": "连续性", "aliases": [], "subject_ids": ["demo-mathematical-analysis"], "summary": "函数值随自变量变化趋近于该点函数值的性质。" }
+  ],
   "entries": [
     {
       "id": "e-chapter", "kind": "heading", "title": "第一章 导数", "parent_id": null,
+      "mentions": [{ "content_index": 0, "start": 4, "end": 6, "concept_ids": ["c-derivative"], "status": "linked" }],
       "content": [{ "type": "text", "text": "第一章 导数" }],
       "sources": [{ "source_id": "s-heading" }],
       "analysis": { "method": "manual", "review_status": "confirmed" }
@@ -50,12 +56,14 @@
       "id": "e-definition", "kind": "definition", "title": "定义 1", "parent_id": "e-chapter",
       "content": [{ "type": "text", "text": "若差商在增量趋于零时有有限极限，则称函数在该点可导。" }],
       "sources": [{ "source_id": "s-definition" }],
+      "concept_refs": [{ "concept_id": "c-differentiability", "role": "defines" }],
       "analysis": { "method": "manual", "review_status": "confirmed" }
     },
     {
       "id": "e-theorem", "kind": "theorem", "title": "定理 1", "parent_id": "e-chapter",
       "content": [{ "type": "text", "text": "函数在一点可导，则在该点连续。" }],
       "sources": [{ "source_id": "s-theorem" }],
+      "concept_refs": [{ "concept_id": "c-continuity", "role": "explains" }],
       "analysis": { "method": "manual", "review_status": "confirmed" }
     },
     {

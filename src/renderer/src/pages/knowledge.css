@@ -1,0 +1,24 @@
+.knowledge-workspace { display: grid; grid-template-columns: minmax(210px, 28%) minmax(0, 1fr); gap: 24px; align-items: start; }
+.concept-list { border-right: 1px solid var(--border); padding-right: 18px; min-width: 0; }
+.concept-list > input { width: 100%; margin-bottom: 12px; }
+.concept-row { display: flex; flex-direction: column; width: 100%; text-align: left; gap: 5px; padding: 12px 9px; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; overflow-wrap: anywhere; }
+.concept-row.selected { background: var(--accent-weak); }
+.concept-row span, .concept-row small { color: var(--text-2); }
+.concept-detail { min-width: 0; max-width: 860px; }
+.concept-detail form { display: grid; gap: 14px; }
+.concept-detail label { display: grid; gap: 6px; }
+.concept-detail input, .concept-detail textarea, .concept-detail select { width: 100%; }
+.concept-detail form > button { justify-self: start; }
+.concept-references { margin-top: 28px; }
+.concept-references article { border-top: 1px solid var(--border); padding: 12px 0; overflow-wrap: anywhere; }
+.concept-references p { white-space: pre-wrap; }
+.concept-mention { display: inline; border: 0; border-radius: 0; background: transparent; padding: 0; margin: 0; color: var(--accent); font: inherit; text-align: inherit; text-decoration: underline dotted; text-underline-offset: 3px; white-space: inherit; }
+.concept-mention.ambiguous { text-decoration-style: dashed; }
+.concept-mention:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.concept-popover { position: fixed; z-index: 100; right: 24px; bottom: 70px; width: min(420px, calc(100vw - 48px)); max-height: 65vh; overflow: auto; display: grid; gap: 10px; padding: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-panel, white); box-shadow: 0 5px 22px #0002; white-space: normal; line-height: 1.65; color: var(--text); font: 14px/1.65 system-ui, sans-serif; }
+.concept-popover > button { text-align: left; }
+.concept-popover .concept-close { justify-self: end; }
+.concept-summary { font-family: SimSun, '宋体', serif; white-space: pre-wrap; }
+.concept-reading { margin-top: 6px; font-size: 13px; }
+.concept-reading > div { white-space: pre-wrap; padding: 10px 0; }
+@media (max-width: 900px) { .knowledge-workspace { grid-template-columns: 1fr; } .concept-list { border-right: 0; padding-right: 0; } }
