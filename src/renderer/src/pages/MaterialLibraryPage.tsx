@@ -7,6 +7,7 @@ import { materialLocation, materialHref } from '../utils/material'
 import { ConceptText } from '../components/ConceptText'
 import { MaterialOcrPanel } from '../components/MaterialOcrPanel'
 import { LearningReader } from '../components/LearningReader'
+import { OfficeConverterPanel } from '../components/OfficeConverterPanel'
 
 const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲义', slides: '课件', supplement: '补充材料' }
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
@@ -120,8 +121,9 @@ export function MaterialLibraryPage() {
       <select aria-label="材料所属学科" value={subject} onChange={e => setSubject(e.target.value)}><option value="">选择所属学科</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
       <select aria-label="材料类别" value={kind} onChange={e => setKind(e.target.value as MaterialKind)}>{Object.entries(kinds).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
       <button className="primary" disabled={busy || !subject} onClick={() => void importFile()}>{busy ? '正在导入…' : '+ 导入材料'}</button>
-      <span className="muted">PDF / DOCX / PPTX · 每件最多 50 MiB</span>
+      <span className="muted">PDF / Word / PPT · 每件最多 50 MiB</span>
     </div>
+    <OfficeConverterPanel />
     {error && <p role="alert" className="material-error">{error}</p>}
     <div className="material-workspace">
       <aside className="material-shelf" aria-label="材料书架">
@@ -134,13 +136,15 @@ export function MaterialLibraryPage() {
         </button>)}
       </aside>
       <section className="material-reader" aria-label="材料阅读区">
-        {!detail ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 请先转为 DOCX / PPTX；扫描件需要 OCR。</p></div> : <>
+        {!detail ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 可配置上方转换工具后导入；扫描 PDF 可按页识别。</p></div> : <>
           <h2>{detail.material.title}</h2>
           <div className="toolbar">
             <select aria-label="材料版本" value={versionId} onChange={e => { setParams({ material: selectedId, version: e.target.value }); setOffset(0); setQuery('') }}>{detail.versions.map((v, index) => <option key={v.id} value={v.id}>版本 {detail.versions.length - index} · {{ original: '原始提取', ocr: 'OCR', correction: '人工校正' }[v.derivation]} · {v.file_name} · {statuses[v.status]}</option>)}</select>
             <button disabled={!versionId} onClick={() => void action(window.api.materials.open(versionId))}>打开原件</button>
+            {detail.conversions.some(item => item.version_id === versionId) && <button onClick={() => void action(window.api.materials.openConverted(versionId))}>打开转换文件</button>}
             <button disabled={busy || !!detail.material.archived} onClick={() => void importFile(true)}>导入新版本</button>
           </div>
+          {detail.conversions.filter(item => item.version_id === versionId).map(item => <p className="muted" key={item.version_id}>已转换为 {item.format.toUpperCase()} · {item.engine} · 按转换后结构定位，原件保留</p>)}
           {selectedVersion && <>
             <div className="material-status" role="status">{statuses[selectedVersion.status]}{pending(selectedVersion) && <> · {selectedVersion.progress}% <button onClick={() => void action(window.api.materials.cancel(versionId))}>取消解析</button><progress value={selectedVersion.progress} max={100} /></>}</div>
             {selectedVersion.error && <p role="alert" className="material-error">{selectedVersion.error}</p>}

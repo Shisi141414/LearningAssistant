@@ -1,7 +1,7 @@
-import { createReadStream, realpathSync } from 'node:fs'
+import { createReadStream } from 'node:fs'
 import { copyFile, mkdir, stat, unlink, rmdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
-import { basename, dirname, extname, join, relative, resolve, isAbsolute } from 'node:path'
+import { basename, dirname, extname, join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import { createRequire } from 'node:module'
 import { nanoid } from 'nanoid'
@@ -10,6 +10,8 @@ import { getDb, dbFilePath } from './db'
 import { beginWork, withWork } from './work'
 import { completeOcrVersion, derivedParent, insertDerived, validateOcrRange } from './material-derivations'
 import { OCR_MODEL_COMMIT, OCR_MODELS, ocrModelDirectory, ocrModelsStatus } from './ocr-models'
+import { managedMaterialFile } from './material-files'
+import { ensureMaterialConversion, materialParseInput } from './office-conversions'
 
 const versionFields = 'id, material_id, file_name, format, fingerprint, status, progress, error, warnings_json, created_at, parent_version_id, derivation'
 const materialFields = 'id, subject_id, title, kind, created_at, current_version_id, archived'
@@ -18,6 +20,7 @@ interface ParseResult { blocks: ParsedBlock[]; warnings: string[]; pages?: OcrPa
 let active: { id: string; worker: Worker; finish: (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: ParseResult) => void } | undefined
 let stopping = false
 let starting: string | undefined
+let converting: AbortController | undefined
 
 function version(id: string): VersionRow {
   const row = getDb().prepare('SELECT * FROM material_versions WHERE id = ?').get(id) as VersionRow | undefined
@@ -33,7 +36,7 @@ export function materialDetail(id: string): MaterialDetail {
   const db = getDb()
   const material = db.prepare(`SELECT ${materialFields} FROM materials WHERE id = ?`).get(id) as Material | undefined
   if (!material) throw new Error('材料不存在')
-  return { material, versions: db.prepare(`SELECT ${versionFields} FROM material_versions WHERE material_id = ? ORDER BY created_at DESC, id`).all(id) as MaterialVersion[], total: (db.prepare('SELECT COUNT(*) AS n FROM material_blocks WHERE version_id = ?').get(material.current_version_id) as { n: number }).n }
+  return { material, versions: db.prepare(`SELECT ${versionFields} FROM material_versions WHERE material_id = ? ORDER BY created_at DESC, id`).all(id) as MaterialVersion[], total: (db.prepare('SELECT COUNT(*) AS n FROM material_blocks WHERE version_id = ?').get(material.current_version_id) as { n: number }).n, conversions: db.prepare('SELECT c.version_id, c.format, c.fingerprint, c.engine, c.created_at FROM material_conversions c JOIN material_versions v ON v.id = c.version_id WHERE v.material_id = ?').all(id) as MaterialDetail['conversions'] }
 }
 export function materialBlocks(input: { version_id: string; query?: string; offset?: number }): { blocks: MaterialBlock[]; total: number } {
   version(input.version_id)
@@ -43,11 +46,7 @@ export function materialBlocks(input: { version_id: string; query?: string; offs
   return { blocks: db.prepare(`SELECT * FROM material_blocks WHERE ${where} ORDER BY ordinal LIMIT 100 OFFSET ?`).all(...args, input.offset ?? 0) as MaterialBlock[], total: (db.prepare(`SELECT COUNT(*) AS n FROM material_blocks WHERE ${where}`).get(...args) as { n: number }).n }
 }
 export function materialPath(id: string): string {
-  const root = realpathSync(join(dirname(dbFilePath()), 'materials'))
-  const file = realpathSync(resolve(dirname(dbFilePath()), version(id).file_path))
-  const rel = relative(root, file)
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error('材料路径超出托管目录')
-  return file
+  return managedMaterialFile(version(id).file_path)
 }
 /** 此入口仅供主进程文件选择器使用，渲染进程不能指定磁盘路径。 */
 export async function importMaterial(input: MaterialInput, source: string): Promise<Material> {
@@ -59,7 +58,7 @@ export async function importMaterial(input: MaterialInput, source: string): Prom
       if (old.archived || old.subject_id !== input.subject_id) throw new Error('新版本必须归属同一学科的未归档材料')
     }
     const format = extname(source).slice(1).toLowerCase() as MaterialFormat
-    if (!['pdf', 'docx', 'pptx'].includes(format)) throw new Error('目前支持 PDF、DOCX、PPTX；旧版 DOC/PPT 请先转换')
+    if (!['pdf', 'docx', 'pptx', 'doc', 'ppt'].includes(format)) throw new Error('目前支持 PDF、DOCX、PPTX、DOC、PPT')
     const info = await stat(source)
     if (!info.isFile() || info.size > 50 * 1024 * 1024 || info.size === 0) throw new Error('请选择非空且不超过 50 MiB 的文件')
     // 先保留托管副本，再基于副本计算指纹，避免解析用户正在改写的原文件。
@@ -119,6 +118,12 @@ async function pump(): Promise<void> {
   getDb().prepare("UPDATE material_versions SET status = 'parsing', error = NULL, progress = 1 WHERE id = ?").run(next.id)
   let worker: Worker
   try {
+    if (next.format === 'doc' || next.format === 'ppt') {
+      converting = new AbortController()
+      await ensureMaterialConversion(next.id, materialPath(next.id), next.format, converting.signal)
+      converting = undefined
+      if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
+    }
     const ocr = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
     if (ocr) {
       validateOcrRange(ocr)
@@ -129,10 +134,10 @@ async function pump(): Promise<void> {
     // 只把 realpath 校验后的托管文件交给解析线程。
     const require = createRequire(__filename)
     const modelJson = ocr ? JSON.stringify({ engine: 'tesseract.js', engineVersion: require('tesseract.js/package.json').version, coreVersion: require('tesseract.js-core/package.json').version, languages: ['chi_sim', 'eng'], source: 'tessdata_fast', commit: OCR_MODEL_COMMIT, files: OCR_MODELS }) : undefined
-    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { file: materialPath(next.id), format: next.format, ocr, modelDirectory: ocr ? ocrModelDirectory() : undefined, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
+    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr ? ocrModelDirectory() : undefined, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
   } catch (error) {
     if (!stopping) getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ? AND status = 'parsing'").run(String(error), next.id)
-    starting = undefined; release(); queueMicrotask(() => void pump()); return
+    converting = undefined; starting = undefined; release(); queueMicrotask(() => void pump()); return
   }
   let settled = false
   const timer = setTimeout(() => active?.id === next.id && active.finish('failed', next.derivation === 'ocr' ? '识别超过十分钟，请减少页数后重试' : '解析超过两分钟，请拆分文件或转换后重试'), next.derivation === 'ocr' ? 600_000 : 120_000)
@@ -171,7 +176,10 @@ async function pump(): Promise<void> {
 export function cancelMaterial(id: string): boolean {
   const row = version(id)
   if (active?.id === id) active.finish('cancelled')
-  else if (row.status === 'queued' || starting === id) getDb().prepare("UPDATE material_versions SET status = 'cancelled', progress = 0 WHERE id = ?").run(id)
+  else if (row.status === 'queued' || starting === id) {
+    getDb().prepare("UPDATE material_versions SET status = 'cancelled', progress = 0 WHERE id = ?").run(id)
+    if (starting === id) converting?.abort()
+  }
   return true
 }
 export function retryMaterial(id: string): boolean {
@@ -195,6 +203,7 @@ export function startMaterialRecovery(): void {
 }
 export function stopMaterialJobs(): void {
   stopping = true
+  converting?.abort()
   if (starting) getDb().prepare("UPDATE material_versions SET status = 'queued', progress = 0 WHERE id = ? AND status = 'parsing'").run(starting)
   active?.finish('queued')
 }

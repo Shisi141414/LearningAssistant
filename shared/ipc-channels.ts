@@ -11,6 +11,10 @@
  */
 
 export const IPC = {
+  MaterialsConverterStatus: 'materials:converterStatus',
+  MaterialsConverterPick: 'materials:converterPick',
+  MaterialsConverterAuto: 'materials:converterAuto',
+  MaterialsOpenConverted: 'materials:openConverted',
   LearningGet: 'learning:get',
   LearningPrepare: 'learning:prepare',
   LearningChange: 'learning:change',

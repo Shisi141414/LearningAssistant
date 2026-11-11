@@ -6,6 +6,7 @@ import { changeLearningState, initialLearningState, validateLearningState } from
 import { readableOcr } from '@shared/material-ocr'
 import { getDb } from './db'
 import { materialPath } from './materials'
+import { materialParseInput } from './office-conversions'
 import { beginWork } from './work'
 
 type DocumentRow = { id: string; version_id: string; current_revision_id: string; created_at: number }
@@ -32,7 +33,7 @@ export function prepareLearningDocument(versionId: string): Promise<LearningDocu
   if (pending) return pending.promise
   const version = editableVersion(versionId), release = beginWork('学习文档来源准备')
   let worker: Worker
-  try { worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { file: materialPath(versionId), format: version.format, captureSources: true }, resourceLimits: { maxOldGenerationSizeMb: 512 } }) }
+  try { worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(versionId, materialPath(versionId), version.format), captureSources: true }, resourceLimits: { maxOldGenerationSizeMb: 512 } }) }
   catch (error) { release(); return Promise.reject(error) }
   let settled = false, stop: () => void = () => undefined
   const promise = new Promise<LearningDocument>((resolve, reject) => {

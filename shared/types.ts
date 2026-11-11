@@ -385,7 +385,7 @@ export interface DiagVisionResult {
 
 /* 材料：原件与版本不可被重解析覆盖，笔记引用稳定块 ID。 */
 export type MaterialKind = 'textbook' | 'handout' | 'slides' | 'supplement'
-export type MaterialFormat = 'pdf' | 'docx' | 'pptx'
+export type MaterialFormat = 'pdf' | 'docx' | 'pptx' | 'doc' | 'ppt'
 export type ImportStatus = 'queued' | 'parsing' | 'ready' | 'failed' | 'cancelled'
 export interface MaterialVersion {
   id: ID; material_id: ID; file_name: string; format: MaterialFormat; fingerprint: string
@@ -410,7 +410,9 @@ export interface MaterialLocator {
 }
 export interface ParsedBlock { text: string; heading: string; locator: MaterialLocator }
 export interface MaterialBlock { id: ID; version_id: ID; ordinal: number; heading: string; text: string; locator_json: string }
-export interface MaterialDetail { material: Material; versions: MaterialVersion[]; total: number }
+export interface MaterialConversion { version_id: ID; format: 'docx' | 'pptx'; fingerprint: string; engine: string; created_at: number }
+export interface OfficeConverterStatus { ready: boolean; path: string | null; version: string | null; error: string | null }
+export interface MaterialDetail { material: Material; versions: MaterialVersion[]; total: number; conversions: MaterialConversion[] }
 export interface MaterialAnchor extends MaterialBlock { material_id: ID; material_title: string; file_name: string; format: MaterialFormat }
 export interface ClassroomPosition { note_id: ID; block: MaterialAnchor | null; updated_at: number }
 export interface MaterialNoteRef { segment_id: ID; note_id: ID; title: string; raw_text: string }

@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail,
+  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
@@ -39,6 +39,10 @@ const api = {
     references: (input: { id: ID; offset?: number }) => invoke<import('@shared/types').ConceptReferences>(IPC.ConceptsReferences, input)
   },
   materials: {
+    converterStatus: () => invoke<OfficeConverterStatus>(IPC.MaterialsConverterStatus),
+    converterPick: () => invoke<OfficeConverterStatus>(IPC.MaterialsConverterPick),
+    converterAuto: () => invoke<OfficeConverterStatus>(IPC.MaterialsConverterAuto),
+    openConverted: (id: ID) => invoke<boolean>(IPC.MaterialsOpenConverted, id),
     ocrModels: () => invoke<OcrModelsStatus>(IPC.MaterialsOcrModels),
     ocrPrepare: () => invoke<OcrModelsStatus>(IPC.MaterialsOcrPrepare),
     ocrStart: (input: OcrInput) => invoke<ID>(IPC.MaterialsOcrStart, input),

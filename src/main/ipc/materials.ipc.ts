@@ -6,8 +6,20 @@ import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materia
 import { locateMaterial, materialAnchor, materialNoteRefs } from '../services/classroom-materials'
 import { correctOcrPage, materialOcrPage } from '../services/material-derivations'
 import { ocrModelsStatus, prepareOcrModels } from '../services/ocr-models'
+import { configureOfficeConverter, convertedMaterialFile, officeConverterStatus } from '../services/office-conversions'
 
 export function registerMaterialsIpc(): void {
+  ipcMain.handle(IPC.MaterialsConverterStatus, () => handleResult(officeConverterStatus))
+  ipcMain.handle(IPC.MaterialsConverterAuto, () => handleResult(() => configureOfficeConverter(null)))
+  ipcMain.handle(IPC.MaterialsConverterPick, () => handleResult(async () => {
+    const selected = await dialog.showOpenDialog({ title: '选择 LibreOffice program 目录的 soffice 程序', properties: ['openFile'] })
+    return selected.canceled || !selected.filePaths[0] ? officeConverterStatus() : configureOfficeConverter(selected.filePaths[0])
+  }))
+  ipcMain.handle(IPC.MaterialsOpenConverted, (_e, id: string) => handleResult(async () => {
+    const error = await shell.openPath(convertedMaterialFile(id).file)
+    if (error) throw new Error(error)
+    return true
+  }))
   ipcMain.handle(IPC.MaterialsOcrModels, () => handleResult(ocrModelsStatus))
   ipcMain.handle(IPC.MaterialsOcrPrepare, () => handleResult(prepareOcrModels))
   ipcMain.handle(IPC.MaterialsOcrStart, (_e, input) => handleResult(() => startMaterialOcr(input)))
@@ -28,7 +40,7 @@ export function registerMaterialsIpc(): void {
     return true
   }))
   ipcMain.handle(IPC.MaterialsImport, (_e, input: MaterialInput) => handleResult(async () => {
-    const chosen = await dialog.showOpenDialog({ title: input.material_id ? '为材料导入新版本' : '导入学习材料', properties: ['openFile'], filters: [{ name: '学习材料（PDF / Word / PPT）', extensions: ['pdf', 'docx', 'pptx'] }] })
+    const chosen = await dialog.showOpenDialog({ title: input.material_id ? '为材料导入新版本' : '导入学习材料', properties: ['openFile'], filters: [{ name: '学习材料（PDF / Word / PPT）', extensions: ['pdf', 'docx', 'pptx', 'doc', 'ppt'] }] })
     if (chosen.canceled || !chosen.filePaths[0]) return null
     return importMaterial(input, chosen.filePaths[0])
   }))

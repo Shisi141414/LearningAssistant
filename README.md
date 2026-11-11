@@ -8,11 +8,11 @@
 - **智能体对话**（M0）：多供应商 API 接入（ccswitch 风格配置），流式对话，引用笔记作为上下文
 - **笔记与标注**（M0）：段落类型标记、重点/疑问标注与备注
 - **知识与概念**（R1 补充 / M2 基础）：主名称与确认别名管理、材料/笔记/课堂正文自动关联、同名多义候选、概念卡片与反向查找；AI 抽取和图谱仍待实现
-- **材料库**（R1）：PDF、DOCX、PPTX 按学科导入、版本与原件保留；扫描 PDF 按页本地 OCR 与人工校正；学习文档支持人工分类、拆分/合并、证明归属、类型排版和历史修订；AI 拆分与旧 DOC/PPT 自动转换待实现
+- **材料库**（R1）：PDF、DOCX、PPTX 按学科导入，旧 DOC/PPT 通过本地 LibreOffice 转换；原件、转换记录与版本保留；扫描 PDF 按页 OCR 与校正；学习文档支持人工整理、AI 分类/拆分建议审核、证明归属、类型排版和历史修订
 - **习题库**（M3 规划）：习题条目化管理
 - **作业与复习**（M4）：网络学堂（learnx）DDL 同步、FSRS 遗忘曲线调度
 
-上述包含规划中的模块；当前已实现对话、笔记、活动、灵感、课堂转写管线、材料库、OCR、人工语义条目及概念别名关联，习题库/复习页仍为占位。可靠性修复见 [R0 构建记录](docs/06-build-progress-2026-11-11.md)，材料能力边界见 [R1 交付记录](docs/07-material-library.md)与 [学习文档记录](docs/12-semantic-entries.md)；[体检报告](docs/05-health-check-2026-11-11.md) 保留初始审查基线。
+上述包含规划中的模块；当前已实现对话、笔记、活动、灵感、课堂转写管线、材料库、OCR、旧格式转换、人工语义条目、AI 整理建议审核及概念别名关联，习题库/复习页仍为占位。可靠性修复见 [R0 构建记录](docs/06-build-progress-2026-11-11.md)，材料能力边界见 [R1 交付记录](docs/07-material-library.md)与 [学习文档记录](docs/12-semantic-entries.md)；[体检报告](docs/05-health-check-2026-11-11.md) 保留初始审查基线。
 
 新增规划：项目系统（要求/计划书/文档/进度/截止时间与知识应用）、日程自动排程和提醒、备忘智能归档，以及 Word/PDF/PPT 教材条目化与“左教材、右转写”的课堂联动。需求、依赖和验收见 [扩展规格](docs/04-product-expansion.md)；优先级见 [路线图 R0–R6](docs/03-roadmap.md)。
 
@@ -74,6 +74,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [扫描 PDF 本地识别、人工校正与验收](docs/11-local-ocr.md)
 - [学习文档来源、人工语义条目与修订](docs/12-semantic-entries.md)
 - [AI 语义拆分建议、人工审核与保护](docs/13-ai-semantic-review.md)
+- [旧版 DOC/PPT 转换、配置与验收](docs/14-legacy-office-conversion.md)
 
 ## 开发约定
 

@@ -367,5 +367,19 @@ CREATE TABLE learning_suggestions (
 );
 CREATE INDEX idx_learning_suggestions_document ON learning_suggestions(document_id, created_at);
 `
+  },
+  {
+    version: 11,
+    name: 'legacy_office_conversions',
+    sql: `
+CREATE TABLE material_conversions (
+  version_id TEXT PRIMARY KEY REFERENCES material_versions(id) ON DELETE RESTRICT,
+  format TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  engine TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+`
   }
 ]

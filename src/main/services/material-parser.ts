@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import { OfficeParser } from 'officeparser'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
@@ -6,9 +7,10 @@ import type { MaterialFormat, ParsedBlock } from '@shared/types'
 import { chunkText } from '@shared/textChunk'
 
 /** 格式解码、结构分块复用开源库；此层只保留项目需要的来源定位。 */
-export async function parseMaterial(file: string, format: MaterialFormat, progress: (percent: number) => void = () => undefined, captureSources = false): Promise<{ blocks: ParsedBlock[]; warnings: string[]; units: ParsedBlock[] }> {
+export async function parseMaterial(file: string, format: MaterialFormat, progress: (percent: number) => void = () => undefined, captureSources = false, expectedFingerprint?: string): Promise<{ blocks: ParsedBlock[]; warnings: string[]; units: ParsedBlock[] }> {
   const bytes = new Uint8Array(await readFile(file))
   if (bytes.length > 50 * 1024 * 1024) throw new Error('单个材料不能超过 50 MiB，请拆分后导入')
+  if (expectedFingerprint && createHash('sha256').update(bytes).digest('hex') !== expectedFingerprint) throw new Error('已保存的转换文件发生变化，不能重建原来源。需要修改时请另存为 DOCX/PPTX 后作为新版本导入。')
   const blocks: ParsedBlock[] = [], warnings: string[] = []
   const units: ParsedBlock[] = []
   if (format === 'pdf') {
