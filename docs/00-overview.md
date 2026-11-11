@@ -4,7 +4,7 @@
 >
 > 文档版本：v0.2（2026-11-11） · 初稿：claude · 扩展规划：codex
 >
-> 本文描述产品目标，已实现范围以 [体检报告](05-health-check-2026-11-11.md) 为准；新增需求与验收见 [扩展规格](04-product-expansion.md)。
+> 本文描述产品目标，初始基线见 [体检报告](05-health-check-2026-11-11.md)，当前增量见 [R0 修复](06-build-progress-2026-11-11.md) 与 [R1 材料库](07-material-library.md)；新增需求与验收见 [扩展规格](04-product-expansion.md)。
 
 ## 1. 愿景
 

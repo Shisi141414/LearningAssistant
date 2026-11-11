@@ -381,3 +381,24 @@ export interface DiagVisionResult {
   model: string
   latencyMs: number
 }
+
+/* 材料：原件与版本不可被重解析覆盖，笔记引用稳定块 ID。 */
+export type MaterialKind = 'textbook' | 'handout' | 'slides' | 'supplement'
+export type MaterialFormat = 'pdf' | 'docx' | 'pptx'
+export type ImportStatus = 'queued' | 'parsing' | 'ready' | 'failed' | 'cancelled'
+export interface MaterialVersion {
+  id: ID; material_id: ID; file_name: string; format: MaterialFormat; fingerprint: string
+  status: ImportStatus; progress: number; error: string | null; warnings_json: string; created_at: number
+}
+export interface Material {
+  id: ID; subject_id: ID | null; title: string; kind: MaterialKind; created_at: number
+  current_version_id: ID | null; archived: number; version?: MaterialVersion
+}
+export interface MaterialInput { subject_id: ID; title?: string; kind: MaterialKind; material_id?: ID }
+export interface MaterialLocator {
+  kind: MaterialFormat; page?: number; slide?: number; paragraph?: number; source?: string
+  bbox?: number[]; pageSize?: number[]
+}
+export interface ParsedBlock { text: string; heading: string; locator: MaterialLocator }
+export interface MaterialBlock { id: ID; version_id: ID; ordinal: number; heading: string; text: string; locator_json: string }
+export interface MaterialDetail { material: Material; versions: MaterialVersion[]; total: number }

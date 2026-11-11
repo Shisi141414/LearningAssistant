@@ -7,6 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
+  Material, MaterialDetail, MaterialInput, MaterialBlock,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
@@ -20,6 +21,16 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  materials: {
+    list: (subjectId?: ID) => invoke<Material[]>(IPC.MaterialsList, subjectId),
+    import: (input: MaterialInput) => invoke<Material | null>(IPC.MaterialsImport, input),
+    get: (id: ID) => invoke<MaterialDetail>(IPC.MaterialsGet, id),
+    blocks: (input: { version_id: ID; query?: string; offset?: number }) => invoke<{ blocks: MaterialBlock[]; total: number }>(IPC.MaterialsBlocks, input),
+    cancel: (id: ID) => invoke<boolean>(IPC.MaterialsCancel, id),
+    retry: (id: ID) => invoke<boolean>(IPC.MaterialsRetry, id),
+    archive: (id: ID) => invoke<boolean>(IPC.MaterialsArchive, id),
+    open: (id: ID) => invoke<boolean>(IPC.MaterialsOpen, id)
+  },
   subjects: {
     list: () => invoke<Subject[]>(IPC.SubjectsList),
     create: (input: SubjectInput) => invoke<Subject>(IPC.SubjectsCreate, input),

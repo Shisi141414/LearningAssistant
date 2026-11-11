@@ -216,5 +216,37 @@ ALTER TABLE note_segments ADD COLUMN organize_attempts INTEGER NOT NULL DEFAULT 
 ALTER TABLE note_segments ADD COLUMN organize_retry_at INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX idx_segments_organize ON note_segments(organize_status, organize_retry_at);
 `
+  },
+  {
+    version: 5,
+    name: 'versioned_materials',
+    sql: `
+ALTER TABLE materials ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE material_versions (
+  id TEXT PRIMARY KEY,
+  material_id TEXT NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+  file_name TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  format TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued',
+  progress INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  warnings_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_material_versions ON material_versions(material_id, created_at);
+ALTER TABLE materials ADD COLUMN current_version_id TEXT REFERENCES material_versions(id) ON DELETE SET NULL;
+CREATE TABLE material_blocks (
+  id TEXT PRIMARY KEY,
+  version_id TEXT NOT NULL REFERENCES material_versions(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  heading TEXT NOT NULL DEFAULT '',
+  text TEXT NOT NULL,
+  locator_json TEXT NOT NULL,
+  UNIQUE(version_id, ordinal)
+);
+CREATE INDEX idx_material_blocks ON material_blocks(version_id, ordinal);
+`
   }
 ]

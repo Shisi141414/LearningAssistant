@@ -11,6 +11,14 @@
  */
 
 export const IPC = {
+  MaterialsList: 'materials:list',
+  MaterialsImport: 'materials:import',
+  MaterialsGet: 'materials:get',
+  MaterialsBlocks: 'materials:blocks',
+  MaterialsCancel: 'materials:cancel',
+  MaterialsRetry: 'materials:retry',
+  MaterialsArchive: 'materials:archive',
+  MaterialsOpen: 'materials:open',
   /* 学科 */
   SubjectsList: 'subjects:list',
   SubjectsCreate: 'subjects:create',

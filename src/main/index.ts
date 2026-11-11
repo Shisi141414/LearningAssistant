@@ -9,6 +9,7 @@ import { safeExternal, trustedRenderer } from './services/security'
 import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
+import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 
 let stopRecovery: (() => void) | undefined
 
@@ -57,6 +58,7 @@ app.whenReady().then(() => {
   getDb() // 初始化数据库（迁移 + 种子）
   registerAllIpc()
   stopRecovery = startOrganizationRecovery()
+  startMaterialRecovery()
   createWindow()
 
   app.on('activate', () => {
@@ -72,5 +74,6 @@ app.on('before-quit', () => {
   stopRecovery?.()
   stopClassroom()
   stopAllChats()
+  stopMaterialJobs()
   closeDb()
 })

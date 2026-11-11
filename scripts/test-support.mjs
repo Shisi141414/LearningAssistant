@@ -17,7 +17,8 @@ export const electronMock = {
     decryptString: (blob) => blob.toString().slice(10)
   },
   ipcMain: { handle: (name, handler) => handlers.set(name, handler), on: (name, handler) => listeners.set(name, handler) },
-  dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) }
+  dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
+  shell: { openPath: async () => '' }
 }
 globalThis.__electronMock = electronMock
 process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
@@ -37,7 +38,7 @@ registerHooks({
     return next(specifier, context)
   },
   load(url, context, next) {
-    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage}=globalThis.__electronMock;', shortCircuit: true }
+    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage,shell}=globalThis.__electronMock;', shortCircuit: true }
     return next(url, context)
   }
 })

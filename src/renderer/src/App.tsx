@@ -15,6 +15,7 @@ import { ClassroomPage } from './pages/ClassroomPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InspirationPage } from './pages/InspirationPage'
 import { Placeholder } from './pages/Placeholder'
+import { MaterialLibraryPage } from './pages/MaterialLibraryPage'
 import { useAppStore } from './stores/app'
 import { useChatStore } from './stores/chat'
 
@@ -58,7 +59,7 @@ export default function App() {
         <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/knowledge" element={<Placeholder title="知识网络" stage="M2" desc="知识点抽取与关联、图谱可视化、跨学科引用、预回答缓存。" />} />
-        <Route path="/library" element={<Placeholder title="知识库" stage="M3" desc="教材与补充材料上传、解析索引、贴标签。" />} />
+        <Route path="/library" element={<MaterialLibraryPage />} />
         <Route path="/exercises" element={<Placeholder title="习题库" stage="M3" desc="习题条目化管理、思路图示、错误点标记、关联教材与笔记。" />} />
         <Route path="/review" element={<Placeholder title="作业与复习" stage="M4" desc="learnx 作业同步、FSRS 遗忘曲线复习调度、桌面小组件。" />} />
         <Route path="/inspirations" element={<InspirationPage />} />

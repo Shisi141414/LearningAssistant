@@ -126,7 +126,7 @@ export const IPC = {
 
 > 命名：snake_case；主键 `id TEXT`（nanoid）；时间戳 INTEGER（epoch ms）；JSON 字段后缀 `_json`。
 >
-> 下文是初始模型示意，活动相关字段由迁移 v2 追加，`app_config` 由 v3 追加；当前实际为 v3、17 张表。末尾材料/习题等单行定义为规划速记，不能直接执行。新增项目等实体尚无迁移。
+> 下文是初始模型示意，活动相关字段由迁移 v2 追加，`app_config` 由 v3 追加；当前实际为 v5、19 张表。v4 增加整理修订/任务状态，v5 增加 `material_versions`、`material_blocks` 及材料当前版本指针。末尾简写不能直接执行；真实结构以 migrations.ts 为准。新增项目等实体尚无迁移。
 
 ```sql
 -- 学科
@@ -305,6 +305,8 @@ CREATE TABLE review_records ( id, item_type, item_id, fsrs_state_json, due_at );
 保存 `memos` 原文后再分类，状态包括待处理、已归档、需补全和失败；分类运行及衍生知识/任务关系可追踪。明确条目按启用规则自动归档，模糊条目进入待整理箱；重试幂等、离线可记、修正可更新、归档可撤销。现有灵感库作为关联目标或分类视图保留并迁移。
 
 ### ADR-9 材料原件、解析版本、稳定块与后台任务
+
+R1 首批已实现：OfficeParser 负责 DOCX/PPTX，PDF.js 负责 PDF 页级文字提取；独立 worker 顺序解析，主进程维护数据库与工作锁。版本记录同时承载持久任务状态，取消/失败可重试，中断任务重启恢复；成功版本不原地重解析。位置暂为 PDF 整页、PPT 幻灯片、Word 逻辑结构条目；未交付精确段落框、OCR 和旧格式转换。选型与验证见 [R1 记录](07-material-library.md)。
 
 扩展 `materials`，追加版本、带位置的块及导入任务。格式适配器负责 PDF/Word/PowerPoint 的扫描、转换与提取，统一输出可追溯块；扫描件接 OCR，旧 DOC/PPT 经转换后进入同一流程。复杂公式/图表保留原件引用与质量标记。
 

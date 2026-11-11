@@ -1,0 +1,25 @@
+.material-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 24px; }
+.material-import { flex-wrap: wrap; }
+.material-shelf { border-right: 1px solid var(--border); padding-right: 20px; }
+.material-shelf-label { color: var(--text-2); font-size: 12px; margin-bottom: 12px; }
+.material-book { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 6px; width: 100%; margin-bottom: 12px; padding: 16px; background: var(--bg-panel); border: 1px solid var(--border); }
+.material-book strong { font-size: 16px; overflow-wrap: anywhere; }
+.material-book.selected { border-color: var(--accent); background: var(--accent-weak); }
+.material-book-kind { color: var(--accent); font-size: 12px; }
+.material-status { font-size: 12px; color: var(--text-2); margin: 8px 0; }
+.material-reader { min-width: 0; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+.material-reader h2 { margin-top: 0; }
+.material-reader .toolbar { flex-wrap: wrap; }
+.material-reader select { max-width: 100%; }
+.material-reader progress { display: block; margin-top: 10px; width: 100%; }
+.material-error { color: var(--danger); overflow-wrap: anywhere; }
+.material-warnings { margin: 16px 0; font-size: 12px; color: var(--text-2); line-height: 1.7; }
+.material-warnings summary { cursor: pointer; }
+.material-search { margin-top: 20px; }
+.material-search input { flex: 1; min-width: 160px; }
+.material-block { padding: 22px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 30px; }
+.material-block.anchored { border-left: 3px solid var(--accent); padding-left: 16px; }
+.material-anchor { font-size: 12px; color: var(--accent); }
+.material-block h3 { font-size: 16px; margin: 10px 0; }
+.material-block p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; margin-bottom: 0; }
+@media (max-width: 1100px) { .material-workspace { grid-template-columns: 210px minmax(0, 1fr); gap: 16px; } .material-reader { padding: 18px; } }
