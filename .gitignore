@@ -17,3 +17,4 @@ out-tmp/
 
 # ASR 模型（数百 MB，按 README 指引下载）
 sherpa-onnx-*/
+sherpa-onnx-*.tar.bz2

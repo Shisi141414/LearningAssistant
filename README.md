@@ -11,7 +11,9 @@
 - **知识库 / 习题库**（M3）：教材解析索引、习题条目化管理
 - **作业与复习**（M4）：网络学堂（learnx）DDL 同步、FSRS 遗忘曲线调度
 
-详见 [docs/00-overview.md](docs/00-overview.md)。
+上述包含规划中的模块；当前主要实现了对话、笔记、活动、灵感和课堂转写管线，知识网络/知识库/习题库/复习页仍为占位。详见 [产品总览](docs/00-overview.md) 与 [2026-11-11 体检报告](docs/05-health-check-2026-11-11.md)。
+
+新增规划：项目系统（要求/计划书/文档/进度/截止时间与知识应用）、日程自动排程和提醒、备忘智能归档，以及 Word/PDF/PPT 教材条目化与“左教材、右转写”的课堂联动。需求、依赖和验收见 [扩展规格](docs/04-product-expansion.md)；优先级见 [路线图 R0–R6](docs/03-roadmap.md)。
 
 ## 技术栈
 
@@ -20,7 +22,7 @@ Electron + React + TypeScript · electron-vite · better-sqlite3 · zustand · o
 ## 开发
 
 ```bash
-git pull               # 每次开工前拉取最新
+git pull --ff-only     # 修改前检查工作区，再拉取最新
 npm install            # 安装依赖
 npm run rebuild        # 首次安装后必跑：将 better-sqlite3 重编译为 Electron ABI
 npm run dev            # 开发模式（HMR）
@@ -57,10 +59,13 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [社区调研与选型决策](docs/01-research.md)
 - [技术架构](docs/02-architecture.md)
 - [开发路线图](docs/03-roadmap.md)
+- [项目、日程、备忘与教材课堂联动](docs/04-product-expansion.md)
+- [代码库体检（2026-11-11）](docs/05-health-check-2026-11-11.md)
 
 ## 开发约定
 
-- 每次开工前 `git pull`，收尾时构建通过后提交并 push
+- 修改前拉取，完成一批代码后测试、类型检查和构建，通过后及时提交并 push；保留协作者的未提交改动，禁止默认强推
+- 具体协作要求见 [AGENTS.md](AGENTS.md)；语音模型压缩包与解压目录仅存本地，不进入 Git
 - 选型遵循"使用 → 迁移 → 修改 → 自己写"优先序，决策记录见 docs/01-research.md
 - schema 变更必须走 migration
 
