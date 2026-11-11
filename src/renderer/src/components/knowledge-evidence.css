@@ -12,3 +12,11 @@
 .concept-evidence { margin-top: 28px; }
 .evidence-target { background: var(--accent-weak); }
 .concept-list > select { width: 100%; margin-bottom: 12px; }
+.knowledge-suggestions { border-top: 1px solid var(--border); padding-top: 12px; }
+.knowledge-suggestion-editor, .knowledge-candidate-review { display: grid; gap: 12px; padding: 12px 0; min-width: 0; }
+.knowledge-suggestion-editor label { display: grid; gap: 6px; min-width: 0; }
+.knowledge-suggestion-editor button { justify-self: start; }
+.knowledge-suggestion-result, .knowledge-candidate { overflow-wrap: anywhere; min-width: 0; }
+.knowledge-candidate { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; }
+.knowledge-candidate h4 { font: 700 16px/1.6 SimHei, sans-serif; margin: 0; }
+.knowledge-suggestion-result blockquote { white-space: pre-wrap; font: 15px/1.8 SimSun, serif; margin: 12px 0; padding-left: 12px; border-left: 2px solid var(--border); }

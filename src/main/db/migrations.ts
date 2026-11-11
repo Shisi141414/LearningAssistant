@@ -409,5 +409,32 @@ CREATE TABLE knowledge_evidence (
 );
 CREATE INDEX idx_evidence_source ON knowledge_evidence(source_lookup, created_at);
 `
+  },
+  {
+    version: 13,
+    name: 'knowledge_suggestions',
+    sql: `
+CREATE TABLE knowledge_suggestions (
+  id TEXT PRIMARY KEY,
+  source_lookup TEXT NOT NULL,
+  snapshot_json TEXT NOT NULL,
+  provider_name TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error TEXT,
+  proposal_json TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_knowledge_suggestions_source ON knowledge_suggestions(source_lookup, created_at);
+CREATE TABLE knowledge_suggestion_adoptions (
+  suggestion_id TEXT NOT NULL REFERENCES knowledge_suggestions(id) ON DELETE RESTRICT,
+  candidate_index INTEGER NOT NULL,
+  concept_id TEXT NOT NULL REFERENCES knowledge_points(id) ON DELETE RESTRICT,
+  evidence_id TEXT REFERENCES knowledge_evidence(id) ON DELETE SET NULL,
+  decision_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(suggestion_id, candidate_index)
+);
+`
   }
 ]

@@ -7,6 +7,7 @@ import { useConceptStore } from '../stores/concepts'
 import { useAppStore } from '../stores/app'
 import { MarkdownSegment } from './MarkdownSegment'
 import './knowledge-evidence.css'
+import { KnowledgeSuggestions } from './KnowledgeSuggestions'
 
 const emptyPage = (): EvidencePage => ({ items: [], total: 0, next_offset: null })
 export function EvidenceList({ input, refreshToken = 0 }: { input: EvidenceListInput; refreshToken?: number | string }) {
@@ -99,6 +100,7 @@ function EvidenceEditor({ source, title, subjectId, quoteLength, expectedNoteTex
     <label>引用说明<textarea aria-label="证据说明" value={memo} maxLength={2000} disabled={busy} onChange={event => setMemo(event.target.value)} placeholder="说明这段内容与知识点的关系、条件或不同之处" /></label>
     <button className="primary" disabled={busy || !allowed || (creating ? !name.trim() : !conceptId)} onClick={() => void save()}>{creating ? '保存知识点与证据' : '保存证据引用'}</button>
     {error && <p className="material-error" role="alert">{error}</p>}{message && <p role="status">{message}</p>}
+    <KnowledgeSuggestions source={source} quoteLength={quoteLength} expectedNoteText={expectedNoteText} disabled={disabled} onAdopted={() => { setRevision(value => value + 1); void load() }} />
     <EvidenceList input={{ source }} refreshToken={JSON.stringify([revision, expectedNoteText, disabled])} />
   </div>
 }

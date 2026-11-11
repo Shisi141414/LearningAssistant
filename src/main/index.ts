@@ -13,6 +13,7 @@ import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
 import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
+import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
 
 declareMaterialProtocol()
 
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   stopRecovery = startOrganizationRecovery()
   startMaterialRecovery()
   recoverLearningSuggestions()
+  recoverKnowledgeSuggestions()
   createWindow()
 
   app.on('activate', () => {
@@ -85,5 +87,6 @@ app.on('before-quit', () => {
   stopMaterialJobs()
   stopLearningPreparation()
   stopLearningSuggestions()
+  stopKnowledgeSuggestions()
   closeDb()
 })

@@ -14,8 +14,10 @@ import { registerMaterialsIpc } from './materials.ipc'
 import { registerConceptsIpc } from './concepts.ipc'
 import { registerLearningIpc } from './learning.ipc'
 import { registerEvidenceIpc } from './evidence.ipc'
+import { registerKnowledgeSuggestionsIpc } from './knowledge-suggestions.ipc'
 
 export function registerAllIpc(): void {
+  registerKnowledgeSuggestionsIpc()
   registerEvidenceIpc()
   registerLearningIpc()
   registerSubjectsIpc()

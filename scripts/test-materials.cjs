@@ -119,6 +119,14 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const savedKnowledge=JSON.parse(fs.readFileSync(path.join(root,'knowledge-suggestions-test.json'),'utf8'))
+        const resumedKnowledge=await call('knowledgeSuggestions','get',savedKnowledge.jobId)
+        assert.equal(resumedKnowledge.status,'applied')
+        assert.equal(resumedKnowledge.adoptions[0].concept_id,savedKnowledge.conceptId)
+        assert.equal(resumedKnowledge.adoptions[0].evidence_id,savedKnowledge.evidenceId)
+        assert.equal((await call('knowledgeSuggestions','get',savedKnowledge.interrupted)).status,'cancelled')
+        assert.match((await call('knowledgeSuggestions','get',savedKnowledge.interrupted)).error,/未自动发送/)
+        assert.equal((await call('knowledgeSuggestions','get',savedKnowledge.noteJobId)).quote,savedKnowledge.noteQuote)
         const savedEvidence=JSON.parse(fs.readFileSync(path.join(root,'knowledge-evidence-test.json'),'utf8'))
         const resumedEvidence=await call('evidence','list',{concept_id:savedEvidence.conceptId})
         assert.equal(resumedEvidence.items.find(item=>item.id===savedEvidence.learningId).quote,savedEvidence.quote)
@@ -434,10 +442,18 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(await win.webContents.executeJavaScript(`document.querySelectorAll('.learning-reader > .learning-entry').length`),4+rest.length)
       console.log('EVIDENCE_TEST_OK actual linking, atomic creation, fixed historical navigation, note snapshot and draft guard, removal, subject filter and second-page targeting')
       // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
-      let semanticMode='valid', semanticRequests=0
+      let semanticMode='valid', semanticRequests=0,knowledgeMode='valid',knowledgeRequests=0
       semanticServer=require('node:http').createServer(async(req,res)=>{
         let body='';for await(const chunk of req)body+=chunk
         const request=JSON.parse(body),fragments=JSON.parse(request.messages.find(m=>m.role==='user').content)
+        if(!Array.isArray(fragments)){
+          knowledgeRequests++
+          const candidates=[{name:'牛顿第二定律',summary:'力等于质量乘以加速度，核对适用条件。',aliases:[],excerpt:knowledgeMode==='bad'?'编造的原文':fragments.text.slice(0,1000),role:'definition'},{name:'力',summary:'描述相互作用的物理量。',aliases:[],excerpt:fragments.text.slice(0,1000),role:'application'}]
+          res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders()
+          res.write('data: '+JSON.stringify({choices:[{index:0,delta:{content:knowledgeMode==='hold'?'{':JSON.stringify({candidates})}}]})+'\n\n')
+          if(knowledgeMode!=='hold')res.end('data: [DONE]\n\n')
+          return
+        }
         semanticRequests++
         res.writeHead(200,{'content-type':'text/event-stream'});res.flushHeaders()
         const value=semanticMode==='bad'?{entries:[],relations:[]}:{entries:[{start:fragments[0].id,end:fragments.at(-1).id,type:'theorem',title:'牛顿第二定律'}],relations:[]}
@@ -446,7 +462,7 @@ app.on('browser-window-created', (_event, win) => {
       })
       await new Promise(resolve=>semanticServer.listen(0,'127.0.0.1',resolve))
       const semanticProvider=await call('providers','save',{name:'本地模拟语义模型',base_url:`http://127.0.0.1:${semanticServer.address().port}/v1`,api_format:'openai',api_key:'local-test-key',enabled:true})
-      await call('models','save',{provider_id:semanticProvider.id,model_id:'local-semantic-model'})
+      const semanticModel=await call('models','save',{provider_id:semanticProvider.id,model_id:'local-semantic-model'})
       await win.webContents.executeJavaScript(`location.hash='/library?material=${sourceDocMaterial.id}&version=${sourceDocMaterial.current_version_id}'`)
       await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'AI 学习文档入口')
       await click('学习文档')
@@ -477,6 +493,81 @@ app.on('browser-window-created', (_event, win) => {
       fs.writeFileSync(path.join(root,'learning-ai-test.json'),JSON.stringify({version:sourceDocMaterial.current_version_id,interrupted}))
       assert.equal(semanticRequests,3)
       console.log('LEARNING_AI_TEST_OK local model, selected range, preview, explicit adoption, cancellation, invalid output and manual protection')
+      const openKnowledge=async()=>{
+        await win.webContents.executeJavaScript(`document.querySelector('.knowledge-evidence').open=true`)
+        await waitUi(`!!document.querySelector('.knowledge-suggestions')`,'知识候选入口')
+        await win.webContents.executeJavaScript(`document.querySelector('.knowledge-suggestions').open=true`)
+        await waitUi(`Array.from(document.querySelector('[aria-label="知识提议模型"]')?.options||[]).some(option=>option.value===${JSON.stringify(semanticModel.id)})`,'知识模型可用')
+        await setSelect('[aria-label="知识提议模型"]',semanticModel.id)
+      }
+      const generateKnowledge=async()=>{
+        await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='生成知识候选（发送文字）'&&!b.disabled)`,'知识生成可用')
+        await click('生成知识候选（发送文字）')
+      }
+      await openKnowledge()
+      const beforeKnowledge=(await call('concepts','list')).length
+      await generateKnowledge()
+      await waitUi(`document.querySelectorAll('.knowledge-candidate').length===2`,'知识候选预览')
+      assert.equal((await call('concepts','list')).length,beforeKnowledge,'生成不入知识库')
+      await setSelect('[aria-label="候选 1 处理方式"]','new')
+      await setText('[aria-label="候选 1 名称"]','牛顿定律 · 人工核对')
+      await setText('[aria-label="候选 1 释义"]','人工确认：力与加速度的关系，保留适用条件。')
+      await setText('[aria-label="候选 1 别名"]','牛顿第二定律')
+      await setText('[aria-label="候选 1 引用说明"]','核对教材后采纳')
+      win.setSize(1024,768);await new Promise(resolve=>setTimeout(resolve,100))
+      await win.webContents.executeJavaScript(`document.querySelector('.knowledge-candidate').scrollIntoView({block:'start',behavior:'instant'})`)
+      assert.equal(await win.webContents.executeJavaScript('document.documentElement.scrollWidth <= innerWidth'),true)
+      await captureRendered(win);await new Promise(resolve=>setTimeout(resolve,100))
+      fs.writeFileSync(path.join(root,'knowledge-suggestions-preview.png'),(await captureRendered(win)).toPNG())
+      win.setSize(1360,860);await new Promise(resolve=>setTimeout(resolve,100))
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='确认并采纳候选 1'&&!b.disabled)`,'第一候选采纳可用')
+      await click('确认并采纳候选 1')
+      await waitUi(`document.querySelector('.knowledge-candidate')?.textContent.includes('已采纳')`,'新建知识点并保留证据')
+      const knowledgeConcept=(await call('concepts','list')).find(item=>item.name==='牛顿定律 · 人工核对')
+      assert.ok(knowledgeConcept);assert.match(knowledgeConcept.summary,/人工确认/)
+      const oldConcept=(await call('concepts','list')).find(item=>item.id===concept.id)
+      await setSelect('[aria-label="候选 2 处理方式"]',concept.id)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='确认并采纳候选 2'&&!b.disabled)`,'第二候选采纳可用')
+      await click('确认并采纳候选 2')
+      await waitUi(`document.querySelector('.knowledge-suggestion-result')?.textContent.includes('已全部采纳')`,'只为已有知识点补充证据')
+      const preserved=(await call('concepts','list')).find(item=>item.id===concept.id)
+      assert.equal(preserved.summary,oldConcept.summary);assert.deepEqual(preserved.aliases,oldConcept.aliases)
+      const knowledgeSource={kind:'learning',material_id:sourceDocMaterial.id,version_id:aiPublished.version_id,revision_id:aiPublished.revision_id,entry_id:aiPublished.state.entries[0].id}
+      const knowledgeJob=(await call('knowledgeSuggestions','list',knowledgeSource))[0]
+      const knowledgeEvidence=(await call('evidence','list',{concept_id:knowledgeConcept.id})).items[0]
+      assert.equal(knowledgeEvidence.source.revision_id,aiPublished.revision_id)
+      const reviewedKnowledge=await call('knowledgeSuggestions','get',knowledgeJob.id)
+      await call('evidence','remove',reviewedKnowledge.adoptions.find(item=>item.candidate_index===1).evidence_id)
+      await click('重新载入提议记录')
+      await waitUi(`document.querySelectorAll('.knowledge-candidate')[1]?.textContent.includes('证据已另行移除')`,'重载同状态记录也更新采纳详情')
+      knowledgeMode='hold';await generateKnowledge()
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='取消知识提议'&&!b.disabled)`,'知识生成取消按钮')
+      await click('取消知识提议');await waitUi(`document.querySelector('.knowledge-suggestion-result')?.textContent.includes('已取消')`,'知识取消保留原库')
+      knowledgeMode='bad';await generateKnowledge()
+      await waitUi(`document.querySelector('.knowledge-suggestion-result')?.textContent.includes('生成失败')`,'知识伪造摘录拒绝')
+      const knowledgeInterrupted=(await call('knowledgeSuggestions','list',knowledgeSource))[0].id
+      const kdb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
+      kdb.prepare("UPDATE knowledge_suggestions SET status='running' WHERE id=?").run(knowledgeInterrupted);kdb.close()
+      const knowledgeNote=await call('notes','create',{title:'知识提议笔记回归'})
+      const noteQuote='课堂整理：牛顿第二定律描述力与加速度的关系。'
+      const knowledgeSegment=await call('notes','addSegment',{note_id:knowledgeNote.id,raw_text:'原始转写单独保留',organized_text:noteQuote})
+      await win.webContents.executeJavaScript(`location.hash='/notes/${knowledgeNote.id}'`)
+      await waitUi(`!!document.querySelector('[data-segment-id] .knowledge-evidence')`,'笔记知识提议入口')
+      knowledgeMode='valid';await openKnowledge();await generateKnowledge()
+      await waitUi(`document.querySelectorAll('.knowledge-candidate').length===2`,'笔记知识候选')
+      await setSelect('[aria-label="候选 1 处理方式"]','new')
+      await setText('[data-segment-id] > textarea','课后已经修改的笔记。')
+      await waitUi(`document.querySelector('.knowledge-suggestion-result')?.textContent.includes('笔记文字与本次来源不同')`,'笔记候选陈旧保护')
+      assert.equal(await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='确认并采纳候选 1').disabled`),true)
+      await win.webContents.executeJavaScript(`document.querySelector('[data-segment-id] > textarea').dispatchEvent(new FocusEvent('focusout',{bubbles:true}))`)
+      await waitUi(`!document.querySelector('.evidence-editor')?.textContent.includes('请先保存并核对')`,'笔记编辑成功保存')
+      assert.equal(await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()==='确认并采纳候选 1').disabled`),true)
+      const noteJob=(await call('knowledgeSuggestions','list',{kind:'note',note_id:knowledgeNote.id,segment_id:knowledgeSegment.id,field:'organized_text'}))[0]
+      fs.writeFileSync(path.join(root,'knowledge-suggestions-test.json'),JSON.stringify({jobId:knowledgeJob.id,conceptId:knowledgeConcept.id,evidenceId:knowledgeEvidence.id,interrupted:knowledgeInterrupted,noteJobId:noteJob.id,noteQuote}))
+      assert.equal(knowledgeRequests,4)
+      console.log('KNOWLEDGE_SUGGESTIONS_TEST_OK local model, saved source, preview, edited adoption, existing concept protection, cancellation, invalid excerpt, stale note guard and narrow layout')
+      await win.webContents.executeJavaScript(`location.hash='/library?material=${sourceDocMaterial.id}&version=${sourceDocMaterial.current_version_id}'`)
+      await waitUi(`!!document.querySelector('.office-converter')`,'返回材料库')
       await win.webContents.executeJavaScript(`document.querySelector('.office-converter').open=true`)
       await waitUi(`!!document.querySelector('.office-converter [role="status"]')`, '转换工具状态')
       selectedFile=doc1

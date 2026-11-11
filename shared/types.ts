@@ -442,6 +442,21 @@ export interface Evidence {
 export type EvidenceListInput = ({ concept_id: ID } | { source: EvidenceSource }) & { offset?: number }
 export interface EvidencePage { items: Evidence[]; total: number; next_offset: number | null }
 export type ConceptFromEvidenceInput = Omit<EvidenceInput, 'concept_id'> & { concept: Omit<ConceptInput, 'id' | 'revision'> }
+export interface KnowledgeCandidate { name: string; summary: string; aliases: string[]; excerpt: string; role: EvidenceRole }
+export interface KnowledgeSuggestInput { source: EvidenceSource; expected_note_text?: string; model_db_id: ID }
+export interface KnowledgeAdoption { candidate_index: number; concept_id: ID; evidence_id: ID | null }
+export interface KnowledgeSuggestion {
+  id: ID; source: EvidenceSource; source_title: string; provider_name: string; model_id: string; created_at: number
+  status: 'running' | 'ready' | 'failed' | 'cancelled' | 'applied' | 'dismissed'; error: string | null
+}
+export interface KnowledgeSuggestionDetail extends KnowledgeSuggestion {
+  quote: string; quote_sha256: string; location: string; source_subject_id: ID | null
+  candidates: KnowledgeCandidate[] | null; adoptions: KnowledgeAdoption[]
+}
+export interface KnowledgeAdoptInput {
+  suggestion_id: ID; candidate_index: number; role: EvidenceRole; memo: string
+  target: { kind: 'existing'; concept_id: ID; expected_revision: number } | { kind: 'new'; concept: Omit<ConceptInput, 'id' | 'revision'> }
+}
 
 export type LearningEntryType = 'section' | 'narrative' | 'definition' | 'theorem' | 'proposition' | 'lemma' | 'corollary' | 'proof' | 'example' | 'exercise' | 'solution' | 'figure' | 'table' | 'equation' | 'note'
 export interface LearningSource { id: ID; ordinal: number; raw_text: string; heading: string; locator_json: string; extraction: 'native' | 'ocr' | 'manual' }

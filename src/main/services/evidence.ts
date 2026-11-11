@@ -23,7 +23,7 @@ function publicEvidence(row: EvidenceRow): Evidence {
     : !row.note_segment_id ? 'deleted' : hash((source.field === 'raw_text' ? row.note_raw : row.note_organized) ?? '') !== row.quote_sha256 ? 'changed' : 'current'
   return { id: row.id, concept_id: row.concept_id, source, role: row.role, memo: row.memo, quote: row.quote, quote_sha256: row.quote_sha256, source_title: row.source_title, source_subject_id: row.source_subject_id, location: row.location, entry_title: row.entry_title, entry_type: row.entry_type, created_at: row.created_at, source_status }
 }
-function captured(input: Omit<EvidenceInput, 'concept_id'>): Pick<Evidence, 'quote' | 'source_title' | 'source_subject_id' | 'location' | 'entry_title' | 'entry_type'> {
+export function captureEvidenceSource(input: Pick<EvidenceInput, 'source' | 'expected_note_text'>): Pick<Evidence, 'quote' | 'source_title' | 'source_subject_id' | 'location' | 'entry_title' | 'entry_type'> {
   const source = input.source, db = getDb()
   if (source.kind === 'learning') {
     if (input.expected_note_text !== undefined) throw new Error('学习条目不接受外部正文')
@@ -50,7 +50,7 @@ export function addEvidence(input: EvidenceInput): { evidence: Evidence; created
     const db = getDb()
     if (!db.prepare('SELECT id FROM knowledge_points WHERE id=?').get(input.concept_id)) throw new Error('知识点不存在')
     if (!Object.hasOwn(evidenceRoles, input.role) || input.memo.length > 2000 || input.memo.includes('\0')) throw new Error('引用角色或说明无效')
-    const capture = captured(input)
+    const capture = captureEvidenceSource(input)
     if (!capture.quote.trim() || capture.quote.length > 40_000) throw new Error('证据文字须非空且最多 40000 字符，请先拆分长条目')
     const lookup = evidenceLookup(input.source), fingerprint = hash(capture.quote)
     const key = input.source.kind === 'learning' ? lookup : `${lookup}:${fingerprint}`

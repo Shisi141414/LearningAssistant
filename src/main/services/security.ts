@@ -47,6 +47,12 @@ const conceptInput = { subject_id: nullable(id), name: text(120, true), summary:
 const evidenceInput = { source: evidenceSource, expected_note_text: optional(text(40_000)), role: choice(...Object.keys(evidenceRoles)), memo: text(2000) }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.KnowledgeSuggestStart]: [record({ source: evidenceSource, expected_note_text: optional(text(12_000)), model_db_id: id })],
+  [IPC.KnowledgeSuggestList]: [evidenceSource],
+  [IPC.KnowledgeSuggestGet]: [id],
+  [IPC.KnowledgeSuggestCancel]: [id],
+  [IPC.KnowledgeSuggestDismiss]: [id],
+  [IPC.KnowledgeSuggestAdopt]: [record({ suggestion_id: id, candidate_index: v => number(v) && (v as number) < 8, role: evidenceInput.role, memo: text(2000), target: v => [record({ kind: choice('existing'), concept_id: id, expected_revision: number }), record({ kind: choice('new'), concept: record(conceptInput) })].some(check => check(v)) })],
   [IPC.EvidenceAdd]: [record({ ...evidenceInput, concept_id: id })],
   [IPC.EvidenceCreateConcept]: [record({ ...evidenceInput, concept: record(conceptInput) })],
   [IPC.EvidenceList]: [(value) => [record({ concept_id: id, offset: optional(number) }), record({ source: evidenceSource, offset: optional(number) })].some(check => check(value))],

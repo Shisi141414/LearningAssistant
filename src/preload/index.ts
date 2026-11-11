@@ -8,6 +8,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
   LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
+  KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
@@ -22,6 +23,14 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  knowledgeSuggestions: {
+    start: (input: KnowledgeSuggestInput) => invoke<KnowledgeSuggestion>(IPC.KnowledgeSuggestStart, input),
+    list: (source: EvidenceSource) => invoke<KnowledgeSuggestion[]>(IPC.KnowledgeSuggestList, source),
+    get: (id: ID) => invoke<KnowledgeSuggestionDetail>(IPC.KnowledgeSuggestGet, id),
+    cancel: (id: ID) => invoke<boolean>(IPC.KnowledgeSuggestCancel, id),
+    dismiss: (id: ID) => invoke<boolean>(IPC.KnowledgeSuggestDismiss, id),
+    adopt: (input: KnowledgeAdoptInput) => invoke<KnowledgeSuggestionDetail>(IPC.KnowledgeSuggestAdopt, input)
+  },
   evidence: {
     add: (input: EvidenceInput) => invoke<{ evidence: Evidence; created: boolean }>(IPC.EvidenceAdd, input),
     createConcept: (input: ConceptFromEvidenceInput) => invoke<{ concept: Concept; evidence: Evidence }>(IPC.EvidenceCreateConcept, input),
