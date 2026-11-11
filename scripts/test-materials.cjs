@@ -84,6 +84,18 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(result.ok, false); return result.error
     }
     const importFile = async (file, input) => { selectedFile = file; return call('materials', 'import', input) }
+    const waitUi = async (expression, label) => {
+      const timeout = Date.now() + 12_000
+      while (!await win.webContents.executeJavaScript(expression)) {
+        if (Date.now() > timeout) throw Error(label + ': ' + await win.webContents.executeJavaScript('document.body.innerText.slice(-2500)'))
+        await new Promise(resolve => setTimeout(resolve, 40))
+      }
+    }
+    const click = async (text, scope = 'document') => win.webContents.executeJavaScript(`Array.from(${scope}.querySelectorAll('button')).find(button => button.textContent.trim() === ${JSON.stringify(text)})?.click()`)
+    const enterManual = async text => {
+      await win.webContents.executeJavaScript(`(() => { const input = document.querySelector('.classroom-transcript textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, ${JSON.stringify(text)}); input.dispatchEvent(new Event('input', {bubbles:true})); })()`)
+      await click('添加段落', "document.querySelector('.classroom-transcript')")
+    }
     const wait = async (id, expected = 'ready') => {
       const timeout = Date.now() + 15_000
       while (true) {
@@ -97,7 +109,21 @@ app.on('browser-window-created', (_event, win) => {
       if (resumeIndex >= 0) {
         const resumed = await wait(process.argv[resumeIndex + 2])
         assert.match((await call('materials', 'blocks', { version_id: resumed.id })).blocks[0].text, /恢复任务/)
-        console.log('MATERIAL_RESTART_OK interrupted import resumed after a real app restart')
+        const savedClass = JSON.parse(fs.readFileSync(path.join(root, 'classroom-test.json'), 'utf8'))
+        assert.equal((await call('classroom', 'position', savedClass.noteId)).block.id, savedClass.blockId)
+        assert.equal((await call('notes', 'get', savedClass.noteId)).segments[0].material_ref.id, savedClass.firstBlockId)
+        const recoveredDb = new (require('better-sqlite3'))(path.join(root, 'learning-assistant.db'))
+        assert.equal(recoveredDb.prepare('SELECT end_reason FROM classroom_sessions WHERE id = ?').get('interrupted-classroom-fixture').end_reason, 'interrupted')
+        recoveredDb.close()
+        await win.webContents.executeJavaScript(`location.hash = '/classroom?note=${savedClass.noteId}'`)
+        await waitUi(`document.querySelector('.classroom-current')?.textContent.includes('第 2 页') && Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='继续课堂' && !b.disabled)`, '重启后恢复课堂位置')
+        await click('继续课堂')
+        await waitUi(`!!document.querySelector('.classroom-split')`, '恢复已有课堂')
+        await enterManual('重启后继续记录')
+        await waitUi(`document.querySelectorAll('.classroom-transcript .segment').length === 3`, '重启后追加记录')
+        assert.equal((await call('notes', 'get', savedClass.noteId)).segments[2].material_ref.id, savedClass.blockId)
+        await click('结束课堂')
+        console.log('MATERIAL_RESTART_OK import recovery and classroom position, historical references, continued recording survived a real app restart')
         clearTimeout(deadline); app.quit(); return
       }
       const subjects = await call('subjects', 'list'), input = { subject_id: subjects[0].id, kind: 'handout' }
@@ -147,11 +173,68 @@ app.on('browser-window-created', (_event, win) => {
       await new Promise(resolve => setTimeout(resolve, 150))
       fs.writeFileSync(preview, (await win.webContents.capturePage()).toPNG())
       assert.deepEqual(problems, [])
+      await call('config', 'set', 'classroom.autoOrganize', '0')
+      await win.webContents.executeJavaScript(`location.hash = '/classroom'`)
+      await waitUi(`!!document.querySelector('[aria-label="课堂材料"] option[value="${pdfMaterial.id}"]')`, '课堂材料选择器')
+      await win.webContents.executeJavaScript(`(() => {const select = document.querySelector('[aria-label="课堂材料"]'); select.value = '${pdfMaterial.id}'; select.dispatchEvent(new Event('change', {bubbles:true})); })()`)
+      await waitUi(`document.querySelector('.pdf-page canvas')?.width > 0 && document.querySelector('.pdf-page [role="status"]')?.textContent === ''`, 'PDF 原页渲染')
+      await click('设为本讲起点')
+      await waitUi(`document.querySelector('.classroom-current')?.textContent.includes('第 1 页')`, '课前起点')
+      await click('开始课堂（手动转写模式）')
+      await waitUi(`!!document.querySelector('.classroom-split')`, '课堂分屏')
+      const classNote = (await call('notes', 'list')).find(n => n.source === 'class')
+      assert.ok(classNote)
+      await enterManual('第一段：力等于质量乘加速度。')
+      await waitUi(`document.querySelectorAll('.classroom-transcript .segment').length === 1`, '课堂第一段')
+      const firstClassSegment = (await call('notes', 'get', classNote.id)).segments[0]
+      assert.equal(firstClassSegment.material_ref.id, pdfBlocks[0].id)
+      await click('下一条', "document.querySelector('.classroom-material')")
+      await waitUi(`document.querySelector('.classroom-material h3')?.textContent.includes('第 2 页')`, '翻阅下一页')
+      assert.equal((await call('classroom', 'position', classNote.id)).block.id, pdfBlocks[0].id, '翻阅不应校准')
+      await click('校准到这里')
+      await waitUi(`document.querySelector('.classroom-current')?.textContent.includes('第 2 页')`, '实时校准')
+      await enterManual('第二段：继续讲授。')
+      await waitUi(`document.querySelectorAll('.classroom-transcript .segment').length === 2`, '课堂第二段')
+      const classSegments = (await call('notes', 'get', classNote.id)).segments
+      assert.equal(classSegments[0].material_ref.id, pdfBlocks[0].id)
+      assert.equal(classSegments[1].material_ref.id, pdfBlocks[1].id)
+      await win.webContents.executeJavaScript(`document.querySelector('.classroom-transcript .classroom-source').click()`)
+      await waitUi(`document.querySelector('.classroom-material h3')?.textContent.includes('第 1 页')`, '回看历史来源')
+      assert.equal((await call('classroom', 'position', classNote.id)).block.id, pdfBlocks[1].id, '回看来源不应改变讲授位置')
+      await waitUi(`document.querySelector('.pdf-page canvas')?.width > 0 && document.querySelector('.pdf-page [role="status"]')?.textContent === ''`, '课堂 PDF 渲染')
+      win.setSize(1024, 768)
+      await new Promise(resolve => setTimeout(resolve, 80))
+      assert.equal(await win.webContents.executeJavaScript(`document.documentElement.scrollWidth <= window.innerWidth`), true, '最小窗口不应出现横向溢出')
+      win.setSize(1360, 860)
+      await win.webContents.capturePage(); await new Promise(resolve => setTimeout(resolve, 100))
+      fs.writeFileSync(path.join(root, 'classroom-preview.png'), (await win.webContents.capturePage()).toPNG())
+      await click('结束课堂')
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='继续课堂')`, '结束后可恢复')
+      await win.webContents.executeJavaScript(`location.hash = '/notes/${classNote.id}?segment=${classSegments[0].id}'`)
+      await waitUi(`!!document.querySelector('.classroom-source')`, '笔记来源链接')
+      await win.webContents.executeJavaScript(`document.querySelector('.classroom-source').click()`)
+      await waitUi(`document.querySelector('.classroom-backlinks')?.textContent.includes('第一段')`, '教材回链笔记')
+      assert.equal(await win.webContents.executeJavaScript(`fetch('study-material://assets/cmaps/UniGB-UCS2-H.bcmap').then(r=>r.status)`), 200)
+      assert.equal(await win.webContents.executeJavaScript(`fetch('study-material://assets/../../package.json').then(r=>r.status)`), 404)
+      assert.equal((await electron.net.fetch(`study-material://file/${pdfVersion.id}`, { headers: { Origin: 'https://example.invalid' } })).status, 403)
+      fs.writeFileSync(path.join(root, 'classroom-test.json'), JSON.stringify({ noteId: classNote.id, blockId: pdfBlocks[1].id, firstBlockId: pdfBlocks[0].id }))
+      const missingNote = await call('notes', 'create', { title: '保存失败回归', source: 'class' })
+      await win.webContents.executeJavaScript(`location.hash = '/classroom?note=${missingNote.id}'`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='继续课堂' && !b.disabled)`, '保存失败场景准备')
+      await click('继续课堂'); await waitUi(`!!document.querySelector('.classroom-split')`, '保存失败场景课堂')
+      await call('notes', 'remove', missingNote.id)
+      await enterManual('这段未保存成功，必须留在输入框。')
+      await waitUi(`document.querySelector('.toast')?.textContent.includes('段落保存失败')`, '失败保存提示')
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.classroom-transcript textarea').value`), '这段未保存成功，必须留在输入框。')
+      await click('结束课堂')
+      assert.deepEqual(problems, [])
+      console.log('CLASSROOM_TEST_OK setup, PDF render, calibration, immutable references, bidirectional navigation and safe asset access')
       const recovery = await importFile(docx('待恢复.docx', '恢复任务：中断导入应在重启后继续。'), input)
       await call('materials', 'cancel', recovery.current_version_id)
       // 模拟应用异常退出后留下的 processing 状态；随后真正关闭、重新启动应用。
       const db = new (require('better-sqlite3'))(path.join(root, 'learning-assistant.db'))
       db.prepare("UPDATE material_versions SET status = 'parsing' WHERE id = ?").run(recovery.current_version_id)
+      db.prepare('INSERT INTO classroom_sessions (id, note_id, started_at) VALUES (?, ?, ?)').run('interrupted-classroom-fixture', classNote.id, Date.now())
       db.close()
       console.log('MATERIAL_TEST_OK ' + JSON.stringify({ formats: ['docx', 'pptx', 'pdf'], versions: true, duplicate: true, cancelRetry: true, failedRetry: true, sourceLocators: true, archivePreservesReferences: true, renderer: true, node: process.versions.node, isolatedData: root, resumeId: recovery.id }))
       clearTimeout(deadline); app.quit()

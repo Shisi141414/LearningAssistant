@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import type { ApiResult, Material, MaterialBlock, MaterialDetail, MaterialKind, MaterialLocator, MaterialVersion } from '@shared/types'
+import type { ApiResult, Material, MaterialBlock, MaterialDetail, MaterialKind, MaterialVersion, MaterialNoteRef } from '@shared/types'
 import { useAppStore } from '../stores/app'
 import './materials.css'
+import { materialLocation, materialHref } from '../utils/material'
 
 const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲义', slides: '课件', supplement: '补充材料' }
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
 const pending = (v?: MaterialVersion): boolean => v?.status === 'queued' || v?.status === 'parsing'
-export function blockLocation(block: MaterialBlock): string {
-  const locator = JSON.parse(block.locator_json) as MaterialLocator
-  return locator.page ? `第 ${locator.page} 页` : locator.slide ? `第 ${locator.slide} 张幻灯片` : `条目 ${block.ordinal + 1}`
-}
 
 export function MaterialLibraryPage() {
   const { subjects, currentSubjectId, showToast } = useAppStore()
@@ -20,6 +17,7 @@ export function MaterialLibraryPage() {
   const [items, setItems] = useState<Material[]>([])
   const [detail, setDetail] = useState<MaterialDetail | null>(null)
   const [blocks, setBlocks] = useState<MaterialBlock[]>([])
+  const [noteRefs, setNoteRefs] = useState<MaterialNoteRef[]>([])
   const [total, setTotal] = useState(0)
   const [query, setQuery] = useState('')
   const [offset, setOffset] = useState(0)
@@ -33,6 +31,13 @@ export function MaterialLibraryPage() {
   useEffect(() => { setSubject(currentSubjectId ?? '') }, [currentSubjectId])
   const linkedOffset = params.get('offset') ?? '0'
   const linkedBlock = params.get('block') ?? ''
+  useEffect(() => {
+    setNoteRefs([])
+    if (!linkedBlock) return
+    let alive = true
+    void window.api.materials.references(linkedBlock).then(result => { if (alive && result.ok) setNoteRefs(result.data) })
+    return () => { alive = false }
+  }, [linkedBlock])
   useEffect(() => {
     if (!linkedBlock) return
     const value = Number(linkedOffset)
@@ -140,8 +145,9 @@ export function MaterialLibraryPage() {
           {selectedVersion?.status === 'ready' && <>
             <div className="toolbar material-search"><input aria-label="搜索材料条目" placeholder="搜索本版本的正文或标题…" value={query} onChange={e => { setQuery(e.target.value); setOffset(0) }} /><span className="muted">{total} 个条目</span></div>
             {blocks.map(block => <article id={`material-${block.id}`} className={`material-block ${params.get('block') === block.id ? 'anchored' : ''}`} key={block.id}>
-              <Link className="material-anchor" to={`/library?material=${selectedId}&version=${versionId}&block=${block.id}&offset=${Math.floor(block.ordinal / 100) * 100}`}>{blockLocation(block)} · #{block.ordinal + 1}</Link>
+              <Link className="material-anchor" to={materialHref(selectedId, block)}>{materialLocation(block)} · #{block.ordinal + 1}</Link>
               {block.heading && <h3>{block.heading}</h3>}<p>{block.text}</p>
+              {linkedBlock === block.id && noteRefs.length > 0 && <details open className="classroom-backlinks"><summary>关联课堂记录（{noteRefs.length}）</summary>{noteRefs.map(ref => <Link key={ref.segment_id} to={`/notes/${ref.note_id}?segment=${ref.segment_id}`}>{ref.title}：{ref.raw_text}</Link>)}</details>}
             </article>)}
             {!blocks.length && <div className="empty">没有匹配的条目。</div>}
             <div className="toolbar"><button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 100))}>上一批</button><span className="muted">{total ? offset + 1 : 0}–{Math.min(total, offset + 100)} / {total}</span><button disabled={offset + 100 >= total} onClick={() => setOffset(offset + 100)}>下一批</button></div>

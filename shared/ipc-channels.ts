@@ -19,6 +19,11 @@ export const IPC = {
   MaterialsRetry: 'materials:retry',
   MaterialsArchive: 'materials:archive',
   MaterialsOpen: 'materials:open',
+  MaterialsAnchor: 'materials:anchor',
+  MaterialsLocate: 'materials:locate',
+  MaterialsReferences: 'materials:references',
+  ClassroomPosition: 'classroom:position',
+  ClassroomCalibrate: 'classroom:calibrate',
   /* 学科 */
   SubjectsList: 'subjects:list',
   SubjectsCreate: 'subjects:create',

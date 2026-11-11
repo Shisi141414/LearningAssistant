@@ -10,6 +10,9 @@ import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
+import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
+
+declareMaterialProtocol()
 
 let stopRecovery: (() => void) | undefined
 
@@ -56,7 +59,9 @@ app.whenReady().then(() => {
   })
 
   getDb() // 初始化数据库（迁移 + 种子）
+  getDb().prepare("UPDATE classroom_sessions SET ended_at = ?, end_reason = 'interrupted' WHERE ended_at IS NULL").run(Date.now())
   registerAllIpc()
+  registerMaterialProtocol()
   stopRecovery = startOrganizationRecovery()
   startMaterialRecovery()
   createWindow()

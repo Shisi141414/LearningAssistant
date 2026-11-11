@@ -248,5 +248,38 @@ CREATE TABLE material_blocks (
 );
 CREATE INDEX idx_material_blocks ON material_blocks(version_id, ordinal);
 `
+  },
+  {
+    version: 6,
+    name: 'classroom_material_positions',
+    sql: `
+CREATE TABLE classroom_sessions (
+  id TEXT PRIMARY KEY,
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  started_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  end_reason TEXT
+);
+CREATE INDEX idx_classroom_sessions_note ON classroom_sessions(note_id, started_at);
+CREATE TABLE classroom_positions (
+  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  block_id TEXT REFERENCES material_blocks(id) ON DELETE RESTRICT,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE classroom_calibrations (
+  id TEXT PRIMARY KEY,
+  note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  session_id TEXT REFERENCES classroom_sessions(id) ON DELETE SET NULL,
+  block_id TEXT REFERENCES material_blocks(id) ON DELETE RESTRICT,
+  reason TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_calibrations_note ON classroom_calibrations(note_id, created_at);
+CREATE TABLE segment_material_refs (
+  segment_id TEXT PRIMARY KEY REFERENCES note_segments(id) ON DELETE CASCADE,
+  block_id TEXT NOT NULL REFERENCES material_blocks(id) ON DELETE RESTRICT
+);
+CREATE INDEX idx_segment_material_block ON segment_material_refs(block_id);
+`
   }
 ]

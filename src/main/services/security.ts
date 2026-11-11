@@ -39,6 +39,8 @@ const patch = (fields: Record<string, Check>): Record<string, Check> => Object.f
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ClassroomCalibrate]: [record({ note_id: id, block_id: nullable(id) })],
+  [IPC.MaterialsLocate]: [record({ version_id: id, unit: choice('block', 'page', 'slide'), index: (v) => number(v) && (v as number) >= 1 && (v as number) <= 50_000 })],
   [IPC.MaterialsList]: [optional(id)],
   [IPC.MaterialsImport]: [record({ subject_id: id, title: optional(title), kind: choice('textbook', 'handout', 'slides', 'supplement'), material_id: optional(id) })],
   [IPC.MaterialsBlocks]: [record({ version_id: id, query: optional(text(500)), offset: optional((v) => number(v) && (v as number) <= 50_000) })],
@@ -65,7 +67,7 @@ const rules: Partial<Record<string, Check[]>> = {
 for (const channel of [IPC.SubjectsRemove, IPC.ActivitiesRemove, IPC.ProvidersRemove, IPC.ProvidersTest, IPC.ModelsImport, IPC.ModelsRemove, IPC.NotesGet, IPC.NotesRemove, IPC.NotesRemoveSegment, IPC.NotesOrganizeSegment, IPC.AnnotationsRemove, IPC.ChatRemoveSession, IPC.ChatGetMessages, IPC.ChatAbort, IPC.InspirationsRemove, IPC.ClassroomStart]) rules[channel] = [id]
 for (const channel of [IPC.SubjectsList, IPC.ProvidersList, IPC.PresetsList, IPC.ClassroomStop, IPC.ClassroomFlush, IPC.AsrStatus, IPC.AsrPickDir, IPC.StorageInfo, IPC.StoragePick, IPC.StorageReset, IPC.DiagnosticsAsr, IPC.DiagnosticsChat, IPC.DiagnosticsOrganize, IPC.DiagnosticsVision, IPC.ChatListSessions, IPC.InspirationsList]) rules[channel] = []
 
-for (const channel of [IPC.MaterialsGet, IPC.MaterialsCancel, IPC.MaterialsRetry, IPC.MaterialsArchive, IPC.MaterialsOpen]) rules[channel] = [id]
+for (const channel of [IPC.MaterialsGet, IPC.MaterialsCancel, IPC.MaterialsRetry, IPC.MaterialsArchive, IPC.MaterialsOpen, IPC.MaterialsAnchor, IPC.MaterialsReferences, IPC.ClassroomPosition]) rules[channel] = [id]
 
 export function validateIpc(channel: string, args: unknown[]): void {
   const checks = rules[channel]

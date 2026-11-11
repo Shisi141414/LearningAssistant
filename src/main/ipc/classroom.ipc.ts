@@ -11,15 +11,28 @@ import { organizeSegment, retryPending } from '../services/organizer'
 import { addSegment } from '../services/segments'
 import { beginWork } from '../services/work'
 import { ipcMain, handleResult } from './helpers'
+import { nanoid } from 'nanoid'
+import { calibrateClassroom, classroomPosition, materialAnchor } from '../services/classroom-materials'
 
-let active: { noteId: ID; sender: WebContents; release: () => void; onDestroyed: () => void } | null = null
+let active: { noteId: ID; sessionId: ID; sender: WebContents; release: () => void; onDestroyed: () => void } | null = null
 export function stopClassroom(): void {
   try { asrService.stop() } finally {
-    if (active) { active.sender.removeListener('destroyed', active.onDestroyed); active.release(); active = null }
+    if (active) {
+      getDb().prepare("UPDATE classroom_sessions SET ended_at = ?, end_reason = 'stopped' WHERE id = ?").run(Date.now(), active.sessionId)
+      active.sender.removeListener('destroyed', active.onDestroyed); active.release(); active = null
+    }
   }
 }
 
 export function registerClassroomIpc(): void {
+  ipcMain.handle(IPC.ClassroomPosition, (_e, noteId: ID) => handleResult(() => classroomPosition(noteId)))
+  ipcMain.handle(IPC.ClassroomCalibrate, (_e, input: { note_id: ID; block_id: ID | null }) => handleResult(() => {
+    if (active && active.noteId !== input.note_id) throw new Error('请先结束另一场课堂，再设置此笔记的讲授位置')
+    if (input.block_id) materialAnchor(input.block_id)
+    // 未结束的尾句先归属旧位置，再切换后续段落的来源。
+    if (active?.noteId === input.note_id) asrService.flush()
+    return calibrateClassroom(input.note_id, input.block_id, active?.sessionId)
+  }))
   /* ---------- ASR 启停与音频流 ---------- */
 
   ipcMain.handle(IPC.ClassroomStart, (event: IpcMainInvokeEvent, noteId: ID) =>
@@ -27,7 +40,9 @@ export function registerClassroomIpc(): void {
       if (active) throw new Error('已有课堂正在进行，请先结束')
       if (!getDb().prepare('SELECT 1 FROM notes WHERE id = ?').get(noteId)) throw new Error('课堂笔记不存在')
       const onDestroyed = (): void => { if (active?.sender === event.sender) stopClassroom() }
-      active = { noteId, sender: event.sender, release: beginWork('课堂记录'), onDestroyed }
+      const sessionId = nanoid()
+      getDb().prepare('INSERT INTO classroom_sessions (id, note_id, started_at) VALUES (?, ?, ?)').run(sessionId, noteId, Date.now())
+      active = { noteId, sessionId, sender: event.sender, release: beginWork('课堂记录'), onDestroyed }
       event.sender.once('destroyed', onDestroyed)
       const modelDir = configGet('asr.model_dir')
       const hotwords = configGet('asr.hotwords') ?? ''
@@ -45,7 +60,10 @@ export function registerClassroomIpc(): void {
             if (segment.organize_status === 'pending') void organizeSegment(segment.id).then(result => safeSend(event.sender, IPC_EVENTS.SegmentOrganized, result)).catch(() => undefined)
           }
         }
-      }) } catch (error) { stopClassroom(); throw error }
+      }) } catch (error) {
+        asrService.stop()
+        return { mode: 'manual', message: `语音引擎未能启动，已保留课堂与教材位置，可手动转写：${error instanceof Error ? error.message : String(error)}` }
+      }
       return { mode: 'asr' }
     })
   )

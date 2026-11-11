@@ -10,6 +10,7 @@ import { getDb } from '../services/db'
 import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 import { addSegment } from '../services/segments'
+import { attachMaterialRefs } from '../services/classroom-materials'
 
 interface NoteRow {
   id: string
@@ -85,7 +86,7 @@ export function registerNotesIpc(): void {
       const annRows = db.prepare(
         `SELECT a.* FROM annotations a JOIN note_segments s ON a.segment_id = s.id WHERE s.note_id = ? ORDER BY a.created_at`
       ).all(id) as AnnotationRow[]
-      return { ...rowToNote(note), segments, annotations: annRows.map(rowToAnnotation) }
+      return { ...rowToNote(note), segments: attachMaterialRefs(id, segments), annotations: annRows.map(rowToAnnotation) }
     })
   )
 

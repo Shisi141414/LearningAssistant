@@ -6,6 +6,7 @@ import { completeChat } from './llm'
 import { getProviderWithKey } from '../ipc/providers.ipc'
 import { pickModel } from '../ipc/chat.ipc'
 import { configGet } from './config'
+import { segmentMaterialContext } from './classroom-materials'
 
 const running = new Map<ID, Promise<SegmentOrganizedEvent>>()
 export function organizeSegment(id: ID): Promise<SegmentOrganizedEvent> {
@@ -22,7 +23,7 @@ export function organizeSegment(id: ID): Promise<SegmentOrganizedEvent> {
       const model = pickModel(null)
       const { provider, apiKey } = getProviderWithKey(model.provider_id)
       if (!apiKey) throw new Error('未配置模型密钥；已保留原文，稍后可以重试')
-      const response = await completeChat({ ...provider, apiKey }, model.model_id, buildOrganizePrompt(seg.raw_text, subject?.name ?? undefined))
+      const response = await completeChat({ ...provider, apiKey }, model.model_id, buildOrganizePrompt(seg.raw_text, subject?.name ?? undefined, segmentMaterialContext(id)))
       const parsed = parseOrganizedResponse(response, seg.raw_text)
       if (parsed.fallback) throw new Error('模型输出无法解析，已保留原文')
       const result = db.prepare(`UPDATE note_segments SET seg_type = ?, organized_text = ?, organized_by = 'ai',

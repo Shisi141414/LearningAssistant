@@ -3,8 +3,12 @@ import { IPC } from '@shared/ipc-channels'
 import type { MaterialInput } from '@shared/types'
 import { ipcMain, handleResult } from './helpers'
 import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materialBlocks, materialDetail, materialPath, retryMaterial } from '../services/materials'
+import { locateMaterial, materialAnchor, materialNoteRefs } from '../services/classroom-materials'
 
 export function registerMaterialsIpc(): void {
+  ipcMain.handle(IPC.MaterialsAnchor, (_e, id: string) => handleResult(() => materialAnchor(id)))
+  ipcMain.handle(IPC.MaterialsLocate, (_e, input) => handleResult(() => locateMaterial(input)))
+  ipcMain.handle(IPC.MaterialsReferences, (_e, id: string) => handleResult(() => materialNoteRefs(id)))
   ipcMain.handle(IPC.MaterialsList, (_e, subjectId?: string) => handleResult(() => listMaterials(subjectId)))
   ipcMain.handle(IPC.MaterialsGet, (_e, id: string) => handleResult(() => materialDetail(id)))
   ipcMain.handle(IPC.MaterialsBlocks, (_e, input) => handleResult(() => materialBlocks(input)))

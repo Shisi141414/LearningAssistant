@@ -8,15 +8,18 @@
  *   供全局快捷栏"选中内容 → 标注"定位
  */
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import type { NoteWithSegments, NoteSegment, SegmentType, Annotation } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
 import { useAppStore } from '../stores/app'
+import { materialHref, materialLocation } from '../utils/material'
 
 type ViewMode = 'organized' | 'raw'
 
 export function NoteDetail() {
   const { noteId } = useParams<{ noteId: string }>()
+  const [params] = useSearchParams()
+  const linkedSegment = params.get('segment') ?? ''
   const showToast = useAppStore((s) => s.showToast)
   const [note, setNote] = useState<NoteWithSegments | null>(null)
   const [view, setView] = useState<ViewMode>('organized')
@@ -36,6 +39,10 @@ export function NoteDetail() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    if (linkedSegment && note) document.getElementById(`note-segment-${linkedSegment}`)?.scrollIntoView({ block: 'center' })
+  }, [linkedSegment, note])
 
   if (!note) return <div className="page">加载中…</div>
 
@@ -82,6 +89,7 @@ export function NoteDetail() {
     <div className="page">
       <div className="toolbar">
         <Link to="/notes">← 笔记</Link>
+        {note.source === 'class' && <Link to={`/classroom?note=${note.id}`}>继续课堂</Link>}
         <button onClick={() => void window.api.classroom.retryPending(note.id).then((result) => {
           showToast(result.ok ? `已补整理 ${result.data} 段；未成功的条目保留待重试` : result.error)
           void reload()
@@ -132,7 +140,7 @@ export function NoteDetail() {
       {note.segments.map((seg) => {
         const meta = SEGMENT_TYPE_META[seg.seg_type]
         return (
-          <div key={seg.id} className="segment" data-segment-id={seg.id} style={{ ['--seg-color' as string]: meta.color }}>
+          <div id={`note-segment-${seg.id}`} key={seg.id} className="segment" data-segment-id={seg.id} style={{ ['--seg-color' as string]: meta.color, ...(linkedSegment === seg.id ? { background: 'var(--accent-weak)' } : {}) }}>
             <div className="segment-head">
               <span className="tag">{meta.label}</span>
               <select
@@ -179,6 +187,7 @@ export function NoteDetail() {
                 删除
               </button>
             </div>
+            {seg.material_ref && <Link className="classroom-source" to={materialHref(seg.material_ref.material_id, seg.material_ref)}>{seg.material_ref.material_title} · {materialLocation(seg.material_ref)} · 教材来源</Link>}
             <SegmentEditor
               segment={seg}
               view={view}

@@ -1,0 +1,28 @@
+.classroom-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; flex: 1; min-height: 0; margin-top: 14px; }
+.classroom-material { min-width: 0; overflow-y: auto; padding: 18px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.classroom-material h2 { margin-top: 0; font-size: 18px; }
+.classroom-material h3 { font-size: 15px; margin: 18px 0 10px; }
+.classroom-material > .muted { font-size: 12px; line-height: 1.7; }
+.classroom-material-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.classroom-material-picker select { min-width: 0; max-width: 100%; flex: 1 1 160px; }
+.classroom-current { font-size: 12px; line-height: 1.8; margin: 14px 0; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.classroom-current button { margin-left: 8px; }
+.classroom-location-controls, .classroom-calibrate-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.classroom-location-controls label { display: flex; align-items: center; gap: 5px; font-size: 12px; }
+.classroom-location-controls input { width: 60px; }
+.classroom-material > input { width: 100%; margin: 8px 0; }
+.classroom-search-results { max-height: 210px; overflow: auto; border-bottom: 1px solid var(--border); }
+.classroom-search-results > button { display: block; text-align: left; width: 100%; margin: 5px 0; }
+.classroom-excerpt { font-size: 15px; line-height: 1.9; }
+.classroom-excerpt p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.classroom-backlinks { margin-top: 18px; font-size: 12px; line-height: 1.8; }
+.classroom-backlinks a { display: block; padding: 6px 0; }
+.classroom-transcript { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.classroom-transcript-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+.classroom-transcript .toolbar, .classroom-transcript .segment-head { flex-wrap: wrap; }
+.classroom-source { display: block; width: fit-content; font-size: 12px; color: var(--accent); margin-bottom: 8px; text-align: left; }
+.classroom-source.anchored { background: var(--accent-weak); }
+.pdf-page { overflow: hidden; background: #fff; }
+.pdf-page canvas { display: block; }
+.classroom-setup-material { margin-top: 20px; max-width: 1000px; }
+@media (max-width: 1100px) { .classroom-split { gap: 12px; } .classroom-material { padding: 12px; } .classroom-split button { font-size: 12px; padding: 6px 8px; } }

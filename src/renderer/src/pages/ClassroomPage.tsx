@@ -6,11 +6,13 @@
  * 无语音引擎时降级为"手动转写模式"（粘贴/输入文本，管线一致）——ADR-0 离线优先。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import type { Activity, AsrStatus, NoteWithSegments } from '@shared/types'
+import { Link, useSearchParams } from 'react-router-dom'
+import type { Activity, AsrStatus, NoteWithSegments, MaterialAnchor, ClassroomPosition } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
 import { MarkdownSegment } from '../components/MarkdownSegment'
 import { useAppStore } from '../stores/app'
+import { ClassroomMaterialPanel } from '../components/ClassroomMaterialPanel'
+import { materialLocation } from '../utils/material'
 
 type Phase = 'setup' | 'live'
 type ViewMode = 'organized' | 'raw'
@@ -58,6 +60,13 @@ async function startMic(onChunk: (pcm: Int16Array) => void): Promise<MicHandle> 
 }
 
 export function ClassroomPage() {
+  const [params, setParams] = useSearchParams()
+  const resumeId = params.get('note') ?? ''
+  const [resumeNote, setResumeNote] = useState<NoteWithSegments | null>(null)
+  const [resumeLoading, setResumeLoading] = useState(false)
+  const [startAnchor, setStartAnchor] = useState<MaterialAnchor | null>(null)
+  const [position, setPosition] = useState<ClassroomPosition | null>(null)
+  const [focusTarget, setFocusTarget] = useState<{ anchor: MaterialAnchor; token: number } | null>(null)
   /* ---- setup ---- */
   const [phase, setPhase] = useState<Phase>('setup')
   const subjects = useAppStore((s) => s.subjects)
@@ -80,12 +89,33 @@ export function ClassroomPage() {
   const [view, setView] = useState<ViewMode>('organized')
   const [organizingIds, setOrganizingIds] = useState<Set<string>>(new Set())
   const [manualText, setManualText] = useState('')
+  const [manualSaving, setManualSaving] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const manualSavingRef = useRef(false)
 
   const micRef = useRef<MicHandle | null>(null)
   const noteRef = useRef<string | null>(null)
   const autoRef = useRef(autoOrganize)
   autoRef.current = autoOrganize
   const segmentsEndRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!resumeId) { setResumeNote(null); return }
+    if (noteRef.current && phase === 'live' && noteRef.current !== resumeId) { showToast('请先结束当前课堂'); return }
+    let alive = true
+    setResumeLoading(true)
+    void Promise.all([window.api.notes.get(resumeId), window.api.classroom.position(resumeId)]).then(([saved, cursor]) => {
+      if (!alive) return
+      setResumeLoading(false)
+      if (!saved.ok) { showToast(saved.error); return }
+      setResumeNote(saved.data); setTitle(saved.data.title)
+      setSubjectId(saved.data.subject_id ?? ''); setActivityId(saved.data.activity_id ?? '')
+      setAttachMode(saved.data.activity_id ? 'activity' : 'subject')
+      if (cursor.ok) { setPosition(cursor.data); setStartAnchor(cursor.data?.block ?? null) }
+      else showToast(cursor.error)
+    })
+    return () => { alive = false }
+  }, [resumeId, showToast])
 
   useEffect(() => {
     void window.api.activities.list().then((r) => {
@@ -98,17 +128,18 @@ export function ClassroomPage() {
 
   /** final 落段：入库 → 视图追加 → 触发整理 */
   const appendSegment = useCallback(
-    async (text: string): Promise<void> => {
+    async (text: string): Promise<boolean> => {
       const noteId = noteRef.current
       const content = text.trim()
-      if (!noteId || !content) return
+      if (!noteId || !content) return false
       const res = await window.api.notes.addSegment({ note_id: noteId, raw_text: content, organized_text: content })
       if (!res.ok) {
         showToast(`段落保存失败：${res.error}`)
-        return
+        return false
       }
       setNote((n) => (n ? { ...n, segments: [...n.segments, res.data] } : n))
       if (autoRef.current) void triggerOrganize(res.data.id)
+      return true
     },
     [showToast]
   )
@@ -171,7 +202,7 @@ export function ClassroomPage() {
 
   // 新段落时滚动到底
   useEffect(() => {
-    segmentsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    segmentsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [note?.segments.length, partial])
 
   /* ---- actions ---- */
@@ -180,7 +211,7 @@ export function ClassroomPage() {
     setStarting(true)
     try {
       const defaultTitle = `${new Date().toLocaleDateString('zh-CN')} ${attachMode === 'subject' ? subjects.find((s) => s.id === subjectId)?.name ?? '课堂' : activities.find((a) => a.id === activityId)?.title ?? '活动'} 课堂记录`
-      const res = await window.api.notes.create({
+      const res = resumeNote ? { ok: true as const, data: resumeNote } : await window.api.notes.create({
         title: title.trim() || defaultTitle,
         subject_id: attachMode === 'subject' && subjectId ? subjectId : null,
         activity_id: attachMode === 'activity' && activityId ? activityId : null,
@@ -188,7 +219,12 @@ export function ClassroomPage() {
       })
       if (!res.ok) throw new Error(res.error)
       noteRef.current = res.data.id
-      setNote({ ...res.data, segments: [], annotations: [] })
+      const saved = resumeNote ?? { ...res.data, segments: [], annotations: [] }
+      setNote(saved)
+      setResumeNote(saved)
+      const calibrated = await window.api.classroom.calibrate({ note_id: saved.id, block_id: startAnchor?.id ?? null })
+      if (!calibrated.ok) throw new Error(calibrated.error)
+      setPosition(calibrated.data); setFocusTarget(null)
 
       // 读取个性化配置（设置 → 个性化）
       const [autoRecordRes, autoOrganizeRes] = await Promise.all([
@@ -212,11 +248,11 @@ export function ClassroomPage() {
           }
         }
       } else {
-        setAsrMode(false)
-        showToast(`语音引擎启动失败，已进入手动模式：${startRes.error}`)
+        throw new Error(startRes.error)
       }
       setPhase('live')
     } catch (e) {
+      setPhase('setup')
       showToast(e instanceof Error ? e.message : String(e))
     } finally {
       setStarting(false)
@@ -250,15 +286,44 @@ export function ClassroomPage() {
     setRecording(false)
     const stopped = await window.api.classroom.stop()
     if (!stopped.ok) { showToast(stopped.error); return }
+    if (noteRef.current) {
+      const [saved, cursor] = await Promise.all([window.api.notes.get(noteRef.current), window.api.classroom.position(noteRef.current)])
+      if (saved.ok) { setNote(saved.data); setResumeNote(saved.data) }
+      if (cursor.ok) { setPosition(cursor.data); setStartAnchor(cursor.data?.block ?? null) }
+      setParams({ note: noteRef.current })
+    }
     setPhase('setup')
     setPartial('')
   }
 
   const addManual = async (): Promise<void> => {
+    if (manualSavingRef.current) return
+    const draft = manualText
     const text = manualText.trim()
     if (!text) return
-    setManualText('')
-    await appendSegment(text)
+    manualSavingRef.current = true; setManualSaving(true)
+    try {
+      if (await appendSegment(text)) setManualText(value => value === draft ? '' : value)
+    } finally { manualSavingRef.current = false; setManualSaving(false) }
+  }
+
+  const calibrate = async (anchor: MaterialAnchor | null): Promise<void> => {
+    if (!noteRef.current) return
+    const result = await window.api.classroom.calibrate({ note_id: noteRef.current, block_id: anchor?.id ?? null })
+    if (result.ok) { setPosition(result.data); setStartAnchor(result.data.block); showToast(anchor ? '讲授位置已校准，后续记录使用这里的来源' : '后续记录不关联教材') }
+    else showToast(result.error)
+  }
+
+  const retryOrganization = async (): Promise<void> => {
+    const noteId = noteRef.current
+    if (!noteId || retrying) return
+    setRetrying(true)
+    try {
+      const result = await window.api.classroom.retryPending(noteId)
+      showToast(result.ok ? `已补整理 ${result.data} 段；失败项稍后可重试` : result.error)
+      const saved = await window.api.notes.get(noteId)
+      if (saved.ok && noteRef.current === noteId) setNote(saved.data)
+    } finally { setRetrying(false) }
   }
 
   /* ---- 渲染 ---- */
@@ -272,10 +337,11 @@ export function ClassroomPage() {
           实时语音转写 + AI 整理。语音引擎就绪后可边听边记；未就绪也可用手动转写模式（粘贴/输入），整理管线一致。
         </div>
         <div className="card" style={{ maxWidth: 680 }}>
+          {resumeNote && <p>继续已有记录：<Link to={`/notes/${resumeNote.id}`}>{resumeNote.title}</Link>。已保存的教材位置会恢复。</p>}
           <div className="form-grid2">
             <div className="field">
               <label>挂载到</label>
-              <select value={attachMode} onChange={(e) => setAttachMode(e.target.value as 'subject' | 'activity')}>
+              <select disabled={!!resumeNote} value={attachMode} onChange={(e) => setAttachMode(e.target.value as 'subject' | 'activity')}>
                 <option value="subject">课程学科</option>
                 <option value="activity">活动（讲座/会议）</option>
               </select>
@@ -283,7 +349,7 @@ export function ClassroomPage() {
             {attachMode === 'subject' ? (
               <div className="field">
                 <label>学科</label>
-                <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                <select disabled={!!resumeNote} value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
                   <option value="">（不挂载）</option>
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -295,7 +361,7 @@ export function ClassroomPage() {
             ) : (
               <div className="field">
                 <label>活动</label>
-                <select value={activityId} onChange={(e) => setActivityId(e.target.value)}>
+                <select disabled={!!resumeNote} value={activityId} onChange={(e) => setActivityId(e.target.value)}>
                   <option value="">（不挂载）</option>
                   {activities.map((a) => (
                     <option key={a.id} value={a.id}>
@@ -307,7 +373,7 @@ export function ClassroomPage() {
             )}
             <div className="field">
               <label>笔记标题（默认自动生成）</label>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="如：11月12日 数学分析 极限与连续" />
+              <input disabled={!!resumeNote} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="如：11月12日 数学分析 极限与连续" />
             </div>
           </div>
 
@@ -328,11 +394,13 @@ export function ClassroomPage() {
           </div>
 
           <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
-            <button className="primary" disabled={starting} onClick={() => void startSession()}>
-              {starting ? '准备中…' : ready ? '开始课堂（语音就绪）' : '开始课堂（手动转写模式）'}
+            <button className="primary" disabled={starting || resumeLoading || (!!resumeId && !resumeNote)} onClick={() => void startSession()}>
+              {starting || resumeLoading ? '准备中…' : resumeNote ? '继续课堂' : ready ? '开始课堂（语音就绪）' : '开始课堂（手动转写模式）'}
             </button>
+            {resumeNote && <button onClick={() => { setParams({}); setResumeNote(null); setTitle(''); setNote(null); noteRef.current = null; setPosition(null); setStartAnchor(null) }}>新建另一场课堂</button>}
           </div>
         </div>
+        <div className="classroom-setup-material"><ClassroomMaterialPanel currentAnchor={startAnchor} onCalibrate={anchor => setStartAnchor(anchor)} /></div>
       </div>
     )
   }
@@ -340,7 +408,7 @@ export function ClassroomPage() {
   /* live 视图 */
   return (
     <div className="page" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div className="toolbar">
+      <div className="toolbar" style={{ flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0 }}>{note?.title}</h1>
         {recording && (
           <span className="rec-indicator">
@@ -370,11 +438,14 @@ export function ClassroomPage() {
             {recording ? '⏹ 停止录音' : '🎤 开始录音'}
           </button>
         )}
-        <button onClick={() => void window.api.classroom.retryPending(note?.id).then(r => showToast(r.ok ? `已补整理 ${r.data} 段；失败项稍后可重试` : r.error))}>重试待整理</button>
+        <button disabled={retrying} onClick={() => void retryOrganization()}>{retrying ? '正在补整理…' : '重试待整理'}</button>
         <button onClick={() => void endSession()}>结束课堂</button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="classroom-split">
+      <ClassroomMaterialPanel live currentAnchor={position?.block ?? null} focusTarget={focusTarget} onCalibrate={calibrate} refsRevision={note?.segments.length ?? 0} />
+      <section className="classroom-transcript" aria-label="课堂转写">
+      <div className="classroom-transcript-scroll">
         <div className="partial-line">
           {recording ? partial || '（聆听中…）' : asrMode ? '（未开始录音——点击「开始录音」）' : '（手动转写模式：在下方输入框记录）'}
         </div>
@@ -425,6 +496,7 @@ export function ClassroomPage() {
                   ？
                 </button>
               </div>
+              {seg.material_ref && <button className="classroom-source" onClick={() => setFocusTarget({ anchor: seg.material_ref!, token: Date.now() })}>{seg.material_ref.material_title} · {materialLocation(seg.material_ref)} · 查看来源</button>}
               <div className="md-seg-wrap">
                 <MarkdownSegment text={text} />
               </div>
@@ -446,9 +518,11 @@ export function ClassroomPage() {
             }
           }}
         />
-        <button className="primary" onClick={() => void addManual()}>
-          添加段落
+        <button className="primary" disabled={manualSaving} onClick={() => void addManual()}>
+          {manualSaving ? '正在保存…' : '添加段落'}
         </button>
+      </div>
+      </section>
       </div>
     </div>
   )

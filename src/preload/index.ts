@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  Material, MaterialDetail, MaterialInput, MaterialBlock,
+  Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
@@ -22,6 +22,9 @@ const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...a
 
 const api = {
   materials: {
+    anchor: (id: ID) => invoke<MaterialAnchor>(IPC.MaterialsAnchor, id),
+    locate: (input: MaterialLocateInput) => invoke<MaterialAnchor | null>(IPC.MaterialsLocate, input),
+    references: (id: ID) => invoke<MaterialNoteRef[]>(IPC.MaterialsReferences, id),
     list: (subjectId?: ID) => invoke<Material[]>(IPC.MaterialsList, subjectId),
     import: (input: MaterialInput) => invoke<Material | null>(IPC.MaterialsImport, input),
     get: (id: ID) => invoke<MaterialDetail>(IPC.MaterialsGet, id),
@@ -74,6 +77,8 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.AnnotationsRemove, id)
   },
   classroom: {
+    position: (noteId: ID) => invoke<ClassroomPosition | null>(IPC.ClassroomPosition, noteId),
+    calibrate: (input: { note_id: ID; block_id: ID | null }) => invoke<ClassroomPosition>(IPC.ClassroomCalibrate, input),
     flush: () => invoke<boolean>(IPC.ClassroomFlush),
     retryPending: (noteId?: ID) => invoke<number>(IPC.NotesRetryPending, noteId),
     /** 返回 mode: 'asr'（语音就绪）| 'manual'（手动转写模式） */

@@ -163,6 +163,7 @@ export interface Note {
 }
 
 export interface NoteSegment {
+  material_ref?: MaterialAnchor | null
   revision?: number
   organized_by?: 'initial' | 'ai' | 'user'
   organize_status?: 'idle' | 'pending' | 'processing' | 'done' | 'failed' | 'conflict'
@@ -402,3 +403,7 @@ export interface MaterialLocator {
 export interface ParsedBlock { text: string; heading: string; locator: MaterialLocator }
 export interface MaterialBlock { id: ID; version_id: ID; ordinal: number; heading: string; text: string; locator_json: string }
 export interface MaterialDetail { material: Material; versions: MaterialVersion[]; total: number }
+export interface MaterialAnchor extends MaterialBlock { material_id: ID; material_title: string; file_name: string; format: MaterialFormat }
+export interface ClassroomPosition { note_id: ID; block: MaterialAnchor | null; updated_at: number }
+export interface MaterialNoteRef { segment_id: ID; note_id: ID; title: string; raw_text: string }
+export interface MaterialLocateInput { version_id: ID; unit: 'block' | 'page' | 'slide'; index: number }
