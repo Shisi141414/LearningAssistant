@@ -23,3 +23,14 @@
 .material-block h3 { font-size: 16px; margin: 10px 0; }
 .material-block p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.9; margin-bottom: 0; }
 @media (max-width: 1100px) { .material-workspace { grid-template-columns: 210px minmax(0, 1fr); gap: 16px; } .material-reader { padding: 18px; } }
+.material-ocr { margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.material-ocr > summary { cursor: pointer; padding: 12px 16px; font-weight: 600; }
+.material-ocr > summary .muted { font-weight: 400; }
+.ocr-editor { padding: 0 16px 16px; }
+.ocr-range label, .ocr-editor label { display: inline-block; }
+.ocr-editor input[type=number] { width: 78px; }
+.ocr-compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 12px; }
+.ocr-original, .ocr-correction { min-width: 0; }
+.ocr-correction pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
+.ocr-correction textarea { width: 100%; min-height: 320px; resize: vertical; margin: 8px 0; line-height: 1.7; font-family: SimSun, serif; }
+@media (max-width: 1050px) { .ocr-compare { grid-template-columns: minmax(0, 1fr); } }

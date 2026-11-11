@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition,
+  Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
   ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
@@ -27,6 +27,11 @@ const api = {
     references: (input: { id: ID; offset?: number }) => invoke<import('@shared/types').ConceptReferences>(IPC.ConceptsReferences, input)
   },
   materials: {
+    ocrModels: () => invoke<OcrModelsStatus>(IPC.MaterialsOcrModels),
+    ocrPrepare: () => invoke<OcrModelsStatus>(IPC.MaterialsOcrPrepare),
+    ocrStart: (input: OcrInput) => invoke<ID>(IPC.MaterialsOcrStart, input),
+    ocrPage: (input: { version_id: ID; page: number }) => invoke<OcrPage | null>(IPC.MaterialsOcrPage, input),
+    ocrCorrect: (input: OcrCorrectionInput) => invoke<ID>(IPC.MaterialsOcrCorrect, input),
     anchor: (id: ID) => invoke<MaterialAnchor>(IPC.MaterialsAnchor, id),
     locate: (input: MaterialLocateInput) => invoke<MaterialAnchor | null>(IPC.MaterialsLocate, input),
     references: (id: ID) => invoke<MaterialNoteRef[]>(IPC.MaterialsReferences, id),

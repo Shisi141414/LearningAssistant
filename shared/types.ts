@@ -390,6 +390,14 @@ export type ImportStatus = 'queued' | 'parsing' | 'ready' | 'failed' | 'cancelle
 export interface MaterialVersion {
   id: ID; material_id: ID; file_name: string; format: MaterialFormat; fingerprint: string
   status: ImportStatus; progress: number; error: string | null; warnings_json: string; created_at: number
+  parent_version_id: ID | null; derivation: 'original' | 'ocr' | 'correction'
+}
+export interface OcrInput { version_id: ID; from_page: number; to_page: number }
+export interface OcrCorrectionInput { version_id: ID; page: number; text: string }
+export interface OcrModelsStatus { ready: boolean; files: { name: string; ready: boolean }[] }
+export interface OcrPage {
+  page: number; raw_text: string; corrected_text: string | null; confidence: number
+  width: number; height: number; lines_json: string; model_json: string
 }
 export interface Material {
   id: ID; subject_id: ID | null; title: string; kind: MaterialKind; created_at: number

@@ -2,10 +2,17 @@ import { dialog, shell } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { MaterialInput } from '@shared/types'
 import { ipcMain, handleResult } from './helpers'
-import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materialBlocks, materialDetail, materialPath, retryMaterial } from '../services/materials'
+import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materialBlocks, materialDetail, materialPath, retryMaterial, startMaterialOcr } from '../services/materials'
 import { locateMaterial, materialAnchor, materialNoteRefs } from '../services/classroom-materials'
+import { correctOcrPage, materialOcrPage } from '../services/material-derivations'
+import { ocrModelsStatus, prepareOcrModels } from '../services/ocr-models'
 
 export function registerMaterialsIpc(): void {
+  ipcMain.handle(IPC.MaterialsOcrModels, () => handleResult(ocrModelsStatus))
+  ipcMain.handle(IPC.MaterialsOcrPrepare, () => handleResult(prepareOcrModels))
+  ipcMain.handle(IPC.MaterialsOcrStart, (_e, input) => handleResult(() => startMaterialOcr(input)))
+  ipcMain.handle(IPC.MaterialsOcrPage, (_e, input) => handleResult(() => materialOcrPage(input)))
+  ipcMain.handle(IPC.MaterialsOcrCorrect, (_e, input) => handleResult(() => correctOcrPage(input)))
   ipcMain.handle(IPC.MaterialsAnchor, (_e, id: string) => handleResult(() => materialAnchor(id)))
   ipcMain.handle(IPC.MaterialsLocate, (_e, input) => handleResult(() => locateMaterial(input)))
   ipcMain.handle(IPC.MaterialsReferences, (_e, id: string) => handleResult(() => materialNoteRefs(id)))

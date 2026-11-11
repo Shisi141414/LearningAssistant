@@ -39,6 +39,11 @@ const patch = (fields: Record<string, Check>): Record<string, Check> => Object.f
 const configKey = choice('asr.model_dir', 'asr.hotwords', 'classroom.autoRecord', 'classroom.autoOrganize')
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.MaterialsOcrModels]: [],
+  [IPC.MaterialsOcrPrepare]: [],
+  [IPC.MaterialsOcrStart]: [record({ version_id: id, from_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000, to_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000 })],
+  [IPC.MaterialsOcrPage]: [record({ version_id: id, page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000 })],
+  [IPC.MaterialsOcrCorrect]: [record({ version_id: id, page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000, text: text(100_000, true) })],
   [IPC.ConceptsList]: [],
   [IPC.ConceptsSave]: [record({ id: optional(id), revision: optional(number), subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) })],
   [IPC.ConceptsReferences]: [record({ id, offset: optional((v) => number(v) && (v as number) <= 10_000_000) })],

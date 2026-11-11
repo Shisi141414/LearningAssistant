@@ -20,9 +20,11 @@
     "build:win": "electron-vite build && electron-builder --win",
     "rebuild": "electron-rebuild -f -w better-sqlite3",
     "test:reliability": "node --import ./scripts/test-support.mjs --test scripts/*.test.mjs",
-    "test:materials": "npm run build && node scripts/test-materials.cjs"
+    "test:materials": "npm run build && node scripts/test-materials.cjs",
+    "test:ocr": "npm run build && node scripts/test-ocr.cjs"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.1.0",
     "ahocorasick": "^1.0.2",
     "better-sqlite3": "^13.0.3",
     "katex": "^0.19.1",
@@ -33,6 +35,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
+    "tesseract.js": "^7.0.0",
     "zustand": "^5.1.0"
   },
   "devDependencies": {
@@ -49,6 +52,9 @@
     "fflate": "^0.8.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.7"
+  },
+  "overrides": {
+    "tesseract.js": { "wasm-feature-detect": "1.8.0" }
   },
   "allowScripts": {
     "electron@45.2.3": true,

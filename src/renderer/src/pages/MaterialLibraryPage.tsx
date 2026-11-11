@@ -5,6 +5,7 @@ import { useAppStore } from '../stores/app'
 import './materials.css'
 import { materialLocation, materialHref } from '../utils/material'
 import { ConceptText } from '../components/ConceptText'
+import { MaterialOcrPanel } from '../components/MaterialOcrPanel'
 
 const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲义', slides: '课件', supplement: '补充材料' }
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
@@ -133,7 +134,7 @@ export function MaterialLibraryPage() {
         {!detail ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 请先转为 DOCX / PPTX；扫描件需要 OCR。</p></div> : <>
           <h2>{detail.material.title}</h2>
           <div className="toolbar">
-            <select aria-label="材料版本" value={versionId} onChange={e => { setParams({ material: selectedId, version: e.target.value }); setOffset(0); setQuery('') }}>{detail.versions.map((v, index) => <option key={v.id} value={v.id}>版本 {detail.versions.length - index} · {v.file_name} · {statuses[v.status]}</option>)}</select>
+            <select aria-label="材料版本" value={versionId} onChange={e => { setParams({ material: selectedId, version: e.target.value }); setOffset(0); setQuery('') }}>{detail.versions.map((v, index) => <option key={v.id} value={v.id}>版本 {detail.versions.length - index} · {{ original: '原始提取', ocr: 'OCR', correction: '人工校正' }[v.derivation]} · {v.file_name} · {statuses[v.status]}</option>)}</select>
             <button disabled={!versionId} onClick={() => void action(window.api.materials.open(versionId))}>打开原件</button>
             <button disabled={busy || !!detail.material.archived} onClick={() => void importFile(true)}>导入新版本</button>
           </div>
@@ -144,6 +145,11 @@ export function MaterialLibraryPage() {
             {selectedVersion.warnings_json !== '[]' && <details className="material-warnings"><summary>提取说明与待处理内容</summary>{(JSON.parse(selectedVersion.warnings_json) as string[]).map((warning, i) => <p key={i}>{warning}</p>)}</details>}
           </>}
           {selectedVersion?.status === 'ready' && <>
+            {selectedVersion.format === 'pdf' && <MaterialOcrPanel key={versionId} version={selectedVersion} onVersion={async id => {
+              const next = await window.api.materials.get(selectedId)
+              if (next.ok) setDetail(next.data)
+              setParams({ material: selectedId, version: id }); setQuery(''); setOffset(0); await reload()
+            }} />}
             <div className="toolbar material-search"><input aria-label="搜索材料条目" placeholder="搜索本版本的正文或标题…" value={query} onChange={e => { setQuery(e.target.value); setOffset(0) }} /><span className="muted">{total} 个条目</span></div>
             {blocks.map(block => <article id={`material-${block.id}`} className={`material-block ${params.get('block') === block.id ? 'anchored' : ''}`} key={block.id}>
               <Link className="material-anchor" to={materialHref(selectedId, block)}>{materialLocation(block)} · #{block.ordinal + 1}</Link>

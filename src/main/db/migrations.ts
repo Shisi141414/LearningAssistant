@@ -295,5 +295,26 @@ CREATE TABLE concept_aliases (
 );
 CREATE INDEX idx_concept_alias_name ON concept_aliases(normalized);
 `
+  },
+  {
+    version: 8,
+    name: 'material_ocr_versions',
+    sql: `
+ALTER TABLE material_versions ADD COLUMN parent_version_id TEXT REFERENCES material_versions(id) ON DELETE RESTRICT;
+ALTER TABLE material_versions ADD COLUMN derivation TEXT NOT NULL DEFAULT 'original';
+ALTER TABLE material_versions ADD COLUMN processing_json TEXT NOT NULL DEFAULT '{}';
+CREATE TABLE material_ocr_pages (
+  version_id TEXT NOT NULL REFERENCES material_versions(id) ON DELETE CASCADE,
+  page INTEGER NOT NULL,
+  raw_text TEXT NOT NULL,
+  corrected_text TEXT,
+  confidence REAL NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  lines_json TEXT NOT NULL,
+  model_json TEXT NOT NULL,
+  PRIMARY KEY(version_id, page)
+);
+`
   }
 ]

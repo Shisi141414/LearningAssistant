@@ -71,6 +71,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [课堂材料联动与格式转换方案](docs/08-classroom-material-link.md)
 - [统一学习文档格式草案、结构示例与建设顺序](docs/09-learning-document-format.md)
 - [概念别名自动关联、使用说明与真实教材验收](docs/10-concept-alias-links.md)
+- [扫描 PDF 本地识别、人工校正与验收](docs/11-local-ocr.md)
 
 ## 开发约定
 

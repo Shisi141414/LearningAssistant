@@ -25,6 +25,11 @@ export const IPC = {
   MaterialsAnchor: 'materials:anchor',
   MaterialsLocate: 'materials:locate',
   MaterialsReferences: 'materials:references',
+  MaterialsOcrModels: 'materials:ocrModels',
+  MaterialsOcrPrepare: 'materials:ocrPrepare',
+  MaterialsOcrStart: 'materials:ocrStart',
+  MaterialsOcrPage: 'materials:ocrPage',
+  MaterialsOcrCorrect: 'materials:ocrCorrect',
   ClassroomPosition: 'classroom:position',
   ClassroomCalibrate: 'classroom:calibrate',
   /* 学科 */

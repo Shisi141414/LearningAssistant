@@ -3,16 +3,21 @@ import { copyFile, mkdir, stat, unlink, rmdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { basename, dirname, extname, join, relative, resolve, isAbsolute } from 'node:path'
 import { Worker } from 'node:worker_threads'
+import { createRequire } from 'node:module'
 import { nanoid } from 'nanoid'
-import type { Material, MaterialBlock, MaterialDetail, MaterialFormat, MaterialInput, MaterialVersion, ParsedBlock } from '@shared/types'
+import type { Material, MaterialBlock, MaterialDetail, MaterialFormat, MaterialInput, MaterialVersion, OcrInput, OcrPage, ParsedBlock } from '@shared/types'
 import { getDb, dbFilePath } from './db'
 import { beginWork, withWork } from './work'
+import { completeOcrVersion, derivedParent, insertDerived, validateOcrRange } from './material-derivations'
+import { OCR_MODEL_COMMIT, OCR_MODELS, ocrModelDirectory, ocrModelsStatus } from './ocr-models'
 
-const versionFields = 'id, material_id, file_name, format, fingerprint, status, progress, error, warnings_json, created_at'
+const versionFields = 'id, material_id, file_name, format, fingerprint, status, progress, error, warnings_json, created_at, parent_version_id, derivation'
 const materialFields = 'id, subject_id, title, kind, created_at, current_version_id, archived'
-interface VersionRow extends MaterialVersion { file_path: string }
-let active: { id: string; worker: Worker; finish: (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: { blocks: ParsedBlock[]; warnings: string[] }) => void } | undefined
+interface VersionRow extends MaterialVersion { file_path: string; processing_json: string }
+interface ParseResult { blocks: ParsedBlock[]; warnings: string[]; pages?: OcrPage[] }
+let active: { id: string; worker: Worker; finish: (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: ParseResult) => void } | undefined
 let stopping = false
+let starting: string | undefined
 
 function version(id: string): VersionRow {
   const row = getDb().prepare('SELECT * FROM material_versions WHERE id = ?').get(id) as VersionRow | undefined
@@ -91,31 +96,57 @@ export async function importMaterial(input: MaterialInput, source: string): Prom
   })
 }
 
+export async function startMaterialOcr(input: OcrInput): Promise<string> {
+  return withWork('OCR 任务准备', async () => {
+    if (stopping) throw new Error('应用正在退出，暂不创建新任务')
+    validateOcrRange(input)
+    if (!(await ocrModelsStatus()).ready) throw new Error('请先准备中英文 OCR 语言包')
+    if (stopping) throw new Error('应用正在退出，暂不创建新任务')
+    const parent = derivedParent(input.version_id)
+    const id = getDb().transaction(() => insertDerived(parent, 'ocr', input, 'queued'))()
+    void pump()
+    return id
+  })
+}
+
 async function pump(): Promise<void> {
-  if (active || stopping) return
+  if (active || starting || stopping) return
   const next = getDb().prepare("SELECT v.* FROM material_versions v JOIN materials m ON m.id = v.material_id WHERE v.status = 'queued' AND m.archived = 0 ORDER BY v.created_at, v.id LIMIT 1").get() as VersionRow | undefined
   if (!next) return
+  starting = next.id
   // 路径解析前就占据队列位置；同时持有工作锁，避免目录迁移。
   const release = beginWork('材料解析')
   getDb().prepare("UPDATE material_versions SET status = 'parsing', error = NULL, progress = 1 WHERE id = ?").run(next.id)
   let worker: Worker
   try {
+    const ocr = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
+    if (ocr) {
+      validateOcrRange(ocr)
+      if (!(await ocrModelsStatus()).ready) throw new Error('OCR 语言包缺失或校验失败，请重新准备')
+      // await 期间取消、退出或归档后，不得重新启动已失效的任务。
+      if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
+    }
     // 只把 realpath 校验后的托管文件交给解析线程。
-    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { file: materialPath(next.id), format: next.format }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
+    const require = createRequire(__filename)
+    const modelJson = ocr ? JSON.stringify({ engine: 'tesseract.js', engineVersion: require('tesseract.js/package.json').version, coreVersion: require('tesseract.js-core/package.json').version, languages: ['chi_sim', 'eng'], source: 'tessdata_fast', commit: OCR_MODEL_COMMIT, files: OCR_MODELS }) : undefined
+    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { file: materialPath(next.id), format: next.format, ocr, modelDirectory: ocr ? ocrModelDirectory() : undefined, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
   } catch (error) {
-    getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ?").run(String(error), next.id)
-    release(); queueMicrotask(() => void pump()); return
+    if (!stopping) getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ? AND status = 'parsing'").run(String(error), next.id)
+    starting = undefined; release(); queueMicrotask(() => void pump()); return
   }
   let settled = false
-  const timer = setTimeout(() => active?.id === next.id && active.finish('failed', '解析超过两分钟，请拆分文件或转换后重试'), 120_000)
-  const finish = (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: { blocks: ParsedBlock[]; warnings: string[] }): void => {
+  const timer = setTimeout(() => active?.id === next.id && active.finish('failed', next.derivation === 'ocr' ? '识别超过十分钟，请减少页数后重试' : '解析超过两分钟，请拆分文件或转换后重试'), next.derivation === 'ocr' ? 600_000 : 120_000)
+  const finish = (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: ParseResult): void => {
     if (settled) return
     settled = true; clearTimeout(timer)
     try {
       getDb().transaction(() => {
         if (result && status === 'ready') {
-          const insert = getDb().prepare('INSERT INTO material_blocks (id, version_id, ordinal, heading, text, locator_json) VALUES (?, ?, ?, ?, ?, ?)')
-          result.blocks.forEach((block, ordinal) => insert.run(nanoid(), next.id, ordinal, block.heading, block.text, JSON.stringify(block.locator)))
+          if (next.derivation === 'ocr') result.warnings = completeOcrVersion(next.id, JSON.parse(next.processing_json), result.pages ?? [], result.warnings)
+          else {
+            const insert = getDb().prepare('INSERT INTO material_blocks (id, version_id, ordinal, heading, text, locator_json) VALUES (?, ?, ?, ?, ?, ?)')
+            result.blocks.forEach((block, ordinal) => insert.run(nanoid(), next.id, ordinal, block.heading, block.text, JSON.stringify(block.locator)))
+          }
         }
         getDb().prepare('UPDATE material_versions SET status = ?, progress = ?, error = ?, warnings_json = ? WHERE id = ?').run(status, status === 'ready' ? 100 : 0, error ?? null, JSON.stringify(result?.warnings ?? []), next.id)
       })()
@@ -127,19 +158,20 @@ async function pump(): Promise<void> {
     }
   }
   active = { id: next.id, worker, finish }
+  starting = undefined
   worker.on('message', (message) => {
     if (settled) return
     if (message.type === 'progress') getDb().prepare('UPDATE material_versions SET progress = ? WHERE id = ?').run(Math.min(99, Math.max(1, message.progress)), next.id)
     if (message.type === 'done') finish('ready', undefined, message)
     if (message.type === 'error') finish('failed', message.error)
   })
-  worker.on('error', error => finish('failed', error instanceof Error ? error.message : String(error)))
+  worker.on('error', error => { console.error('材料线程异常', error); finish('failed', error instanceof Error ? error.message : String(error)) })
   worker.on('exit', code => { if (!settled) finish('failed', `解析进程退出（${code}）`) })
 }
 export function cancelMaterial(id: string): boolean {
   const row = version(id)
   if (active?.id === id) active.finish('cancelled')
-  else if (row.status === 'queued') getDb().prepare("UPDATE material_versions SET status = 'cancelled', progress = 0 WHERE id = ?").run(id)
+  else if (row.status === 'queued' || starting === id) getDb().prepare("UPDATE material_versions SET status = 'cancelled', progress = 0 WHERE id = ?").run(id)
   return true
 }
 export function retryMaterial(id: string): boolean {
@@ -163,5 +195,6 @@ export function startMaterialRecovery(): void {
 }
 export function stopMaterialJobs(): void {
   stopping = true
+  if (starting) getDb().prepare("UPDATE material_versions SET status = 'queued', progress = 0 WHERE id = ? AND status = 'parsing'").run(starting)
   active?.finish('queued')
 }
