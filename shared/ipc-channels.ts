@@ -170,7 +170,8 @@ export const IPC = {
   TasksCreate: 'tasks:create',
   TasksUpdate: 'tasks:update',
   TasksRemove: 'tasks:remove',
-  TasksListManual: 'tasks:listManual'
+  TasksListManual: 'tasks:listManual',
+  TasksListAll: 'tasks:listAll'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

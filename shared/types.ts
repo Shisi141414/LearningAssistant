@@ -375,6 +375,11 @@ export interface ProjectDetail extends Project {
   tasks: Task[]
 }
 
+/** 任务附项目名（R5 日程页统一视图用） */
+export interface TaskWithProject extends Task {
+  project_title: string | null
+}
+
 /* ---------- 通用 ---------- */
 
 export interface ApiOk<T> {

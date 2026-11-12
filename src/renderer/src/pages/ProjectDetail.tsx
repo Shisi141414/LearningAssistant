@@ -3,7 +3,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import type { ProjectDetail, Task, TaskKnowledgeRef } from '@shared/types'
+import type { ProjectDetail, Task, TaskKnowledgeRef, Concept } from '@shared/types'
 import { useAppStore } from '../stores/app'
 
 const TASK_GROUPS: Array<{ status: Task['status']; label: string }> = [
@@ -29,6 +29,8 @@ export function ProjectDetail() {
   const [taskTitle, setTaskTitle] = useState('')
   const [taskMilestone, setTaskMilestone] = useState('')
   const [msTitle, setMsTitle] = useState('')
+  const [concepts, setConcepts] = useState<Concept[]>([])
+  const [refEditor, setRefEditor] = useState<{ taskId: string; conceptId: string; why: string } | null>(null)
 
   const reload = useCallback(async () => {
     if (!projectId) return
@@ -40,6 +42,40 @@ export function ProjectDetail() {
   useEffect(() => {
     void reload()
   }, [reload])
+
+  useEffect(() => {
+    void window.api.concepts.list().then((r) => {
+      if (r.ok) setConcepts(r.data)
+    })
+  }, [])
+
+  const conceptName = useCallback((id: string): string => concepts.find((c) => c.id === id)?.name ?? '未知概念', [concepts])
+
+  /** 保存知识引用：追加/更新 why（不动其他引用） */
+  const saveRef = async (): Promise<void> => {
+    if (!refEditor || !refEditor.conceptId) {
+      showToast('请选择知识点')
+      return
+    }
+    const task = detail?.tasks.find((t) => t.id === refEditor.taskId)
+    if (!task) return
+    const refs = parseRefs(task.knowledge_refs_json).filter((r) => r.concept_id !== refEditor.conceptId)
+    refs.push({ concept_id: refEditor.conceptId, why: refEditor.why.trim() })
+    const res = await window.api.tasks.update(task.id, { knowledge_refs: refs })
+    if (res.ok) {
+      setRefEditor(null)
+      void reload()
+    } else showToast(`保存失败：${res.error}`)
+  }
+
+  const removeRef = async (taskId: string, conceptId: string): Promise<void> => {
+    const task = detail?.tasks.find((t) => t.id === taskId)
+    if (!task) return
+    const refs = parseRefs(task.knowledge_refs_json).filter((r) => r.concept_id !== conceptId)
+    const res = await window.api.tasks.update(taskId, { knowledge_refs: refs })
+    if (res.ok) void reload()
+    else showToast(res.error)
+  }
 
   if (!detail) return <div className="page">加载中…</div>
 
@@ -174,7 +210,31 @@ export function ProjectDetail() {
                           {ms && <div className="meta">⊆ {ms.title}</div>}
                           {t.status === 'blocked' && t.blocked_reason && <div className="meta" style={{ color: 'var(--danger)' }}>阻塞：{t.blocked_reason}</div>}
                           {t.due_at && <div className="meta">截止 {new Date(t.due_at).toLocaleDateString('zh-CN')}</div>}
-                          {refs.length > 0 && <div className="meta" style={{ color: 'var(--accent)' }}>知识点 ×{refs.length}</div>}
+                          {refs.map((r) => (
+                            <span key={r.concept_id} className="pill" style={{ color: 'var(--accent)', background: 'var(--accent-weak)', marginTop: 3, display: 'inline-flex', gap: 4 }} title={r.why || '未填写用途'}>
+                              ⚛ {conceptName(r.concept_id)}
+                              <span style={{ opacity: 0.5, cursor: 'pointer' }} onClick={() => void removeRef(t.id, r.concept_id)}>×</span>
+                            </span>
+                          ))}
+                          {refEditor?.taskId === t.id ? (
+                            <div style={{ marginTop: 4, padding: 6, border: '1px solid var(--border)', borderRadius: 6 }}>
+                              <select value={refEditor.conceptId} onChange={(e) => setRefEditor({ ...refEditor, conceptId: e.target.value })} style={{ width: '100%', marginBottom: 4 }}>
+                                <option value="">选择知识点…</option>
+                                {concepts.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                              <input value={refEditor.why} onChange={(e) => setRefEditor({ ...refEditor, why: e.target.value })} placeholder="这个任务如何用到该知识点（选填）" style={{ width: '100%', marginBottom: 4 }} />
+                              <div style={{ display: 'flex', gap: 4 }}>
+                                <button className="primary" style={{ fontSize: 12, padding: '2px 10px' }} onClick={() => void saveRef()}>保存</button>
+                                <button style={{ fontSize: 12, padding: '2px 10px' }} onClick={() => setRefEditor(null)}>取消</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button style={{ fontSize: 11, padding: '1px 8px', marginTop: 4 }} title="关联知识点（学习/应用路径）" onClick={() => setRefEditor({ taskId: t.id, conceptId: '', why: '' })}>
+                              ⚛ 关联知识点
+                            </button>
+                          )}
                         </div>
                         <button style={{ padding: '1px 8px', fontSize: 12 }} title="标记阻塞" onClick={() => void blockTask(t)}>⛔</button>
                       </div>

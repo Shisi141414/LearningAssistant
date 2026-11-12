@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom'
 import type { AnnotationKind, ContextRef } from '@shared/types'
 import { useAppStore } from '../stores/app'
 import { useChatStore } from '../stores/chat'
+import { MathInput } from '../components/MathInput'
 
 /** 从当前 Selection 提取（文本, 段落定位） */
 function captureSelection(): { text: string; segmentId: string | null } {
@@ -96,10 +97,11 @@ export function QuickBar() {
 
   return (
     <div className="quickbar">
-      <input
-        placeholder="询问智能体…（选中内容后会自动附为参考）"
+      <MathInput
+        multiline={false}
+        placeholder="询问智能体…（选中内容后会自动附为参考，∑ 数学符号）"
         value={question}
-        onChange={(e) => setQuestion(e.target.value)}
+        onChange={setQuestion}
         onKeyDown={(e) => {
           if (e.key === 'Enter') void ask()
         }}

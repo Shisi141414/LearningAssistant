@@ -250,3 +250,22 @@ export function removeTask(id: ID): void {
 export function listManualTasks(): Task[] {
   return (getDb().prepare("SELECT * FROM tasks WHERE kind = 'manual' ORDER BY COALESCE(due_at, created_at)").all() as TaskRow[]).map(rowToTask)
 }
+
+/** 任务附项目名（R5 日程页统一视图用）。类型 TaskWithProject 在 @shared/types。 */
+export function listAllTasks(): Array<Task & { project_title: string | null }> {
+  const rows = getDb().prepare(
+    'SELECT t.*, p.title AS project_title FROM tasks t LEFT JOIN projects p ON p.id = t.project_id ORDER BY COALESCE(t.due_at, t.created_at)'
+  ).all() as Array<TaskRow & { project_title: string | null }>
+  return rows.map((r) => ({ ...rowToTask(r), project_title: r.project_title }))
+}
+
+/** 今日（本地时区）到期的未完成任务数——启动提醒用 */
+export function dueTodayCount(): number {
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const dayEnd = dayStart + 86_400_000
+  const row = getDb().prepare(
+    "SELECT COUNT(*) AS c FROM tasks WHERE status != 'done' AND due_at IS NOT NULL AND due_at >= ? AND due_at < ?"
+  ).get(dayStart, dayEnd) as { c: number }
+  return row.c
+}

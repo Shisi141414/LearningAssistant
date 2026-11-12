@@ -1,11 +1,12 @@
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
-import { app, shell, BrowserWindow, session, dialog } from 'electron'
+import { app, shell, BrowserWindow, session, dialog, Notification } from 'electron'
 import { join } from 'node:path'
 import { registerAllIpc } from './ipc'
 import { closeDb, getDb } from './services/db'
 import { safeExternal, trustedRenderer } from './services/security'
+import { dueTodayCount } from './services/projects'
 import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
@@ -79,6 +80,17 @@ app.whenReady().then(async () => {
   recoverNoteSuggestions()
   recoverKnowledgeSuggestions()
   createWindow()
+
+  // R5 到期提醒：启动时检查今日截止任务并发系统通知。
+  // 诚实边界：仅应用运行期间有效；系统级定时提醒（应用未运行也推送）在 R5 后续批次接入系统计划任务。
+  try {
+    const due = dueTodayCount()
+    if (due > 0 && Notification.isSupported()) {
+      new Notification({ title: 'LearningAssistant 学习助手', body: `今日有 ${due} 项任务到期，打开「日程」页查看` }).show()
+    }
+  } catch (e) {
+    console.warn('启动提醒发送失败', e)
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

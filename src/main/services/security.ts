@@ -121,7 +121,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.MilestonesRemove]: [id],
   [IPC.TasksCreate]: [record({ kind: optional(choice('project_task', 'manual')), project_id: opt(id), milestone_id: opt(id), title, detail: optional(content), due_at: opt(number), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
   [IPC.TasksUpdate]: [record({ id, title: optional(title), detail: optional(content), status: optional(choice('open', 'doing', 'blocked', 'done')), blocked_reason: optional(text(2000)), due_at: opt(number), planned_at: opt(number), milestone_id: opt(id), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
-  [IPC.TasksRemove]: [id], [IPC.TasksListManual]: [],
+  [IPC.TasksRemove]: [id], [IPC.TasksListManual]: [], [IPC.TasksListAll]: [],
   [IPC.ProvidersSave]: [record({ id: optional(id), name: title, base_url: (v) => text(2048, true)(v) && safeExternal(v as string) && /^(https?):/.test(v as string), api_format: choice('openai', 'anthropic'), api_key: optional(text(16384)), enabled: optional(bool) })],
   [IPC.ModelsList]: [optional(id)],
   [IPC.ModelsSave]: [record({ id: optional(id), provider_id: id, model_id: title, display_name: optional(title), context_length: opt(number), supports_vision: optional(bool), speed_tier: opt(choice('fast', 'medium', 'slow')), notes: optional(content) })],

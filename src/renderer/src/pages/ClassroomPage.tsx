@@ -10,6 +10,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import type { Activity, AsrStatus, NoteWithSegments, MaterialAnchor, ClassroomPosition } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
 import { MarkdownSegment } from '../components/MarkdownSegment'
+import { MathInput } from '../components/MathInput'
 import { useAppStore } from '../stores/app'
 import { ClassroomMaterialPanel } from '../components/ClassroomMaterialPanel'
 import { materialLocation } from '../utils/material'
@@ -536,11 +537,10 @@ export function ClassroomPage() {
       </div>
 
       <div className="chat-input" style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 4 }}>
-        <textarea
-          aria-label="课堂手动记录"
-          placeholder="手动转写/补充记录（Enter 添加段落，Shift+Enter 换行）"
+        <MathInput
+          placeholder="手动转写/补充记录（Enter 添加段落，Shift+Enter 换行，∑ 数学符号）"
           value={manualText}
-          onChange={(e) => setManualText(e.target.value)}
+          onChange={setManualText}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()

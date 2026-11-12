@@ -640,3 +640,125 @@ select:focus {
 ::-webkit-scrollbar-thumb:hover {
   background: #b8b8b4;
 }
+
+/* ---------- 数学输入（GeoGebra 风格） ---------- */
+
+.math-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.math-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  min-width: 0;
+}
+
+.math-input-row textarea,
+.math-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.math-input-row textarea {
+  resize: vertical;
+  min-height: 44px;
+  max-height: 140px;
+}
+
+.math-toggle {
+  align-self: flex-end;
+  width: 36px;
+  height: 34px;
+  font-size: 16px;
+  font-family: 'Cambria Math', 'STIX Two Math', serif;
+  flex-shrink: 0;
+}
+
+.math-toggle.active {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.math-palette {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: min(520px, 100%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px;
+}
+
+.math-palette-tabs {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.math-palette-tabs button {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--text-2);
+  border-radius: 6px;
+}
+
+.math-palette-tabs button.active {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.math-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.math-palette-grid button {
+  height: 34px;
+  font-size: 15px;
+  font-family: 'Cambria Math', 'STIX Two Math', serif;
+  padding: 0;
+  background: #fafafa;
+}
+
+.math-palette-grid button:hover {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+}
+
+.math-preview {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px 10px;
+  background: #fafafa;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  overflow-x: auto;
+}
+
+.math-preview-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-2);
+  padding-top: 3px;
+}

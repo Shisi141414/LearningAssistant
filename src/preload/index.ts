@@ -211,7 +211,8 @@ const api = {
     create: (input: TaskInput) => invoke<Task>(IPC.TasksCreate, input),
     update: (id: ID, patchInput: Partial<TaskInput> & { status?: Task['status']; blocked_reason?: string; planned_at?: number | null }) => invoke<Task>(IPC.TasksUpdate, { id, ...patchInput }),
     remove: (id: ID) => invoke<boolean>(IPC.TasksRemove, id),
-    listManual: () => invoke<Task[]>(IPC.TasksListManual)
+    listManual: () => invoke<Task[]>(IPC.TasksListManual),
+    listAll: () => invoke<Array<Task & { project_title: string | null }>>(IPC.TasksListAll)
   },
   /** 流式事件订阅（返回取消订阅函数） */
   onLlmChunk: (cb: (e: LlmChunkEvent) => void) => subscribe(IPC_EVENTS.LlmChunk, cb),

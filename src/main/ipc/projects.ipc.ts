@@ -3,7 +3,7 @@
  */
 import { IPC } from '@shared/ipc-channels'
 import { ipcMain, handleResult } from './helpers'
-import { listProjects, createProject, updateProject, removeProject, projectDetail, createMilestone, updateMilestone, removeMilestone, createTask, updateTask, removeTask, listManualTasks } from '../services/projects'
+import { listProjects, createProject, updateProject, removeProject, projectDetail, createMilestone, updateMilestone, removeMilestone, createTask, updateTask, removeTask, listManualTasks, listAllTasks } from '../services/projects'
 
 export function registerProjectsIpc(): void {
   ipcMain.handle(IPC.ProjectsList, (_e, subjectId?: string) => handleResult(() => listProjects(subjectId ?? null)))
@@ -44,4 +44,5 @@ export function registerProjectsIpc(): void {
     return true
   }))
   ipcMain.handle(IPC.TasksListManual, () => handleResult(() => listManualTasks()))
+  ipcMain.handle(IPC.TasksListAll, () => handleResult(() => listAllTasks()))
 }

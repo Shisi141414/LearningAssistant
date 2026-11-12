@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Inspiration } from '@shared/types'
 import { useAppStore } from '../stores/app'
+import { MathInput } from '../components/MathInput'
 
 export function InspirationPage() {
   const currentSubjectId = useAppStore((s) => s.currentSubjectId)
@@ -42,11 +43,11 @@ export function InspirationPage() {
         课堂上或自习时冒出的新想法、新问题、新角度——先记下来，别让它溜走。记录时会挂到当前学科。
       </div>
       <div className="toolbar">
-        <textarea
-          style={{ flex: 1, minHeight: 64 }}
-          placeholder="例如：能不能把变分法用在优化课程的排课上？"
+        <MathInput
+          minHeight={64}
+          placeholder="例如：能不能把变分法用在优化课程的排课上？（∑ 数学符号）"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={setText}
         />
         <button className="primary" style={{ alignSelf: 'flex-end' }} onClick={() => void add()}>
           记录灵感

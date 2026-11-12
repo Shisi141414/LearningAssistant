@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ModelInfo } from '@shared/types'
 import { MarkdownSegment } from '../components/MarkdownSegment'
+import { MathInput } from '../components/MathInput'
 import { useAppStore } from '../stores/app'
 import { useChatStore } from '../stores/chat'
 
@@ -127,10 +128,10 @@ export function ChatPage() {
           </div>
 
           <div className="chat-input">
-            <textarea
-              placeholder="输入问题，Enter 发送，Shift+Enter 换行"
+            <MathInput
+              placeholder="输入问题，Enter 发送，Shift+Enter 换行（∑ 数学符号）"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={setInput}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
