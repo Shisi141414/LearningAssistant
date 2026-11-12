@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { copyFile, mkdir, stat, unlink, rmdir } from 'node:fs/promises'
+import { copyFile, mkdir, open, stat, unlink, rmdir } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { basename, dirname, extname, join } from 'node:path'
 import { Worker } from 'node:worker_threads'
@@ -48,6 +48,41 @@ export function materialBlocks(input: { version_id: string; query?: string; offs
 export function materialPath(id: string): string {
   return managedMaterialFile(version(id).file_path)
 }
+/** 文件头魔数嗅探：ZIP(PK..) / OLE2(旧 Office) / PDF。
+ *  背景：曾发生扩展名 .docx 但实为旧 .doc 或损坏文件的导入，officeparser 在
+ *  异步解析阶段才抛晦涩的 ZIP_NO_ENTRIES_FOUND，材料已入库成失败记录。 */
+async function sniff(file: string): Promise<'zip' | 'ole2' | 'pdf' | 'unknown' | 'empty'> {
+  const handle = await open(file, 'r')
+  try {
+    const buf = Buffer.alloc(8)
+    const { bytesRead } = await handle.read(buf, 0, 8, 0)
+    if (bytesRead === 0) return 'empty'
+    if (buf.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) return 'zip'
+    if (buf.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) return 'ole2'
+    if (buf.subarray(0, 5).toString('latin1') === '%PDF-') return 'pdf'
+    return 'unknown'
+  } finally {
+    await handle.close()
+  }
+}
+
+/** 扩展名与实际内容一致性校验；不符时给出可操作的修复指引。 */
+async function assertFormatMatches(source: string, format: string): Promise<void> {
+  const actual = await sniff(source)
+  const expect: Record<string, 'zip' | 'ole2' | 'pdf'> = { docx: 'zip', pptx: 'zip', doc: 'ole2', ppt: 'ole2', pdf: 'pdf' }
+  const wanted = expect[format]
+  if (actual === 'empty') throw new Error('文件内容为空，可能未下载完成')
+  if (actual === wanted) return
+  const actualLabel: Record<string, string> = { zip: '新版 Office（.docx/.pptx 的 ZIP 容器）', ole2: '旧版 Office 二进制（.doc/.ppt）', pdf: 'PDF', unknown: '未识别的格式' }
+  if (actual === 'ole2' && wanted === 'zip') {
+    throw new Error(`这个文件实际是旧版 Office 二进制格式（.doc/.ppt），只是扩展名被改成了 .${format}。请把扩展名改回 .doc/.ppt 后重新导入（将走 LibreOffice 转换），或用 Office/WPS 打开另存为 .${format}`)
+  }
+  if (actual === 'pdf' && wanted !== 'pdf') {
+    throw new Error(`这个文件实际是 PDF，只是扩展名被改成了 .${format}。请把扩展名改回 .pdf 后按 PDF 导入`)
+  }
+  throw new Error(`文件内容与扩展名 .${format} 不符（实际为：${actualLabel[actual]}）。文件可能已损坏、被截断或下载不完整，请核对原件`)
+}
+
 /** 此入口仅供主进程文件选择器使用，渲染进程不能指定磁盘路径。 */
 export async function importMaterial(input: MaterialInput, source: string): Promise<Material> {
   return withWork('材料导入', async () => {
@@ -69,6 +104,8 @@ export async function importMaterial(input: MaterialInput, source: string): Prom
     try {
       await copyFile(source, target)
       if ((await stat(target)).size > 50 * 1024 * 1024) throw new Error('复制后的文件超过 50 MiB')
+      // 入库前校验内容与扩展名一致，避免"复制成功、解析失败"的僵尸材料记录
+      await assertFormatMatches(target, format)
       const hash = createHash('sha256')
       for await (const chunk of createReadStream(target)) hash.update(chunk)
       const fingerprint = hash.digest('hex')
