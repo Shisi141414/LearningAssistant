@@ -14,6 +14,7 @@ import { declareMaterialProtocol, registerMaterialProtocol } from './services/ma
 import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
 import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
+import { stopLearningAssets } from './services/learning-assets'
 
 declareMaterialProtocol()
 
@@ -86,6 +87,7 @@ app.on('before-quit', () => {
   stopAllChats()
   stopMaterialJobs()
   stopLearningPreparation()
+  stopLearningAssets()
   stopLearningSuggestions()
   stopKnowledgeSuggestions()
   closeDb()

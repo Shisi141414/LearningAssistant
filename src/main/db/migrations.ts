@@ -436,5 +436,30 @@ CREATE TABLE knowledge_suggestion_adoptions (
   PRIMARY KEY(suggestion_id, candidate_index)
 );
 `
+  },
+  {
+    version: 14,
+    name: 'learning_image_assets',
+    sql: `
+CREATE TABLE learning_assets (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES learning_documents(id) ON DELETE RESTRICT,
+  mime_type TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  file_path TEXT NOT NULL,
+  width INTEGER NOT NULL,
+  height INTEGER NOT NULL,
+  locator_json TEXT NOT NULL,
+  alt_text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_learning_assets_document ON learning_assets(document_id, created_at);
+CREATE TABLE learning_asset_extractions (
+  document_id TEXT PRIMARY KEY REFERENCES learning_documents(id) ON DELETE RESTRICT,
+  engine TEXT NOT NULL,
+  warnings_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+`
   }
 ]

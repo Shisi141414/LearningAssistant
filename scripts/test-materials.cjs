@@ -24,11 +24,11 @@ app.disableHardwareAcceleration()
 const resumeIndex = process.argv.indexOf('--material-resume')
 const root = resumeIndex >= 0 ? process.argv[resumeIndex + 1] : fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'learning-assistant-materials-'))
 app.setPath('userData', root); app.setPath('sessionData', root)
-const { zipSync, strToU8 } = require('fflate')
+const { zipSync, strToU8, unzipSync } = require('fflate')
 const source = path.join(root, 'fixtures'); fs.mkdirSync(source, { recursive: true })
 function zip(name, entries) {
   const file = path.join(source, name)
-  fs.writeFileSync(file, zipSync(Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, strToU8(value)]))))
+  fs.writeFileSync(file, zipSync(Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, typeof value === 'string' ? strToU8(value) : value]))))
   return file
 }
 const relHeader = '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
@@ -49,6 +49,30 @@ const ppt = zip('课件.pptx', {
   'ppt/_rels/presentation.xml.rels': relHeader + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide2.xml"/></Relationships>',
   'ppt/slides/slide1.xml': slide('Second slide'), 'ppt/slides/slide2.xml': slide('First slide')
 })
+const imageCanvas=require('@napi-rs/canvas').createCanvas(400,180),imageContext=imageCanvas.getContext('2d')
+imageContext.fillStyle='#f7f7f5';imageContext.fillRect(0,0,400,180);imageContext.fillStyle='#cbd5e1';imageContext.fillRect(130,65,110,70)
+imageContext.strokeStyle='#1f2328';imageContext.lineWidth=3;imageContext.strokeRect(130,65,110,70)
+imageContext.beginPath();imageContext.moveTo(240,100);imageContext.lineTo(335,100);imageContext.lineTo(325,93);imageContext.moveTo(335,100);imageContext.lineTo(325,107);imageContext.stroke()
+imageContext.fillStyle='#1f2328';imageContext.font='20px SimSun';imageContext.fillText('F',285,82);imageContext.fillText('m',176,107)
+const pictureBytes=imageCanvas.toBuffer('image/png')
+function illustratedDocx(name,text='受力分析：下图为物体和外力。'){
+  const drawing='<w:p><w:r><w:drawing><wp:inline><wp:extent cx="4000000" cy="1800000"/><wp:docPr id="1" name="受力图" descr="物体受力示意"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="figure.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rImage"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4000000" cy="1800000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>'
+  return zip(name,{
+    '[Content_Types].xml':'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    '_rels/.rels':relHeader+'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+    'word/_rels/document.xml.rels':relHeader+'<Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/figure.png"/></Relationships>',
+    'word/document.xml':`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${text?`<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`:''}${drawing}${drawing.replace('id="1"','id="2"')}<w:sectPr/></w:body></w:document>`,
+    'word/media/figure.png':pictureBytes
+  })
+}
+function illustratedPptx(){
+  const entries=unzipSync(fs.readFileSync(ppt))
+  entries['[Content_Types].xml']=strToU8(Buffer.from(entries['[Content_Types].xml']).toString().replace('</Types>','<Default Extension="png" ContentType="image/png"/></Types>'))
+  entries['ppt/slides/slide1.xml']=strToU8(slide('第二张含受力图').replace('xmlns:a=','xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a=').replace('</p:spTree>','<p:pic><p:nvPicPr><p:cNvPr id="2" name="受力图" descr="物体受力示意"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="rImage"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="4000000" cy="1800000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic></p:spTree>'))
+  entries['ppt/slides/_rels/slide1.xml.rels']=strToU8(relHeader+'<Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/figure.png"/></Relationships>')
+  entries['ppt/media/figure.png']=pictureBytes
+  return zip('配图课件.pptx',entries)
+}
 function pdf() {
   const content = 'BT /F1 12 Tf 72 720 Td (Mechanics page one) Tj ET'
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${content.length} >>\nstream\n${content}\nendstream`]
@@ -119,6 +143,16 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const savedFigure=JSON.parse(fs.readFileSync(path.join(root,'learning-figure-test.json'),'utf8'))
+        const resumedFigure=await call('learning','get',{version_id:savedFigure.version})
+        assert.equal(resumedFigure.assets.length,2)
+        assert.equal(resumedFigure.assets[0].sha256,savedFigure.hash)
+        assert.equal(resumedFigure.state.entries[0].figures[0].caption,savedFigure.caption)
+        assert.equal((await call('learning','get',{version_id:savedFigure.version,revision_id:savedFigure.firstRevision})).state.entries[0].figures,undefined)
+        await win.webContents.executeJavaScript(`location.hash='/library?material=${savedFigure.material}&version=${savedFigure.version}'`)
+        await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后配图入口')
+        await click('学习文档')
+        await waitUi(`document.querySelector('.learning-entry-figures img')?.naturalWidth===400`,'重启后读取托管配图')
         const savedFormula=JSON.parse(fs.readFileSync(path.join(root,'learning-formula-test.json'),'utf8'))
         const resumedFormula=await call('learning','get',{version_id:savedFormula.version})
         assert.deepEqual(resumedFormula.state.entries[0].formulas,savedFormula.formulas)
@@ -556,6 +590,55 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(finalFormula.sources[0].raw_text,formulaRaw)
       fs.writeFileSync(path.join(root,'learning-formula-test.json'),JSON.stringify({version:formulaDoc.version_id,formulas:finalFormula.state.entries[0].formulas,raw:formulaRaw,firstRevision:formulaDoc.revision_id,concept:concept.id,evidence:formulaEvidence.evidence.id,hash:formulaEvidence.evidence.quote_sha256}))
       console.log('FORMULA_TEST_OK actual range selection, KaTeX and MathML, replacement, bad preview guard, removal, long formula containment and original source preservation')
+      const figureMaterial=await importFile(illustratedDocx('受力配图讲义.docx'),input);await wait(figureMaterial.id)
+      const figureDoc=await call('learning','prepare',figureMaterial.current_version_id),figureEntry=figureDoc.state.entries[0]
+      const cancelledFigures=await win.webContents.executeJavaScript(`(async()=>{const pending=window.api.learning.assetsPrepare(${JSON.stringify(figureDoc.version_id)});const cancelled=await window.api.learning.assetsCancel(${JSON.stringify(figureDoc.version_id)});return [cancelled,await pending]})()`)
+      assert.equal(cancelledFigures[0].data,true);assert.equal(cancelledFigures[1].ok,false)
+      assert.equal((await call('learning','get',{version_id:figureDoc.version_id})).asset_extraction,null)
+      await win.webContents.executeJavaScript(`location.hash='/library?material=${figureMaterial.id}&version=${figureDoc.version_id}'`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'配图学习入口')
+      await click('学习文档');await waitUi(`!!document.querySelector('.learning-assets')`,'配图面板')
+      await win.webContents.executeJavaScript(`document.querySelector('.learning-assets').open=true;document.querySelector('.learning-assets').scrollIntoView({block:'start',behavior:'instant'})`)
+      await click('提取文档配图')
+      await waitUi(`document.querySelectorAll('.learning-assets-grid img').length===2&&Array.from(document.querySelectorAll('.learning-assets-grid img')).every(img=>img.naturalWidth===400)`,'实际 Office 内嵌图片提取与显示')
+      let figureCurrent=await call('learning','get',{version_id:figureDoc.version_id})
+      assert.equal(figureCurrent.revision_id,figureDoc.revision_id)
+      assert.equal(figureCurrent.assets[0].sha256,figureCurrent.assets[1].sha256)
+      assert.notEqual(figureCurrent.assets[0].locator_json,figureCurrent.assets[1].locator_json)
+      assert.deepEqual(figureCurrent.sources,figureDoc.sources)
+      const figureAsset=figureCurrent.assets[0],figureCaption='水平外力作用下的受力示意'
+      const editFigureEntry=async()=>{await click('整理条目',`document.getElementById('learning-${figureEntry.id}')`);await waitUi(`!!document.querySelector('[aria-label="条目配图选择"]')`,'条目配图编辑器')}
+      const saveFigure=async()=>{await click('保存配图引用');await waitUi(`!document.querySelector('.learning-editor')&&document.querySelector('.learning-entry-figures img')?.naturalWidth===400`,'条目保存配图')}
+      await editFigureEntry();await setSelect('[aria-label="条目配图选择"]',figureAsset.id);await setText('[aria-label="条目配图图注"]',figureCaption);await saveFigure()
+      const pinnedFigure=(await call('learning','get',{version_id:figureDoc.version_id})).revision_id
+      const servedFigure=await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${figureAsset.id}').then(async response=>({status:response.status,type:response.headers.get('content-type'),length:(await response.arrayBuffer()).byteLength}))`)
+      assert.equal(servedFigure.status,200);assert.equal(servedFigure.type,'image/png');assert.equal(servedFigure.length,pictureBytes.length)
+      await editFigureEntry();await click('编辑配图 1');await setText('[aria-label="条目配图图注"]','修订后的受力图');await saveFigure()
+      assert.match(await win.webContents.executeJavaScript(`document.querySelector('.learning-entry-figures').textContent`),/修订后的受力图/)
+      await editFigureEntry();await click('移除配图 1')
+      await waitUi(`!document.querySelector('.learning-editor')&&!document.querySelector('.learning-entry-figures')`,'移除配图不删附件')
+      assert.equal((await call('learning','get',{version_id:figureDoc.version_id})).assets.length,2)
+      await setSelect('[aria-label="学习文档修订"]',pinnedFigure)
+      await waitUi(`document.querySelector('.learning-reader')?.textContent.includes('历史修订只读')&&document.querySelector('.learning-entry-figures')?.textContent.includes(${JSON.stringify(figureCaption)})`,'历史图注与配图保留')
+      win.setSize(1024,768);await new Promise(resolve=>setTimeout(resolve,100))
+      await win.webContents.executeJavaScript(`document.querySelector('.learning-entry-figures').scrollIntoView({block:'center',behavior:'instant'})`)
+      await waitUi(`document.querySelector('.learning-entry-figures img')?.naturalWidth===400`,'历史配图载入')
+      assert.equal(await win.webContents.executeJavaScript(`document.documentElement.scrollWidth<=innerWidth`),true,'配图在 1024 宽不撑开窗口')
+      await captureRendered(win);await new Promise(resolve=>setTimeout(resolve,100))
+      fs.writeFileSync(path.join(root,'learning-figure-preview.png'),(await captureRendered(win)).toPNG())
+      await click('回到当前修订');await waitUi(`!document.querySelector('.learning-reader')?.textContent.includes('历史修订只读')`,'配图回当前修订')
+      await editFigureEntry();await setSelect('[aria-label="条目配图选择"]',figureAsset.id);await setText('[aria-label="条目配图图注"]',figureCaption);await saveFigure()
+      await setText('[aria-label="搜索学习条目"]','水平外力')
+      await waitUi(`document.querySelectorAll('.learning-reader > .learning-entry').length===1`,'图注加入本篇检索')
+      win.setSize(1360,860);await new Promise(resolve=>setTimeout(resolve,100))
+      fs.writeFileSync(path.join(root,'learning-figure-test.json'),JSON.stringify({material:figureMaterial.id,version:figureDoc.version_id,hash:figureAsset.sha256,caption:figureCaption,firstRevision:figureDoc.revision_id}))
+      const figurePpt=await importFile(illustratedPptx(),input);await wait(figurePpt.id)
+      const figurePptDoc=await call('learning','prepare',figurePpt.current_version_id),figurePptAssets=await call('learning','assetsPrepare',figurePptDoc.version_id)
+      assert.equal(figurePptAssets.assets.length,1);assert.equal(JSON.parse(figurePptAssets.assets[0].locator_json).slide,2)
+      const imageOnly=await importFile(illustratedDocx('纯图讲义.docx',''),input);await wait(imageOnly.id)
+      const imageOnlyDoc=await call('learning','prepare',imageOnly.current_version_id)
+      assert.equal((await call('learning','assetsPrepare',imageOnlyDoc.version_id)).assets.length,2)
+      console.log('FIGURE_TEST_OK actual DOCX/PPTX extraction, cancellation, same-image locations, attachment serving, captions/history/removal, image-only input, slide order, 1024 layout and restart checkpoint')
       // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
       let semanticMode='valid', semanticRequests=0,knowledgeMode='valid',knowledgeRequests=0
       semanticServer=require('node:http').createServer(async(req,res)=>{

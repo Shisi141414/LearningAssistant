@@ -7,6 +7,7 @@ export function selectedLearningEntries(document: LearningDocument, ids: string[
   const first = document.state.entries.findIndex(entry => entry.id === ids[0]), last = first + ids.length - 1
   const selected = document.state.entries.slice(first, last + 1)
   if (selected.some(entry => entry.formulas?.length)) throw new Error('所选条目有人工公式校正，受到保护；请先人工处理')
+  if (selected.some(entry => entry.figures?.length)) throw new Error('所选条目有人工配图引用，受到保护；请先人工处理')
   const parent = selected[0]?.parent_id ?? null, selection = new Set(ids)
   if (selected.some(entry => (entry.parent_id ?? null) !== parent) || document.state.entries.some(entry => entry.parent_id && selection.has(entry.parent_id) && !selection.has(entry.id))) throw new Error('AI 整理范围须在同一父章节，不能替换仍有子项的章节')
   if (first < 0 || selected.length !== ids.length || selected.some((entry, i) => entry.id !== ids[i] || entry.analysis.review_status === 'confirmed')) throw new Error('请选择连续的待整理条目；已确认条目受到保护')

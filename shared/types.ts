@@ -462,11 +462,15 @@ export type LearningEntryType = 'section' | 'narrative' | 'definition' | 'theore
 export interface LearningSource { id: ID; ordinal: number; raw_text: string; heading: string; locator_json: string; extraction: 'native' | 'ocr' | 'manual' }
 export interface LearningSourceRef { source_id: ID; text_range?: [number, number] }
 export interface LearningFormula { range: [number, number]; latex: string; display: boolean }
+export interface LearningFigure { asset_id: ID; caption: string }
+export interface LearningAsset { id: ID; mime_type: 'image/png' | 'image/jpeg'; sha256: string; width: number; height: number; locator_json: string; alt_text: string }
+export interface LearningAssetExtraction { engine: string; warnings: string[]; created_at: number }
 export type LearningContentNode = { type: 'text'; text: string } | { type: 'math'; formula: LearningFormula; source_text: string }
 export interface LearningEntry {
   id: ID; type: LearningEntryType; title: string; sources: LearningSourceRef[]
   parent_id?: ID | null
   formulas?: LearningFormula[]
+  figures?: LearningFigure[]
   analysis: { method: 'extracted' | 'manual'; review_status: 'unreviewed' | 'confirmed' } | { method: 'ai'; model: string; review_status: 'unreviewed' | 'confirmed' }
 }
 export interface LearningRelation { from: ID; to: ID; type: 'proves' | 'solves'; review_status: 'unreviewed' | 'confirmed' }
@@ -474,6 +478,7 @@ export interface LearningState { entries: LearningEntry[]; relations: LearningRe
 export interface LearningDocument {
   id: ID; version_id: ID; current_revision_id: ID; revision_id: ID; created_at: number
   sources: LearningSource[]; state: LearningState; history: { id: ID; created_at: number }[]
+  assets?: LearningAsset[]; asset_extraction?: LearningAssetExtraction | null
 }
 export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_id: ID } & (
   { action: 'edit'; type: LearningEntryType; title: string } |
@@ -482,6 +487,8 @@ export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_i
   { action: 'outline'; end_entry_id: ID; parent_id: ID | null } |
   { action: 'formula'; formula: LearningFormula } |
   { action: 'formula-remove'; range: [number, number] } |
+  { action: 'figure'; figure: LearningFigure } |
+  { action: 'figure-remove'; asset_id: ID } |
   { action: 'relate'; target_id: ID | null }
 )
 export interface LearningSuggestInput { version_id: ID; expected_revision_id: ID; entry_ids: ID[]; model_db_id: ID }

@@ -3,8 +3,9 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { materialPath } from './materials'
+import { learningAssetResponse } from './learning-assets'
 
-// 必须在 app.ready 前声明；只用于托管原件和已安装 PDF.js 的静态资源。
+// 必须在 app.ready 前声明；只用于托管原件、校验后的图片附件及已安装 PDF.js 的静态资源。
 export function declareMaterialProtocol(): void {
   protocol.registerSchemesAsPrivileged([{ scheme: 'study-material', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } }])
 }
@@ -18,6 +19,11 @@ export function registerMaterialProtocol(): void {
       const allowedOrigins = process.env.ELECTRON_RENDERER_URL ? [new URL(process.env.ELECTRON_RENDERER_URL).origin] : ['null', 'file://']
       if ((initiator && !allowedOrigins.includes(initiator)) || (origin && !allowedOrigins.includes(origin))) return new Response(null, { status: 403 })
       const url = new URL(request.url)
+      if (url.hostname === 'learning-assets' && /^\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname) && !url.search) {
+        const response = await learningAssetResponse(url.pathname.slice(1))
+        response.headers.set('Access-Control-Allow-Origin', origin || 'null')
+        return response
+      }
       let file: string
       if (url.hostname === 'file' && /^\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname)) {
         file = materialPath(url.pathname.slice(1))

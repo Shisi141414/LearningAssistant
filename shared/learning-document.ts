@@ -39,6 +39,7 @@ export function validateLearningState(state: LearningState, sourceList: Learning
   let lastOrdinal = -1, lastEnd = -1
   let openSections: string[] = []
   let formulaCount = 0
+  let figureCount = 0
   for (const entry of state.entries) {
     if (!entry.id || ids.has(entry.id) || !Object.hasOwn(learningTypes, entry.type) || entry.title.length > 500 || entry.title.includes('\0') || !entry.sources.length) throw new Error('条目 ID、类型、标题或来源不合法')
     const parent = entry.parent_id ?? null
@@ -66,6 +67,16 @@ export function validateLearningState(state: LearningState, sourceList: Learning
     validateLearningFormulas(entry.formulas, entryText(entry, sources))
     formulaCount += entry.formulas?.length ?? 0
     if (formulaCount > 200) throw new Error('本篇最多保存 200 个公式校正，请拆分长材料')
+    if (entry.figures !== undefined) {
+      if (!Array.isArray(entry.figures) || entry.figures.length > 20) throw new Error('每条最多引用 20 张配图')
+      const seen = new Set<string>()
+      for (const figure of entry.figures) {
+        if (!figure || Object.keys(figure).length !== 2 || !Object.hasOwn(figure, 'asset_id') || !Object.hasOwn(figure, 'caption') || typeof figure.asset_id !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(figure.asset_id) || typeof figure.caption !== 'string' || figure.caption.length > 1000 || figure.caption.includes('\0') || seen.has(figure.asset_id)) throw new Error('配图引用或图注无效，不能重复引用同一张图片')
+        seen.add(figure.asset_id)
+      }
+      figureCount += entry.figures.length
+      if (figureCount > 500) throw new Error('本篇最多保存 500 个配图引用')
+    }
   }
   for (const source of sourceList) {
     const ranges = coverage.get(source.id)
@@ -93,6 +104,7 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
     entry.type = change.type; entry.title = change.title.trim()
     entry.analysis = { method: 'manual', review_status: 'confirmed' }
   } else if (change.action === 'split') {
+    if (entry.figures?.length) throw new Error('请先移除此条目的配图引用，再拆分，避免配图归属丢失')
     if (entry.formulas?.length) throw new Error('请先移除此条目的公式校正，再拆分，避免校正范围错位')
     const text = entryText(entry, sources), position = change.position
     if (!Number.isSafeInteger(position) || position <= 0 || position >= text.length || !safeBoundary(text, position)) throw new Error('请把光标放在正文内部的完整字符之间')
@@ -116,6 +128,7 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
   } else if (change.action === 'merge') {
     if (!index) throw new Error('第一条前面没有可合并的条目')
     const before = state.entries[index - 1]
+    if (entry.figures?.length || before.figures?.length) throw new Error('请先移除这两条的配图引用，再合并，避免配图归属丢失')
     if (entry.formulas?.length || before.formulas?.length) throw new Error('请先移除这两条的公式校正，再合并，避免校正范围错位')
     if ((before.parent_id ?? null) !== (entry.parent_id ?? null) || state.entries.some(item => item.parent_id === entry.id || item.parent_id === before.id)) throw new Error('合并须在同一父章节，且不能合并有子条目的章节；请先调整章节归属')
     if (state.relations.some(r => [r.from, r.to].includes(entry.id) || [r.from, r.to].includes(before.id))) throw new Error('请先解除这两条涉及的证明/解答关联，再合并')
@@ -144,6 +157,17 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
     if (kept.length === (entry.formulas?.length ?? 0)) throw new Error('该公式校正已不存在，请刷新修订')
     if (kept.length) entry.formulas = kept
     else delete entry.formulas
+  } else if (change.action === 'figure') {
+    entry.figures ??= []
+    const at = entry.figures.findIndex(figure => figure.asset_id === change.figure.asset_id)
+    if (at < 0) entry.figures.push(structuredClone(change.figure))
+    else entry.figures[at] = structuredClone(change.figure)
+    entry.analysis = { method: 'manual', review_status: 'confirmed' }
+  } else if (change.action === 'figure-remove') {
+    const kept = (entry.figures ?? []).filter(figure => figure.asset_id !== change.asset_id)
+    if (kept.length === (entry.figures?.length ?? 0)) throw new Error('该配图引用已不存在，请刷新修订')
+    if (kept.length) entry.figures = kept
+    else delete entry.figures
   } else {
     state.relations = state.relations.filter(r => r.from !== entry.id)
     if (change.target_id) state.relations.push({ from: entry.id, to: change.target_id, type: entry.type === 'proof' ? 'proves' : 'solves', review_status: 'confirmed' })

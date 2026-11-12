@@ -1,6 +1,6 @@
 // 可选的真实材料验收：配置文件/教材放在仓库外或被忽略的目录，始终使用隔离应用数据。
 // node scripts/test-real-materials.cjs <local-config.json>
-// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?}], converterPath?, restart?, unsupported?:[path]}
+// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?,assets?}], converterPath?, restart?, unsupported?:[path]}
 const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
@@ -59,6 +59,12 @@ app.on('browser-window-created', (_event, win) => {
             assert.equal((await call('learning','get',{version_id:item.versionId})).sources.length,item.semanticSources)
             await call('materials','openConverted',item.versionId)
           }
+          if(item.assets){
+            const document=await call('learning','get',{version_id:item.versionId})
+            assert.deepEqual(document.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),item.assets.items)
+            assert.equal(document.revision_id,item.assets.revision)
+            assert.ok(document.asset_extraction)
+          }
         }
         console.log('REAL_MATERIAL_RESTART_OK immutable conversions, sources and blocks survive restart without the converter')
         clearTimeout(deadline);app.quit();return
@@ -110,13 +116,20 @@ app.on('browser-window-created', (_event, win) => {
           if (version.format === 'pptx' && test.expectPages) assert.equal(new Set(learning.sources.map(s=>JSON.parse(s.locator_json).slide)).size,test.expectPages)
           assert.equal((await call('learning','prepare',version.id)).sources[0].id,learning.sources[0].id,'规范来源不能重建 ID')
         }
+        let assets
+        if(test.assets){
+          const before=await call('learning','prepare',version.id),after=await call('learning','assetsPrepare',version.id)
+          assert.equal(after.revision_id,before.revision_id);assert.deepEqual(after.sources,before.sources)
+          assets={revision:after.revision_id,items:after.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),count:after.assets.length,warnings:after.asset_extraction.warnings}
+          for(const asset of after.assets){const status=await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${asset.id}').then(response=>response.status)`);assert.equal(status,200)}
+        }
         const detail=await call('materials','get',material.id),converted=detail.conversions[0]
         if(['doc','ppt'].includes(version.format)){
           assert.ok(converted);assert.match(converted.engine,/LibreOffice/)
           assert.equal(hash(path.join(root,'materials',version.id,`converted.${converted.format}`)),converted.fingerprint)
           assert.equal(hash(path.join(root,'materials',version.id,`source.${version.format}`)),before)
         }
-        report.cases.push({ materialId:material.id,versionId:version.id,converted,format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, semanticSources, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
+        report.cases.push({ materialId:material.id,versionId:version.id,converted,assets,format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, semanticSources, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
       }
       for (const file of config.unsupported ?? []) {
         selectedFile = path.resolve(file)

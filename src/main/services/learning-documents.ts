@@ -8,6 +8,7 @@ import { getDb } from './db'
 import { materialPath } from './materials'
 import { materialParseInput } from './office-conversions'
 import { beginWork } from './work'
+import { learningAssets, learningAssetExtraction } from './learning-assets'
 
 type DocumentRow = { id: string; version_id: string; current_revision_id: string; created_at: number }
 let stopping = false
@@ -22,7 +23,7 @@ export function getLearningDocument(input: { version_id: string; revision_id?: s
   if (!document) return null
   const revision = db.prepare('SELECT id, snapshot_json FROM learning_revisions WHERE document_id = ? AND id = ?').get(document.id, input.revision_id ?? document.current_revision_id) as { id: string; snapshot_json: string } | undefined
   if (!revision) throw new Error('学习文档修订不存在')
-  return { ...document, revision_id: revision.id, sources: db.prepare('SELECT id, ordinal, raw_text, heading, locator_json, extraction FROM learning_sources WHERE document_id = ? ORDER BY ordinal').all(document.id) as LearningSource[], state: JSON.parse(revision.snapshot_json), history: db.prepare('SELECT id, created_at FROM learning_revisions WHERE document_id = ? ORDER BY created_at DESC, rowid DESC').all(document.id) as { id: string; created_at: number }[] }
+  return { ...document, revision_id: revision.id, sources: db.prepare('SELECT id, ordinal, raw_text, heading, locator_json, extraction FROM learning_sources WHERE document_id = ? ORDER BY ordinal').all(document.id) as LearningSource[], state: JSON.parse(revision.snapshot_json), history: db.prepare('SELECT id, created_at FROM learning_revisions WHERE document_id = ? ORDER BY created_at DESC, rowid DESC').all(document.id) as { id: string; created_at: number }[], assets: learningAssets(document.id), asset_extraction: learningAssetExtraction(document.id) }
 }
 /** 原子建立规范来源；不从有重叠的检索块拼接正文，也不改旧块 ID。 */
 export function prepareLearningDocument(versionId: string): Promise<LearningDocument> {
@@ -80,6 +81,8 @@ export function publishLearningRevision(document: LearningDocument, state: Learn
     const row = getDb().prepare('SELECT current_revision_id FROM learning_documents WHERE id = ? AND version_id = ?').get(document.id, document.version_id) as { current_revision_id: string } | undefined
     if (row?.current_revision_id !== document.current_revision_id) throw new Error('学习文档已有更新，请刷新当前修订后再修改')
     validateLearningState(state, document.sources)
+    const assets = new Set(learningAssets(document.id).map(asset => asset.id))
+    if (state.entries.some(entry => entry.figures?.some(figure => !assets.has(figure.asset_id)))) throw new Error('配图不属于当前学习文档，请刷新并重新选择')
     const revision = nanoid()
     getDb().prepare('INSERT INTO learning_revisions (id, document_id, parent_revision_id, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?)').run(revision, document.id, document.current_revision_id, JSON.stringify(state), Date.now())
     getDb().prepare('UPDATE learning_documents SET current_revision_id = ? WHERE id = ? AND current_revision_id = ?').run(revision, document.id, document.current_revision_id)

@@ -7,6 +7,7 @@ import './learning-reader.css'
 import { LearningSuggestions } from './LearningSuggestions'
 import { KnowledgeEvidence } from './KnowledgeEvidence'
 import { LearningFormulaContent, LearningFormulaEditor } from './LearningFormulaContent'
+import { LearningAssetPanel, LearningEntryFigures, LearningFigureEditor } from './LearningFigures'
 
 function sourceLabel(source: LearningSource): string {
   const locator = JSON.parse(source.locator_json) as MaterialLocator
@@ -46,7 +47,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
     }) ?? []
   }, [document, sources])
   const sections = rows.filter(row => row.entry.type === 'section')
-  const filtered = useMemo(() => rows.filter(row => (!chapter || (chapter === 'root' ? !row.entry.parent_id && row.entry.type !== 'section' : row.entry.id === chapter || row.path.some(parent => parent.id === chapter))) && (!type || row.entry.type === type) && (!query.trim() || (row.text + '\n' + row.entry.title + '\n' + (row.entry.formulas ?? []).map(formula => formula.latex).join('\n')).toLowerCase().includes(query.trim().toLowerCase()))), [rows, type, query, chapter])
+  const filtered = useMemo(() => rows.filter(row => (!chapter || (chapter === 'root' ? !row.entry.parent_id && row.entry.type !== 'section' : row.entry.id === chapter || row.path.some(parent => parent.id === chapter))) && (!type || row.entry.type === type) && (!query.trim() || (row.text + '\n' + row.entry.title + '\n' + (row.entry.formulas ?? []).map(formula => formula.latex).join('\n') + '\n' + (row.entry.figures ?? []).map(figure => figure.caption).join('\n')).toLowerCase().includes(query.trim().toLowerCase()))), [rows, type, query, chapter])
   const jump = (id: string): void => {
     const index = document?.state.entries.findIndex(entry => entry.id === id) ?? -1
     if (index < 0) return
@@ -80,6 +81,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
         <button disabled={busy} onClick={() => void revision()}>刷新当前修订</button>
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
+      <LearningAssetPanel key={document.id} document={document} editable={!!current && !archived} busy={busy} onBusy={setBusy} onUpdated={setDocument} onError={setError} />
       <details className="learning-outline"><summary>章节目录 · {sections.length} 节</summary>{sections.length ? <nav aria-label="学习文档章节目录">{sections.map(row => <button key={row.entry.id} style={{ paddingLeft: `${row.path.length * 16 + 4}px` }} onClick={() => jump(row.entry.id)}>{row.entry.title || `章节 · 第 ${row.index + 1} 条`}</button>)}</nav> : <p className="muted">尚未设置章节。先把标题条目标为“章节”，再为后续条目设置章节归属。</p>}</details>
       {archived && <p className="muted">材料已归档，学习文档只读，已有引用仍可查看。</p>}
       {current && !archived && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
@@ -94,6 +96,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
           <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => setPreview(sources.get(ref.source_id)!)}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
           {text.trim() ? <div className="learning-entry-text">{entry.formulas?.length ? <LearningFormulaContent text={text} formulas={entry.formulas} subjectId={subjectId} /> : <MarkdownSegment text={text} subjectId={subjectId} />}</div> : <p className="muted">此来源尚无可提取文字，请对照原件；扫描页可先完成 OCR 后建立新版学习文档。</p>}
           {!!entry.formulas?.length && <details className="learning-formula-source"><summary>人工公式校正 · 查看来源原文</summary><p>{text}</p><p className="muted">本条知识证据及知识候选使用此来源原文；公式校正保留在当前修订中。</p></details>}
+          {!!entry.figures?.length && <LearningEntryFigures figures={entry.figures} assets={document.assets ?? []} />}
           {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
           {current && !archived && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
           {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
@@ -124,6 +127,7 @@ function EntryEditor({ entry, text, document, first, busy, onChange }: { entry: 
     <div className="toolbar"><button disabled={busy || position === null || position <= 0 || position >= text.length} onClick={() => void onChange({ ...base, action: 'split', position: position! })}>在光标处拆分</button><button disabled={busy || first} onClick={() => void onChange({ ...base, action: 'merge' })}>合并到上一条</button></div>
     <p className="muted">合并保留前一条的类型和标题；涉及证明/解答关联时，请先解除关联。每次保存生成新修订，来源正文保持不变。</p>
     <LearningFormulaEditor text={text} formulas={entry.formulas} selection={selection} busy={busy} base={base} onChange={onChange} />
+    <LearningFigureEditor document={document} figures={entry.figures} busy={busy} base={base} onChange={onChange} />
     <div className="learning-outline-editor"><h4>章节归属</h4><p className="muted">从本条起选择连续范围。已有子章节保留，所选章节须包含完整子树；本操作不改变正文或语义确认状态。</p>
       <label>父章节<select aria-label="学习条目父章节" value={parent} disabled={busy} onChange={event => setParent(event.target.value)}><option value="">顶层 / 未分章</option>{parents.map(section => <option key={section.id} value={section.id}>{'　'.repeat(learningAncestors(section.id, document.state.entries).length)}{section.title || `章节 · 第 ${document.state.entries.indexOf(section) + 1} 条`}</option>)}</select></label>
       <label>范围结束于<select aria-label="章节归属结束条目" value={endId} disabled={busy} onChange={event => setEndId(event.target.value)}>{document.state.entries.slice(index).map((item, offset) => <option key={item.id} value={item.id}>第 {index + offset + 1} 条 · {item.title || learningTypes[item.type]}</option>)}</select></label>

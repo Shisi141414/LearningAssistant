@@ -28,6 +28,8 @@ export const IPC = {
   LearningGet: 'learning:get',
   LearningPrepare: 'learning:prepare',
   LearningChange: 'learning:change',
+  LearningAssetsPrepare: 'learning:assetsPrepare',
+  LearningAssetsCancel: 'learning:assetsCancel',
   LearningSuggestStart: 'learning:suggestStart',
   LearningSuggestList: 'learning:suggestList',
   LearningSuggestGet: 'learning:suggestGet',

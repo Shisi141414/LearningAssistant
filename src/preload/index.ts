@@ -46,6 +46,8 @@ const api = {
     suggestApply: (id: ID) => invoke<LearningDocument>(IPC.LearningSuggestApply, id),
     get: (input: { version_id: ID; revision_id?: ID }) => invoke<LearningDocument | null>(IPC.LearningGet, input),
     prepare: (id: ID) => invoke<LearningDocument>(IPC.LearningPrepare, id),
+    assetsPrepare: (id: ID) => invoke<LearningDocument>(IPC.LearningAssetsPrepare, id),
+    assetsCancel: (id: ID) => invoke<boolean>(IPC.LearningAssetsCancel, id),
     change: (input: LearningChange) => invoke<LearningDocument>(IPC.LearningChange, input)
   },
   concepts: {

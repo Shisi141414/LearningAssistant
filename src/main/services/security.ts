@@ -61,6 +61,8 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.LearningSuggestStart]: [record({ version_id: id, expected_revision_id: id, entry_ids: (v) => Array.isArray(v) && v.length > 0 && v.length <= 20 && v.every(id), model_db_id: id })],
   [IPC.LearningGet]: [record({ version_id: id, revision_id: optional(id) })],
   [IPC.LearningPrepare]: [id],
+  [IPC.LearningAssetsPrepare]: [id],
+  [IPC.LearningAssetsCancel]: [id],
   [IPC.LearningChange]: [(value) => {
     const base = { version_id: id, expected_revision_id: id, entry_id: id }
     return [
@@ -70,6 +72,8 @@ const rules: Partial<Record<string, Check[]>> = {
       record({ ...base, action: choice('outline'), end_entry_id: id, parent_id: nullable(id) }),
       record({ ...base, action: choice('formula'), formula: record({ range: learningRange, latex: text(2000, true), display: bool }) }),
       record({ ...base, action: choice('formula-remove'), range: learningRange }),
+      record({ ...base, action: choice('figure'), figure: record({ asset_id: id, caption: text(1000) }) }),
+      record({ ...base, action: choice('figure-remove'), asset_id: id }),
       record({ ...base, action: choice('relate'), target_id: nullable(id) })
     ].some(check => check(value))
   }],

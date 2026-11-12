@@ -53,3 +53,15 @@
 .learning-formula-preview { margin: 12px 0; padding: 10px 0; overflow-wrap: anywhere; }
 .learning-formula-record { border-bottom: 1px solid var(--border); padding: 8px 0; }
 .learning-formula-record code { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+.learning-assets { border-block: 1px solid var(--border); padding: 12px 0; margin: 12px 0; }
+.learning-assets summary { cursor: pointer; }
+.learning-assets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; max-height: 420px; overflow: auto; }
+.learning-assets-grid figure, .learning-entry-figures figure { margin: 12px 0; min-width: 0; }
+.learning-assets img, .learning-entry-figures img, .learning-figure-preview img { display: block; max-width: 100%; max-height: 320px; width: auto; height: auto; margin-inline: auto; object-fit: contain; }
+.learning-assets-grid img { max-height: 140px; }
+.learning-assets figcaption, .learning-entry-figures figcaption { font: 14px/1.8 SimSun, serif; white-space: pre-wrap; overflow-wrap: anywhere; }
+.learning-entry-figures small { display: block; color: var(--text-2); font-size: 12px; }
+.learning-figure-editor { display: grid; gap: 12px; border-top: 1px solid var(--border); padding-top: 12px; margin: 16px 0; }
+.learning-figure-editor label { display: grid; gap: 6px; min-width: 0; }
+.learning-figure-editor select { max-width: 100%; }
+.learning-figure-editor > button { justify-self: start; }

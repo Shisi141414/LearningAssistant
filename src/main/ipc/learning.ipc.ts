@@ -1,9 +1,12 @@
 import { IPC } from '@shared/ipc-channels'
 import { ipcMain, handleResult } from './helpers'
 import { changeLearningDocument, getLearningDocument, prepareLearningDocument } from '../services/learning-documents'
+import { prepareLearningAssets, cancelLearningAssets } from '../services/learning-assets'
 import { applyLearningSuggestion, cancelLearningSuggestion, dismissLearningSuggestion, learningSuggestionDetail, listLearningSuggestions, startLearningSuggestion } from '../services/learning-suggestions'
 
 export function registerLearningIpc(): void {
+  ipcMain.handle(IPC.LearningAssetsPrepare, (_e, id) => handleResult(() => prepareLearningAssets(id)))
+  ipcMain.handle(IPC.LearningAssetsCancel, (_e, id) => handleResult(() => cancelLearningAssets(id)))
   ipcMain.handle(IPC.LearningSuggestStart, (_e, input) => handleResult(() => startLearningSuggestion(input)))
   ipcMain.handle(IPC.LearningSuggestList, (_e, id) => handleResult(() => listLearningSuggestions(id)))
   ipcMain.handle(IPC.LearningSuggestGet, (_e, id) => handleResult(() => learningSuggestionDetail(id)))
