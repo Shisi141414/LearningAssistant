@@ -56,13 +56,7 @@ export function validateLearningPackage(value: unknown): asserts value is Learni
     const page = ocr.get(sourceLocators.get(source.id)!.page ?? 0)
     if ((page || source.extraction !== 'native') && (!page || source.raw_text !== (page.corrected_text ?? readableOcr(page.raw_text)) || source.extraction !== (page.corrected_text === null ? 'ocr' : 'manual'))) throw new Error('OCR 原文、校正与规范来源不一致')
   }
-  let dictionarySize = 0
-  for (const concept of doc.concepts) {
-    const names = [concept.name, ...concept.aliases]
-    if (names.some(name => !name.trim() || name !== name.trim() || name.includes('\0')) || concept.summary.includes('\0')) throw new Error('概念名称或别名无效')
-    unique(names.map(conceptKey), '同一概念名称与别名'); dictionarySize += names.reduce((n, name) => n + name.length, 0)
-  }
-  if (dictionarySize > 100_000) throw new Error('概念词典超出十万字符')
+  validatePackageConcepts(doc.concepts)
   const concepts = new Set(doc.concepts.map(concept => concept.id)), entries = new Map(doc.state.entries.map(entry => [entry.id, entry])), sources = new Map(doc.sources.map(source => [source.id, source]))
   unique(doc.evidence.map(evidence => `${evidence.concept_id}:${evidence.entry_id}`), '知识证据')
   for (const evidence of doc.evidence) {
@@ -71,4 +65,15 @@ export function validateLearningPackage(value: unknown): asserts value is Learni
     const text = entryText(entry, sources)
     if (!text.trim() || text.length > 40_000 || sha(text) !== evidence.quote_sha256 || evidence.memo.includes('\0')) throw new Error('知识证据原文散列不符')
   }
+}
+
+/** 两类文档共用概念词典限制，避免交换包引入歧义别名或无限词典。 */
+export function validatePackageConcepts(concepts: LearningPackage['concepts']): void {
+  let dictionarySize = 0
+  for (const concept of concepts) {
+    const names = [concept.name, ...concept.aliases]
+    if (names.some(name => !name.trim() || name !== name.trim() || name.includes('\0')) || concept.summary.includes('\0')) throw new Error('概念名称或别名无效')
+    unique(names.map(conceptKey), '同一概念名称与别名'); dictionarySize += names.reduce((n, name) => n + name.length, 0)
+  }
+  if (dictionarySize > 100_000) throw new Error('概念词典超出十万字符')
 }

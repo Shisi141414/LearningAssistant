@@ -8,6 +8,8 @@ import type {
 } from '@shared/types'
 import { getDb } from '../services/db'
 import { ipcMain, handleResult } from './helpers'
+import { dialog } from 'electron'
+import { exportNotePackage, cancelNotePackageExport } from '../services/note-package-export'
 import { nanoid } from 'nanoid'
 import { addSegment } from '../services/segments'
 import { attachMaterialRefs } from '../services/classroom-materials'
@@ -55,6 +57,19 @@ function touchNote(db: ReturnType<typeof getDb>, noteId: ID): void {
 }
 
 export function registerNotesIpc(): void {
+  ipcMain.handle(IPC.NotesPackageExportCancel, (_e, id) => handleResult(() => cancelNotePackageExport(id)))
+  ipcMain.handle(IPC.NotesPackageExport, (event, input) => handleResult(async () => {
+    const doc = getNoteLearning(input)
+    if (!doc.sources.length) throw new Error('空笔记没有可导出的来源，请先添加记录')
+    const name = doc.title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(0, 100) || '课堂笔记'
+    const chosen = await dialog.showSaveDialog({ title: '导出笔记所选修订（含原始口述）', defaultPath: `${name}.ladoc`, filters: [{ name: '笔记文档包', extensions: ['ladoc'] }] })
+    if (chosen.canceled || !chosen.filePath) return null
+    if (event.sender.isDestroyed()) throw new Error('导出窗口已关闭')
+    const cancel = () => cancelNotePackageExport(input.note_id)
+    event.sender.once('destroyed', cancel)
+    try { return await exportNotePackage(input, chosen.filePath) }
+    finally { event.sender.removeListener('destroyed', cancel) }
+  }))
   ipcMain.handle(IPC.NotesLearningSuggestStart, (_e, input) => handleResult(() => startNoteSuggestion(input)))
   ipcMain.handle(IPC.NotesLearningSuggestList, (_e, id) => handleResult(() => listNoteSuggestions(id)))
   ipcMain.handle(IPC.NotesLearningSuggestGet, (_e, id) => handleResult(() => noteSuggestionDetail(id)))

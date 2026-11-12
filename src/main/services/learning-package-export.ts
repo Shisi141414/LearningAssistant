@@ -3,6 +3,7 @@ import { stat, rename, unlink, mkdtemp, rmdir } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { EvidenceSource, MaterialFormat, MaterialKind, OcrPage } from '@shared/types'
 import type { LearningPackage, LearningPackageExportInput, LearningPackageExportResult } from '@shared/learning-package'
+import type { NotePackage } from '@shared/note-package'
 import { getDb } from './db'
 import { externalExportTarget } from './export-target'
 import { getLearningDocument } from './learning-documents'
@@ -52,24 +53,30 @@ function snapshot(input: LearningPackageExportInput): { manifest: LearningPackag
 }
 /** 仅主进程可指定输出；新临时文件完成后替换，失败不触碰既有目标。 */
 export async function exportLearningPackage(input: LearningPackageExportInput, output: string): Promise<LearningPackageExportResult> {
-  if (stopping) throw new Error('应用正在退出')
-  if (active) throw new Error('已有文档正在导出，请等待完成或取消')
-  const release = beginWork('学习文档包导出')
-  let cancelled = false, worker: Worker | undefined, temporary: string | undefined, temporaryDirectory: string | undefined
-  const job = { version: input.version_id, cancel: () => { cancelled = true; void worker?.terminate() } }
-  active = job
-  const check = (): void => { if (cancelled || stopping) throw new Error('文档导出已取消，已有文件保留') }
-  try {
-    const { directory, target } = await externalExportTarget(output, '.ladoc')
-    check()
+  return exportPreparedPackage(input.version_id, output, async () => {
     const { manifest, refs } = snapshot(input)
     const lengths = await Promise.all(refs.map(async ref => { const info = await stat(ref.file); if (!info.isFile()) throw new Error('附件不是普通文件'); return info.size }))
     manifest.original.byte_length = lengths[0]
     if (manifest.conversion) manifest.conversion.byte_length = lengths[1]
     for (const asset of manifest.assets) asset.byte_length = lengths[refs.findIndex(ref => ref.path === asset.path)]
+    return { action: 'write', manifest, files: refs.map(ref => [ref.path, ref.file]), selectRelatedConcepts: true }
+  })
+}
+export async function exportPreparedPackage(key: string, output: string, prepare: () => Promise<{ action: 'write' | 'note-write'; manifest: LearningPackage | NotePackage; files: [string, string][]; selectRelatedConcepts: boolean }>): Promise<LearningPackageExportResult> {
+  if (stopping) throw new Error('应用正在退出')
+  if (active) throw new Error('已有文档正在导出，请等待完成或取消')
+  const release = beginWork('学习文档包导出')
+  let cancelled = false, worker: Worker | undefined, temporary: string | undefined, temporaryDirectory: string | undefined
+  const job = { version: key, cancel: () => { cancelled = true; void worker?.terminate() } }
+  active = job
+  const check = (): void => { if (cancelled || stopping) throw new Error('文档导出已取消，已有文件保留') }
+  try {
+    const { directory, target } = await externalExportTarget(output, '.ladoc')
+    check()
+    const prepared = await prepare(), { manifest } = prepared
     check(); temporaryDirectory = await mkdtemp(join(directory, '.ladoc-export-')); temporary = join(temporaryDirectory, 'document.ladoc')
     check()
-    worker = new Worker(join(__dirname, 'learning-package-worker.js'), { workerData: { action: 'write', manifest, files: refs.map(ref => [ref.path, ref.file]), output: temporary, selectRelatedConcepts: true }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
+    worker = new Worker(join(__dirname, 'learning-package-worker.js'), { workerData: { ...prepared, output: temporary }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
     const result = await new Promise<{ sha256: string; byte_length: number }>((resolve, reject) => {
       let settled = false
       const finish = (error?: Error, result?: { sha256: string; byte_length: number }): void => { if (settled) return; settled = true; clearTimeout(timer); if (error) reject(error); else resolve(result!) }

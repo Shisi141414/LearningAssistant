@@ -10,6 +10,7 @@ import { NoteLearningSync } from './NoteLearningSync'
 import { LearningPdfExport } from './LearningPdfExport'
 import { useLiveNoteLearning } from '../hooks/useLiveNoteLearning'
 import { LearningSuggestions } from './LearningSuggestions'
+import { NotePackageExport } from './NotePackageExport'
 import './learning-reader.css'
 
 function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigation }: {
@@ -98,6 +99,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
     {loading ? <p className="muted">正在读取统一文档…</p> : document && <>
       <p className="muted">{classroomNavigation && !toolsOpen ? `${rows.length} / ${document.state.entries.length} 个条目${type || chapter || query ? ' · 筛选中' : ''}` : `${document.title} · ${document.state.entries.length} 个条目 · 当前显示 ${rows.length} 条 · 快照保存于 ${new Date(document.created_at).toLocaleString()}`}</p>
       <LearningPdfExport source={{ kind: 'note', note_id: noteId, revision_id: document.revision_id }} disabled={busy || !!editing || !document.state.entries.length} onBusy={setBusy} emptySources={document.sources.filter(source => !source.raw_text.trim()).length} />
+      <NotePackageExport source={{ note_id: noteId, revision_id: document.revision_id }} disabled={busy || !!editing || !document.state.entries.length} onBusy={setBusy} />
       {!document.state.entries.length && <p className="empty">笔记尚无段落；先添加内容或继续课堂转写。</p>}
       {current && !document.pending_sync && <LearningSuggestions kind="note" document={document} subjectId={document.subject_id} onApplied={update} onReviewChange={setReviewingAi} onBusy={setBusy} disabled={busy || !!editing || !!preview || loading} />}
       {!current && <p className="muted">所选固定修订只读。读取最新笔记后可继续整理。</p>}

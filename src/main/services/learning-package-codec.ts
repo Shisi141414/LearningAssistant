@@ -13,11 +13,18 @@ import type { LearningPackage, LearningPackageFile } from '@shared/learning-pack
 import { learningPackageFiles, learningPackageLimits as limits } from '@shared/learning-package'
 import { validateLearningPackage } from './learning-package-validation'
 
-export interface DecodedLearningPackage { manifest: LearningPackage; sha256: string; files: { path: string; file: string }[] }
+export interface ArchiveManifest { assets: LearningPackage['assets'] }
+export interface ArchiveContract<T extends ArchiveManifest> {
+  validate: (value: unknown) => asserts value is T
+  files: (manifest: T) => LearningPackageFile[]
+}
+export interface DecodedDocumentArchive<T> { manifest: T; sha256: string; files: { path: string; file: string }[] }
+export type DecodedLearningPackage = DecodedDocumentArchive<LearningPackage>
+const materialContract: ArchiveContract<LearningPackage> = { validate: validateLearningPackage, files: learningPackageFiles }
 /** 安装前复核复制后的实际文件，避免预览与确认期间字节变化。只在工作线程使用。 */
-export async function verifyLearningPackageFiles(manifest: LearningPackage, files: Map<string, string>, signal?: AbortSignal): Promise<void> {
-  validateLearningPackage(manifest)
-  const declared = learningPackageFiles(manifest)
+export async function verifyDocumentArchiveFiles<T extends ArchiveManifest>(manifest: T, files: Map<string, string>, contract: ArchiveContract<T>, signal?: AbortSignal): Promise<void> {
+  contract.validate(manifest)
+  const declared = contract.files(manifest)
   if (files.size !== declared.length || declared.some(item => !files.has(item.path))) throw new Error('导入附件与清单不一致')
   for (const item of declared) {
     const actual = await fileDigest(files.get(item.path)!, item.byte_length, signal)
@@ -92,7 +99,7 @@ async function entryStream(zip: ZipFile, entry: Entry): Promise<Readable> {
   return new Promise((resolve, reject) => zip.openReadStream(entry, (error, stream) => error ? reject(error) : resolve(stream)))
 }
 /** 调用者提供本批新建的空目录；不把 ZIP 文件名作为磁盘路径使用。必须在工作线程调用。 */
-export async function readLearningPackage(file: string, directory: string, signal?: AbortSignal): Promise<DecodedLearningPackage> {
+export async function readDocumentArchive<T extends ArchiveManifest>(file: string, directory: string, contract: ArchiveContract<T>, signal?: AbortSignal): Promise<DecodedDocumentArchive<T>> {
   signal?.throwIfAborted()
   if ((await readdir(directory)).length) throw new Error('文档包暂存目录必须为空')
   const source = await open(file, 'r')
@@ -112,8 +119,8 @@ export async function readLearningPackage(file: string, directory: string, signa
     const manifestBytes = await boundedBuffer(await entryStream(zip, manifestEntry), limits.manifestBytes, signal)
     if (manifestBytes.length !== manifestEntry.uncompressedSize || crc32(manifestBytes) !== manifestEntry.crc32) throw new Error('文档清单 CRC 或尺寸不符')
     const manifest: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes))
-    validateLearningPackage(manifest)
-    const declared = learningPackageFiles(manifest)
+    contract.validate(manifest)
+    const declared = contract.files(manifest)
     if (entries.size !== declared.length + 1 || declared.some(item => !entries.has(item.path))) throw new Error('包内存在未声明文件或缺少附件')
     for (const item of declared) {
       signal?.throwIfAborted()
@@ -132,11 +139,11 @@ export async function readLearningPackage(file: string, directory: string, signa
   } finally { zip.close(); if (!success) for (const item of saved) await unlink(item.file).catch(() => undefined) }
 }
 /** 输出只允许新文件；调用者随后原子替换用户选择的目标，失败保留既有文件。 */
-export async function writeLearningPackage(manifest: LearningPackage, files: Map<string, string>, output: string, signal?: AbortSignal): Promise<{ sha256: string; byte_length: number }> {
-  signal?.throwIfAborted(); validateLearningPackage(manifest)
+export async function writeDocumentArchive<T extends ArchiveManifest>(manifest: T, files: Map<string, string>, output: string, contract: ArchiveContract<T>, signal?: AbortSignal): Promise<{ sha256: string; byte_length: number }> {
+  signal?.throwIfAborted(); contract.validate(manifest)
   const metadata = Buffer.from(JSON.stringify(manifest, null, 2) + '\n')
   if (metadata.length > limits.manifestBytes) throw new Error('文档包清单超过 16 MiB，请拆分材料')
-  const declared = learningPackageFiles(manifest)
+  const declared = contract.files(manifest)
   if (files.size !== declared.length || declared.some(item => !files.has(item.path))) throw new Error('导出文件与清单不一致')
   for (const asset of manifest.assets) { signal?.throwIfAborted(); await checkImage(files.get(asset.path)!, asset) }
   const handle = await open(output, 'wx'), zip = new ZipWriter(), streams: Readable[] = [], destination = handle.createWriteStream()
@@ -164,4 +171,15 @@ export async function writeLearningPackage(manifest: LearningPackage, files: Map
     ;(zip.outputStream as Readable).destroy(); destination.destroy(); await handle.close().catch(() => undefined)
     if (!success) await unlink(output).catch(() => undefined)
   }
+}
+
+// 教材契约与既有调用保持一致；笔记复用相同的 ZIP、CRC、字节上限和原子输出前校验。
+export function verifyLearningPackageFiles(manifest: LearningPackage, files: Map<string, string>, signal?: AbortSignal) {
+  return verifyDocumentArchiveFiles(manifest, files, materialContract, signal)
+}
+export function readLearningPackage(file: string, directory: string, signal?: AbortSignal) {
+  return readDocumentArchive(file, directory, materialContract, signal)
+}
+export function writeLearningPackage(manifest: LearningPackage, files: Map<string, string>, output: string, signal?: AbortSignal) {
+  return writeDocumentArchive(manifest, files, output, materialContract, signal)
 }

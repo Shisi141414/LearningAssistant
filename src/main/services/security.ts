@@ -67,6 +67,8 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
   [IPC.NotesLearningChange]: [learningChange('note_id', false)],
   [IPC.NotesLearningPreview]: [id],
+  [IPC.NotesPackageExport]: [record({ note_id: id, revision_id: id })],
+  [IPC.NotesPackageExportCancel]: [id],
   [IPC.NotesLearningSync]: [record({ note_id: id, expected_revision_id: id, fingerprint: v => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v) })],
   [IPC.KnowledgeSuggestStart]: [record({ source: evidenceSource, expected_note_text: optional(text(12_000)), model_db_id: id })],
   [IPC.KnowledgeSuggestList]: [evidenceSource],

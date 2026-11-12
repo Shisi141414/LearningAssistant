@@ -17,6 +17,8 @@ export const IPC = {
   NotesLearningChange: 'notes:learningChange',
   NotesLearningPreview: 'notes:learningPreview',
   NotesLearningSync: 'notes:learningSync',
+  NotesPackageExport: 'notes:packageExport',
+  NotesPackageExportCancel: 'notes:packageExportCancel',
   NotesLearningSuggestStart: 'notes:learningSuggestStart',
   NotesLearningSuggestList: 'notes:learningSuggestList',
   NotesLearningSuggestGet: 'notes:learningSuggestGet',
