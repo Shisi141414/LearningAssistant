@@ -1,6 +1,6 @@
 // 可选的真实材料验收：配置文件/教材放在仓库外或被忽略的目录，始终使用隔离应用数据。
 // node scripts/test-real-materials.cjs <local-config.json>
-// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?,assets?,crop?:{page,rect}}], converterPath?, restart?, unsupported?:[path]}
+// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?,assets?,crop?:{page,rect}}], converterPath?, restart?, packages?, unsupported?:[path]}
 const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
@@ -9,6 +9,7 @@ const configPath = path.resolve(process.argv[2] || 'missing-local-config.json')
 if (!process.versions.electron) {
   assert.ok(fs.existsSync(configPath), '请提供本地材料测试配置，不在仓库中保存私人教材路径')
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE; delete env.ELECTRON_RENDERER_URL
+  const options={env,windowsHide:true,encoding:'utf8',timeout:240_000}
   const child = require('node:child_process').spawnSync(require('electron'), [__filename, configPath], { env, windowsHide: true, encoding: 'utf8', timeout: 240_000 })
   process.stdout.write(child.stdout || ''); process.stderr.write(child.stderr || '')
   if (child.error) console.error(child.error.message)
@@ -18,24 +19,35 @@ if (!process.versions.electron) {
     const saved=JSON.parse(match[1])
     const resumed=require('node:child_process').spawnSync(require('electron'),[__filename,configPath,'--resume',saved.isolatedData],{env,windowsHide:true,encoding:'utf8',timeout:60000})
     process.stdout.write(resumed.stdout||'');process.stderr.write(resumed.stderr||'')
-    process.exit(resumed.status??1)
+    if(resumed.status!==0)process.exit(resumed.status??1)
+    if(JSON.parse(fs.readFileSync(configPath,'utf8')).packages){
+      const fresh=require('node:child_process').spawnSync(require('electron'),[__filename,configPath,'--packages-fresh',saved.isolatedData],options)
+      process.stdout.write(fresh.stdout||'');process.stderr.write(fresh.stderr||'');if(fresh.error)console.error(fresh.error.message)
+      if(fresh.status!==0)process.exit(fresh.status??1)
+      const imported=JSON.parse(/REAL_PACKAGE_TEST_OK (.+)/.exec(fresh.stdout)[1])
+      const final=require('node:child_process').spawnSync(require('electron'),[__filename,configPath,'--resume',imported.isolatedData],options)
+      process.stdout.write(final.stdout||'');process.stderr.write(final.stderr||'');if(final.error)console.error(final.error.message)
+      process.exit(final.status??1)
+    }
+    process.exit(0)
   }
   process.exit(child.status ?? 1)
 }
 const electron = require('electron'), { app } = electron
 const resumeIndex=process.argv.indexOf('--resume')
+const freshIndex=process.argv.indexOf('--packages-fresh')
 const root = resumeIndex>=0?process.argv[resumeIndex+1]:fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'learning-assistant-real-'))
 app.setPath('userData', root); app.setPath('sessionData', root)
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
-let selectedFile
+let selectedFile,saveFile
 class HiddenWindow extends electron.BrowserWindow {
   constructor(options) { super({ ...options, webPreferences: { ...options.webPreferences, backgroundThrottling: false } }) }
   show() {}
 }
 const Module = require('node:module'), originalLoad = Module._load
 Module._load = function (request, parent, isMain) {
-  if (request === 'electron') return { ...electron, BrowserWindow: HiddenWindow, dialog: { ...electron.dialog, showOpenDialog: async () => ({ canceled: false, filePaths: [selectedFile] }) }, shell: { ...electron.shell, openPath: async () => '' } }
+  if (request === 'electron') return { ...electron, BrowserWindow: HiddenWindow, dialog: { ...electron.dialog, showOpenDialog: async () => ({ canceled: false, filePaths: [selectedFile] }), showSaveDialog: async()=>({canceled:!saveFile,filePath:saveFile}) }, shell: { ...electron.shell, openPath: async file => { assert.ok(fs.existsSync(file)); return '' } } }
   return originalLoad.call(this, request, parent, isMain)
 }
 const stopWithFailure = code => { app.once('will-quit',()=>app.exit(code)); app.quit() }
@@ -47,6 +59,38 @@ app.on('browser-window-created', (_event, win) => {
       assert.equal(response.ok, true, response.error); return response.data
     }
     try {
+      if(freshIndex>=0){
+        const origin=process.argv[freshIndex+1],saved=JSON.parse(fs.readFileSync(path.join(origin,'real-material-report.json'),'utf8')),report={isolatedData:root,cases:[],unsupported:[]}
+        const subject=await call('subjects','create',{name:'文档包跨目录验收（隔离）'})
+        const db=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
+        db.prepare("INSERT OR REPLACE INTO app_config(key,value) VALUES ('materials.libreoffice',?)").run(path.join(root,'missing','soffice.com'))
+        assert.equal((await call('materials','converterStatus')).ready,false,'新目录没有可用转换器')
+        for(const item of saved.cases){
+          const expected=JSON.parse(fs.readFileSync(item.package.manifest,'utf8'))
+          selectedFile=item.package.file;const preview=await call('learning','packagePreview')
+          assert.equal(preview.sha256,item.package.sha256);assert.equal(preview.entries,expected.state.entries.length)
+          const result=await call('learning','packageImport',{ticket:preview.ticket,subject_id:subject.id,include_concepts:true}),document=await call('learning','get',{version_id:result.version_id}),detail=await call('materials','get',result.material_id)
+          const row=db.prepare('SELECT * FROM learning_package_imports WHERE version_id=?').get(result.version_id),ids=JSON.parse(row.id_map_json)
+          const reverse=key=>new Map(Object.entries(ids[key]).map(([original,local])=>[local,original])),entries=reverse('entries'),sources=reverse('sources'),assetIds=reverse('assets'),state=structuredClone(document.state)
+          state.entries=state.entries.map(entry=>({...entry,id:entries.get(entry.id),...(entry.parent_id?{parent_id:entries.get(entry.parent_id)}:{}),sources:entry.sources.map(ref=>({...ref,source_id:sources.get(ref.source_id)})),...(entry.figures?{figures:entry.figures.map(figure=>({...figure,asset_id:assetIds.get(figure.asset_id)}))}:{})}))
+          state.relations=state.relations.map(relation=>({...relation,from:entries.get(relation.from),to:entries.get(relation.to)}));assert.deepEqual(state,expected.state)
+          assert.deepEqual(document.sources.map(({id,...source})=>source),expected.sources.map(({id,...source})=>source))
+          assert.equal(hash(path.join(root,db.prepare('SELECT file_path FROM material_versions WHERE id=?').get(result.version_id).file_path)),expected.original.sha256)
+          assert.equal(row.origin_revision_id,expected.document.revision_id)
+          for(const asset of document.assets){
+            const original=expected.assets.find(a=>a.id===assetIds.get(asset.id));assert.equal(asset.sha256,original.sha256);assert.equal(asset.locator_json,original.locator_json)
+            const bytes=await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${asset.id}').then(async response=>{if(response.status!==200)throw Error('导入配图不可读取');return Array.from(new Uint8Array(await response.arrayBuffer()))})`)
+            assert.equal(crypto.createHash('sha256').update(Buffer.from(bytes)).digest('hex'),original.sha256)
+          }
+          assert.equal(db.prepare('SELECT count(*) n FROM knowledge_evidence WHERE version_id=?').get(result.version_id).n,expected.evidence.length)
+          if(expected.conversion){assert.equal(detail.conversions[0].fingerprint,expected.conversion.sha256);assert.equal(hash(path.join(root,db.prepare('SELECT file_path FROM material_conversions WHERE version_id=?').get(result.version_id).file_path)),expected.conversion.sha256);await call('materials','openConverted',result.version_id)}
+          const second=await call('learning','packagePreview'),duplicate=await call('learning','packageImport',{ticket:second.ticket,subject_id:subject.id,include_concepts:false});assert.equal(duplicate.created,false);assert.equal(duplicate.version_id,result.version_id)
+          report.cases.push({materialId:result.material_id,versionId:result.version_id,format:detail.versions[0].format,converted:detail.conversions[0],semanticSources:document.sources.length,assets:{office:!!document.asset_extraction,revision:document.revision_id,count:document.assets.length,items:document.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json}))},package:{sha256:preview.sha256,entries:document.state.entries.length,concepts:preview.concepts,evidence:preview.evidence,duplicate:true,originalUnchanged:true,conversionAvailableWithoutConverter:!!expected.conversion}})
+        }
+        assert.equal((await call('materials','converterStatus')).ready,false,'导入旧文档包没有调用转换器')
+        db.close();fs.writeFileSync(path.join(root,'real-material-report.json'),JSON.stringify(report,null,2))
+        console.log('REAL_PACKAGE_TEST_OK '+JSON.stringify(report));clearTimeout(deadline);app.quit();return
+      }
       if(resumeIndex>=0){
         const saved=JSON.parse(fs.readFileSync(path.join(root,'real-material-report.json'),'utf8'))
         await call('materials','converterAuto')
@@ -73,6 +117,7 @@ app.on('browser-window-created', (_event, win) => {
       if(config.converterPath){selectedFile=path.resolve(config.converterPath);assert.equal((await call('materials','converterPick')).ready,true)}
       const subject = await call('subjects', 'create', { name: '真实材料验收（隔离）' })
       const report = { isolatedData: root, cases: [], unsupported: [] }
+      const packageDirectory=config.packages?fs.mkdtempSync(path.join(require('node:os').tmpdir(),'learning-real-packages-')):null
       for (const test of config.cases) {
         selectedFile = path.resolve(test.path)
         const before = hash(selectedFile)
@@ -139,7 +184,22 @@ app.on('browser-window-created', (_event, win) => {
           assert.equal(hash(path.join(root,'materials',version.id,`converted.${converted.format}`)),converted.fingerprint)
           assert.equal(hash(path.join(root,'materials',version.id,`source.${version.format}`)),before)
         }
-        report.cases.push({ materialId:material.id,versionId:version.id,converted,assets,format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, semanticSources, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
+        let bundle
+        if(config.packages){
+          let document=await call('learning','prepare',version.id)
+          const textEntry=document.state.entries.find(entry=>entry.sources.some(ref=>document.sources.find(source=>source.id===ref.source_id).raw_text.includes(test.query||'\u0000')))||document.state.entries.find(entry=>entry.sources.some(ref=>document.sources.find(source=>source.id===ref.source_id).raw_text.trim()))||document.state.entries[0]
+          document=await call('learning','change',{version_id:version.id,expected_revision_id:document.revision_id,entry_id:textEntry.id,action:'edit',type:'note',title:'跨目录验收标记（人工）'})
+          if(document.assets.length){const asset=document.assets[0],locator=JSON.parse(asset.locator_json),source=document.sources.find(source=>{const loc=JSON.parse(source.locator_json);return locator.page?loc.page===locator.page:locator.slide?loc.slide===locator.slide:false}),entry=source?document.state.entries.find(entry=>entry.sources.some(ref=>ref.source_id===source.id)):textEntry
+            document=await call('learning','change',{version_id:version.id,expected_revision_id:document.revision_id,entry_id:entry.id,action:'figure',figure:{asset_id:asset.id,caption:'跨目录验收配图（人工指定，非自动图文理解）'}})}
+          if(test.query){const concept=await call('concepts','save',{subject_id:subject.id,name:test.query,summary:'真实材料包往返验收，人工登记',aliases:[]});await call('evidence','add',{concept_id:concept.id,source:{kind:'learning',material_id:material.id,version_id:version.id,revision_id:document.revision_id,entry_id:textEntry.id},role:'source',memo:'真实材料包固定修订验收'})}
+          if(assets)assets.revision=document.revision_id
+          saveFile=path.join(packageDirectory,`${report.cases.length+1}.ladoc`);const exported=await call('learning','packageExport',{version_id:version.id,revision_id:document.revision_id})
+          const {unzipSync}=require('fflate'),manifest=JSON.parse(Buffer.from(unzipSync(fs.readFileSync(saveFile),{filter:file=>file.name==='document.json'})['document.json']).toString('utf8'))
+          const manifestFile=path.join(packageDirectory,`${report.cases.length+1}.json`);fs.writeFileSync(manifestFile,JSON.stringify(manifest))
+          assert.equal(exported.sha256,hash(saveFile));assert.equal(manifest.original.sha256,before);assert.deepEqual(manifest.state,document.state)
+          bundle={file:saveFile,manifest:manifestFile,sha256:exported.sha256,byte_length:exported.byte_length}
+        }
+        report.cases.push({ materialId:material.id,versionId:version.id,converted,assets,package:bundle,format: version.format, blocks: blocks.length, sourcePagesOrSlides: pages, semanticSources, needsOcr: !!test.expectOcr, queryHit: !!test.query, conceptLinked: !!test.concept, originalUnchanged: true, deduplicated: true })
       }
       for (const file of config.unsupported ?? []) {
         selectedFile = path.resolve(file)

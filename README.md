@@ -83,6 +83,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [PDF 原页选区配图、坐标来源与回链](docs/20-pdf-figure-crops.md)
 - [可移植学习文档包：契约、后台校验与所选修订导出](docs/21-portable-learning-package.md)
 - [学习文档包预览、确认导入与中断恢复](docs/22-portable-learning-import.md)
+- [真实 PDF、旧 DOC/PPT 文档包跨目录验收](docs/23-real-portable-materials.md)
 
 ## 开发约定
 
