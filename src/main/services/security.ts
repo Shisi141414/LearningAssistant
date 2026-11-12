@@ -49,6 +49,7 @@ const conceptInput = { subject_id: nullable(id), name: text(120, true), summary:
 const evidenceInput = { source: evidenceSource, expected_note_text: optional(text(40_000)), role: choice(...Object.keys(evidenceRoles)), memo: text(2000) }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
   [IPC.KnowledgeSuggestStart]: [record({ source: evidenceSource, expected_note_text: optional(text(12_000)), model_db_id: id })],
   [IPC.KnowledgeSuggestList]: [evidenceSource],
   [IPC.KnowledgeSuggestGet]: [id],

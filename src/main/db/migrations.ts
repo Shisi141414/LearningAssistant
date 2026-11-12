@@ -488,5 +488,36 @@ CREATE TABLE learning_package_imports (
   UNIQUE(package_sha256, subject_id)
 );
 `
+  },
+  {
+    version: 16,
+    name: 'note_learning_snapshots',
+    sql: `
+ALTER TABLE note_segments ADD COLUMN organized_model TEXT;
+CREATE TABLE note_learning_documents (
+  id TEXT PRIMARY KEY,
+  note_id TEXT UNIQUE REFERENCES notes(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL
+);
+-- 每次成功保存只写发生变化的段落；不复制整堂课，避免拖慢转写。
+CREATE TABLE note_learning_blocks (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES note_learning_documents(id) ON DELETE RESTRICT,
+  segment_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  snapshot_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(document_id, segment_id, fingerprint)
+);
+CREATE TABLE note_learning_revisions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES note_learning_documents(id) ON DELETE RESTRICT,
+  title TEXT NOT NULL,
+  subject_id TEXT,
+  block_ids_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_note_learning_history ON note_learning_revisions(document_id, created_at);
+`
   }
 ]

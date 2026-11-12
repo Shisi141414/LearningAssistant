@@ -11,6 +11,7 @@
  */
 
 export const IPC = {
+  NotesLearningGet: 'notes:learningGet',
   EvidenceAdd: 'evidence:add',
   EvidenceCreateConcept: 'evidence:createConcept',
   EvidenceList: 'evidence:list',

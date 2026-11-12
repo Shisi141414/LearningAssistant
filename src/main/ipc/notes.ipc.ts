@@ -11,6 +11,7 @@ import { ipcMain, handleResult } from './helpers'
 import { nanoid } from 'nanoid'
 import { addSegment } from '../services/segments'
 import { attachMaterialRefs } from '../services/classroom-materials'
+import { captureNoteLearning, getNoteLearning } from '../services/note-learning'
 
 interface NoteRow {
   id: string
@@ -53,6 +54,7 @@ function touchNote(db: ReturnType<typeof getDb>, noteId: ID): void {
 }
 
 export function registerNotesIpc(): void {
+  ipcMain.handle(IPC.NotesLearningGet, (_e, input: { note_id: ID; revision_id?: ID }) => handleResult(() => getNoteLearning(input)))
   /* ---------- 笔记 ---------- */
 
   ipcMain.handle(IPC.NotesList, (_e, filter?: { subject_id?: ID | null; activity_id?: ID | null }) =>
@@ -142,24 +144,31 @@ export function registerNotesIpc(): void {
   ipcMain.handle(IPC.NotesUpdateSegment, (_e, { id, ...patch }: { id: ID; seg_type?: SegmentType; raw_text?: string; organized_text?: string }) =>
     handleResult(() => {
       const db = getDb()
-      const cur = db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as SegmentRow | undefined
-      if (!cur) throw new Error('段落不存在')
-      const next: NoteSegment = { ...rowToSegment(cur), ...patch, updated_at: Date.now() }
-      db.prepare("UPDATE note_segments SET seg_type = ?, raw_text = ?, organized_text = ?, updated_at = ?, revision = revision + 1, organized_by = 'user', organize_status = 'idle', organize_error = NULL WHERE id = ?").run(
-        next.seg_type, next.raw_text, next.organized_text, next.updated_at, id
-      )
-      touchNote(db, cur.note_id)
-      return next
+      return db.transaction(() => {
+        const cur = db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as SegmentRow | undefined
+        if (!cur) throw new Error('段落不存在')
+        captureNoteLearning(id)
+        const next: NoteSegment = { ...rowToSegment(cur), ...patch, updated_at: Date.now() }
+        db.prepare("UPDATE note_segments SET seg_type = ?, raw_text = ?, organized_text = ?, updated_at = ?, revision = revision + 1, organized_by = 'user', organized_model = NULL, organize_status = 'idle', organize_error = NULL WHERE id = ?").run(
+          next.seg_type, next.raw_text, next.organized_text, next.updated_at, id
+        )
+        touchNote(db, cur.note_id)
+        captureNoteLearning(id)
+        return db.prepare('SELECT * FROM note_segments WHERE id=?').get(id) as NoteSegment
+      })()
     })
   )
 
   ipcMain.handle(IPC.NotesRemoveSegment, (_e, id: ID) =>
     handleResult(() => {
       const db = getDb()
-      const cur = db.prepare('SELECT note_id FROM note_segments WHERE id = ?').get(id) as { note_id: string } | undefined
-      db.prepare('DELETE FROM note_segments WHERE id = ?').run(id)
-      if (cur) touchNote(db, cur.note_id)
-      return true
+      return db.transaction(() => {
+        const cur = db.prepare('SELECT note_id FROM note_segments WHERE id = ?').get(id) as { note_id: string } | undefined
+        if (cur) captureNoteLearning(id)
+        db.prepare('DELETE FROM note_segments WHERE id = ?').run(id)
+        if (cur) touchNote(db, cur.note_id)
+        return true
+      })()
     })
   )
 

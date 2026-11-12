@@ -12,7 +12,7 @@ import type {
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
-  ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, Annotation, AnnotationKind,
+  ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, NoteLearningDocument, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
   InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID,
   Activity, ActivityInput, ActivityKind,
@@ -110,6 +110,7 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.ModelsRemove, id)
   },
   notes: {
+    learningGet: (input: { note_id: ID; revision_id?: ID }) => invoke<NoteLearningDocument | null>(IPC.NotesLearningGet, input),
     list: (filter?: { subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note[]>(IPC.NotesList, filter),
     get: (id: ID) => invoke<NoteWithSegments>(IPC.NotesGet, id),
     create: (input: { title: string; subject_id?: ID | null; activity_id?: ID | null; source?: Note['source'] }) => invoke<Note>(IPC.NotesCreate, input),

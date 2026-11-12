@@ -7,6 +7,7 @@ import { getProviderWithKey } from '../ipc/providers.ipc'
 import { pickModel } from '../ipc/chat.ipc'
 import { configGet } from './config'
 import { segmentMaterialContext } from './classroom-materials'
+import { captureNoteLearning } from './note-learning'
 
 const running = new Map<ID, Promise<SegmentOrganizedEvent>>()
 export function organizeSegment(id: ID): Promise<SegmentOrganizedEvent> {
@@ -26,10 +27,15 @@ export function organizeSegment(id: ID): Promise<SegmentOrganizedEvent> {
       const response = await completeChat({ ...provider, apiKey }, model.model_id, buildOrganizePrompt(seg.raw_text, subject?.name ?? undefined, segmentMaterialContext(id)))
       const parsed = parseOrganizedResponse(response, seg.raw_text)
       if (parsed.fallback) throw new Error('模型输出无法解析，已保留原文')
-      const result = db.prepare(`UPDATE note_segments SET seg_type = ?, organized_text = ?, organized_by = 'ai',
-        organize_status = 'done', organize_error = NULL, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?`).run(parsed.seg_type, parsed.organized_text, Date.now(), id, seg.revision ?? 0)
-      if (!result.changes) throw new Error('生成期间段落已被编辑，保留你的修改，请重新整理')
-      db.prepare('UPDATE notes SET updated_at = ? WHERE id = ?').run(Date.now(), seg.note_id)
+      db.transaction(() => {
+        // 旧笔记升级时也先保留生成前的来源；发布失败则和整理稿一起回滚。
+        captureNoteLearning(id)
+        const result = db.prepare(`UPDATE note_segments SET seg_type = ?, organized_text = ?, organized_by = 'ai', organized_model = ?,
+          organize_status = 'done', organize_error = NULL, revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ?`).run(parsed.seg_type, parsed.organized_text, model.model_id, Date.now(), id, seg.revision ?? 0)
+        if (!result.changes) throw new Error('生成期间段落已被编辑，保留你的修改，请重新整理')
+        db.prepare('UPDATE notes SET updated_at = ? WHERE id = ?').run(Date.now(), seg.note_id)
+        captureNoteLearning(id)
+      })()
       return { segment_id: id, ...parsed }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

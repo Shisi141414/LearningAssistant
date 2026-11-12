@@ -166,6 +166,7 @@ export interface NoteSegment {
   material_ref?: MaterialAnchor | null
   revision?: number
   organized_by?: 'initial' | 'ai' | 'user'
+  organized_model?: string | null
   organize_status?: 'idle' | 'pending' | 'processing' | 'done' | 'failed' | 'conflict'
   organize_error?: string | null
   id: ID
@@ -482,6 +483,19 @@ export interface LearningDocument {
   id: ID; version_id: ID; current_revision_id: ID; revision_id: ID; created_at: number
   sources: LearningSource[]; state: LearningState; history: { id: ID; created_at: number }[]
   assets?: LearningAsset[]; asset_extraction?: LearningAssetExtraction | null
+}
+/** 笔记沿用学习文档的语义模型；原始转写另存为来源证据，不冒充整理稿。 */
+export interface NoteLearningOrigin {
+  segment_id: ID; segment_revision: number; raw_text: string; organized_by: 'initial' | 'ai' | 'user'
+  model: string | null; recorded_at: number; updated_at: number; material_ref: MaterialAnchor | null
+}
+export interface NoteLearningBlock {
+  source: LearningSource; state: LearningState; origin: NoteLearningOrigin
+}
+export interface NoteLearningDocument {
+  id: ID; note_id: ID; revision_id: ID; current_revision_id: ID; created_at: number
+  title: string; subject_id: ID | null; sources: LearningSource[]; state: LearningState
+  origins: Record<ID, NoteLearningOrigin>; history: { id: ID; created_at: number }[]
 }
 export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_id: ID } & (
   { action: 'edit'; type: LearningEntryType; title: string } |

@@ -3,6 +3,7 @@ import type { NoteSegment, SegmentInput } from '@shared/types'
 import { getDb } from './db'
 import { configGet } from './config'
 import { segmentMaterialRef } from './classroom-materials'
+import { captureNoteLearning } from './note-learning'
 
 export function addSegment(input: SegmentInput): NoteSegment {
   const db = getDb()
@@ -16,6 +17,7 @@ export function addSegment(input: SegmentInput): NoteSegment {
       VALUES (?,?,?,?,?,?,?,?,?)`).run(id, input.note_id, max.m + 1, input.seg_type ?? 'other', input.raw_text ?? '', input.organized_text ?? input.raw_text ?? '', now, now, pending ? 'pending' : 'idle')
     db.prepare('UPDATE notes SET updated_at = ? WHERE id = ?').run(now, input.note_id)
     db.prepare('INSERT INTO segment_material_refs (segment_id, block_id) SELECT ?, block_id FROM classroom_positions WHERE note_id = ? AND block_id IS NOT NULL').run(id, input.note_id)
+    captureNoteLearning(id)
     return { ...db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as NoteSegment, material_ref: segmentMaterialRef(id) }
   })()
 }

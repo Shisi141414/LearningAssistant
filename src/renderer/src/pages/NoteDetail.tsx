@@ -15,6 +15,7 @@ import { useAppStore } from '../stores/app'
 import { materialHref, materialLocation } from '../utils/material'
 import { ConceptText } from '../components/ConceptText'
 import { KnowledgeEvidence } from '../components/KnowledgeEvidence'
+import { NoteLearningReader } from '../components/NoteLearningReader'
 
 type ViewMode = 'organized' | 'raw'
 
@@ -26,6 +27,7 @@ export function NoteDetail() {
   const [note, setNote] = useState<NoteWithSegments | null>(null)
   const [view, setView] = useState<ViewMode>(params.get('view') === 'raw' ? 'raw' : 'organized')
   const [title, setTitle] = useState('')
+  const [uniform, setUniform] = useState(false)
 
   const reload = useCallback(async () => {
     if (!noteId) return
@@ -39,6 +41,7 @@ export function NoteDetail() {
   }, [noteId, showToast])
 
   useEffect(() => {
+    setUniform(false)
     void reload()
   }, [reload])
 
@@ -110,15 +113,16 @@ export function NoteDetail() {
           style={{ fontWeight: 700, fontSize: 16, flex: 1, maxWidth: 480 }}
         />
         <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <button aria-pressed={uniform} style={{ background: uniform ? 'var(--accent-weak)' : 'var(--bg-panel)', color: uniform ? 'var(--accent)' : 'var(--text)' }} onClick={() => setUniform(true)}>统一文档</button>
           <button
-            style={{ borderRadius: 0, border: 'none', background: view === 'organized' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'organized' ? 'var(--accent)' : 'var(--text)' }}
-            onClick={() => setView('organized')}
+            style={{ borderRadius: 0, border: 'none', background: !uniform && view === 'organized' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: !uniform && view === 'organized' ? 'var(--accent)' : 'var(--text)' }}
+            onClick={() => { setUniform(false); setView('organized') }}
           >
             整理视图
           </button>
           <button
-            style={{ borderRadius: 0, border: 'none', borderLeft: '1px solid var(--border)', background: view === 'raw' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'raw' ? 'var(--accent)' : 'var(--text)' }}
-            onClick={() => setView('raw')}
+            style={{ borderRadius: 0, border: 'none', borderLeft: '1px solid var(--border)', background: !uniform && view === 'raw' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: !uniform && view === 'raw' ? 'var(--accent)' : 'var(--text)' }}
+            onClick={() => { setUniform(false); setView('raw') }}
           >
             原文视图
           </button>
@@ -128,6 +132,7 @@ export function NoteDetail() {
         </button>
       </div>
 
+      {uniform ? <NoteLearningReader key={note.id} noteId={note.id} onOpenOriginal={() => { setUniform(false); setView('raw'); void reload() }} /> : <>
       <div className="muted" style={{ marginBottom: 12 }}>
         {view === 'organized'
           ? '整理视图：显示整理后的内容（M1 起由课堂转写流水线自动生成）。选中文字后用底部快捷栏可标注。'
@@ -202,6 +207,7 @@ export function NoteDetail() {
           </div>
         )
       })}
+      </>}
     </div>
   )
 }
