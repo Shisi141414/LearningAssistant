@@ -1,4 +1,7 @@
 .learning-reader { margin-top: 20px; }
+.learning-live-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; font-size: 12px; color: var(--text-2); }
+.learning-live-status label { display: flex; align-items: center; gap: 5px; }
+.learning-live-status p { flex-basis: 100%; margin: 0; line-height: 1.7; }
 .learning-sync-notice, .learning-sync-preview { padding: 14px; border: 1px solid var(--border); border-left: 3px solid var(--accent); margin: 16px 0; background: var(--bg-panel); }
 .learning-sync-preview > details { padding: 10px 0; border-bottom: 1px solid var(--border); }
 .learning-sync-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }

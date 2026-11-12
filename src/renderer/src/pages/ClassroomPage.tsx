@@ -5,7 +5,7 @@
  *      → partial 实时上屏 / final 落段 → AI 整理（自动，可关）→ 分色双视图 → 标注
  * 无语音引擎时降级为"手动转写模式"（粘贴/输入文本，管线一致）——ADR-0 离线优先。
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { Activity, AsrStatus, NoteWithSegments, MaterialAnchor, ClassroomPosition } from '@shared/types'
 import { SEGMENT_TYPE_META } from '@shared/types'
@@ -13,9 +13,10 @@ import { MarkdownSegment } from '../components/MarkdownSegment'
 import { useAppStore } from '../stores/app'
 import { ClassroomMaterialPanel } from '../components/ClassroomMaterialPanel'
 import { materialLocation } from '../utils/material'
+import { NoteLearningReader } from '../components/NoteLearningReader'
 
 type Phase = 'setup' | 'live'
-type ViewMode = 'organized' | 'raw'
+type ViewMode = 'uniform' | 'organized' | 'raw'
 
 /** 麦克风采集句柄 */
 interface MicHandle {
@@ -87,7 +88,11 @@ export function ClassroomPage() {
   const [recording, setRecording] = useState(false)
   const [asrMode, setAsrMode] = useState(false) // 语音引擎是否在跑
   const [autoOrganize, setAutoOrganize] = useState(true)
-  const [view, setView] = useState<ViewMode>('organized')
+  const [view, setView] = useState<ViewMode>('uniform')
+  const [focusedSegment, setFocusedSegment] = useState('')
+  // partial 变化不会刷新文档；只在持久化段落列表/正文改变后产生通知。
+  const liveRevision = useMemo(() => ({}), [note?.segments])
+  const liveDocument = useMemo(() => ({ revision: liveRevision, active: view === 'uniform' }), [liveRevision, view])
   const [organizingIds, setOrganizingIds] = useState<Set<string>>(new Set())
   const [manualText, setManualText] = useState('')
   const [manualSaving, setManualSaving] = useState(false)
@@ -138,7 +143,7 @@ export function ClassroomPage() {
         showToast(`段落保存失败：${res.error}`)
         return false
       }
-      setNote((n) => (n ? { ...n, segments: [...n.segments, res.data] } : n))
+      setNote((n) => n?.id === res.data.note_id && !n.segments.some(segment => segment.id === res.data.id) ? { ...n, segments: [...n.segments, res.data] } : n)
       if (autoRef.current) void triggerOrganize(res.data.id)
       return true
     },
@@ -175,7 +180,7 @@ export function ClassroomPage() {
         return next
       })
       setNote((n) =>
-        n
+        n?.segments.some(segment => segment.id === e.segment_id)
           ? {
               ...n,
               segments: n.segments.map((seg) =>
@@ -205,8 +210,12 @@ export function ClassroomPage() {
 
   // 新段落时滚动到底
   useEffect(() => {
+    if (view === 'uniform' || focusedSegment) return
     segmentsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [note?.segments.length, partial])
+  }, [note?.segments.length, partial, view, focusedSegment])
+  useEffect(() => {
+    if (view === 'raw' && focusedSegment) window.document.getElementById(`classroom-segment-${focusedSegment}`)?.scrollIntoView({ block: 'center' })
+  }, [view, focusedSegment])
 
   /* ---- actions ---- */
 
@@ -224,6 +233,7 @@ export function ClassroomPage() {
       noteRef.current = res.data.id
       const saved = resumeNote ?? { ...res.data, segments: [], annotations: [] }
       setNote(saved)
+      setView('uniform'); setFocusedSegment('')
       setResumeNote(saved)
       const calibrated = await window.api.classroom.calibrate({ note_id: saved.id, block_id: startAnchor?.id ?? null })
       if (!calibrated.ok) throw new Error(calibrated.error)
@@ -332,6 +342,17 @@ export function ClassroomPage() {
     } finally { setRetrying(false) }
   }
 
+  const openOriginal = useCallback(async (segmentId: string): Promise<void> => {
+    const noteId = noteRef.current
+    if (!noteId) return
+    const saved = await window.api.notes.get(noteId)
+    if (!mountedRef.current || noteRef.current !== noteId) return
+    if (!saved.ok) { showToast(saved.error); return }
+    if (!saved.data.segments.some(segment => segment.id === segmentId)) { showToast('当前段落已删除；当时的原始转写仍保留在统一文档来源中'); return }
+    setNote(saved.data); setView('raw'); setFocusedSegment(segmentId)
+  }, [showToast])
+  const classroomNavigation = useMemo(() => ({ original: (segmentId: string) => void openOriginal(segmentId), material: (anchor: MaterialAnchor) => setFocusTarget({ anchor, token: Date.now() }) }), [openOriginal])
+
   /* ---- 渲染 ---- */
 
   if (phase === 'setup') {
@@ -425,16 +446,17 @@ export function ClassroomPage() {
         <label style={{ fontSize: 13, color: 'var(--text-2)', display: 'flex', gap: 4, alignItems: 'center' }}>
           <input type="checkbox" checked={autoOrganize} onChange={(e) => { setAutoOrganize(e.target.checked); void window.api.config.set('classroom.autoOrganize', e.target.checked ? '1' : '0') }} /> 自动整理
         </label>
-        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+        <div className="classroom-view-tabs" role="group" aria-label="课堂记录视图">
+          <button aria-pressed={view === 'uniform'} onClick={() => setView('uniform')}>统一文档</button>
           <button
             style={{ borderRadius: 0, border: 'none', background: view === 'organized' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'organized' ? 'var(--accent)' : 'var(--text)' }}
-            onClick={() => setView('organized')}
+            aria-pressed={view === 'organized'} onClick={() => { setView('organized'); setFocusedSegment('') }}
           >
             整理视图
           </button>
           <button
             style={{ borderRadius: 0, border: 'none', borderLeft: '1px solid var(--border)', background: view === 'raw' ? 'var(--accent-weak)' : 'var(--bg-panel)', color: view === 'raw' ? 'var(--accent)' : 'var(--text)' }}
-            onClick={() => setView('raw')}
+            aria-pressed={view === 'raw'} onClick={() => { setView('raw'); setFocusedSegment('') }}
           >
             原文视图
           </button>
@@ -455,13 +477,14 @@ export function ClassroomPage() {
         <div className="partial-line">
           {recording ? partial || '（聆听中…）' : asrMode ? '（未开始录音——点击「开始录音」）' : '（手动转写模式：在下方输入框记录）'}
         </div>
-
-        {note?.segments.map((seg) => {
+        {organizingIds.size > 0 && <p className="muted" role="status">正在整理 {organizingIds.size} 段；原始转写已保存。</p>}
+        {note && <div hidden={view !== 'uniform'}><NoteLearningReader key={note.id} noteId={note.id} live={liveDocument} classroomNavigation={classroomNavigation} /></div>}
+        {view !== 'uniform' && note?.segments.map((seg) => {
           const meta = SEGMENT_TYPE_META[seg.seg_type]
           const organizing = organizingIds.has(seg.id)
           const text = view === 'organized' ? seg.organized_text || seg.raw_text : seg.raw_text
           return (
-            <div key={seg.id} className="segment" data-segment-id={seg.id} style={{ ['--seg-color' as string]: meta.color }}>
+            <div id={`classroom-segment-${seg.id}`} key={seg.id} className={`segment${focusedSegment === seg.id ? ' classroom-segment-focused' : ''}`} data-segment-id={seg.id} style={{ ['--seg-color' as string]: meta.color }}>
               <div className="segment-head">
                 <span className="tag">{meta.label}</span>
                 {organizing && <span className="organizing-tag">AI 整理中…</span>}
@@ -514,6 +537,7 @@ export function ClassroomPage() {
 
       <div className="chat-input" style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 4 }}>
         <textarea
+          aria-label="课堂手动记录"
           placeholder="手动转写/补充记录（Enter 添加段落，Shift+Enter 换行）"
           value={manualText}
           onChange={(e) => setManualText(e.target.value)}

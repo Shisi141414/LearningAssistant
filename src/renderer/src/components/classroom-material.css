@@ -20,6 +20,17 @@
 .classroom-transcript { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .classroom-transcript-scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .classroom-transcript .toolbar, .classroom-transcript .segment-head { flex-wrap: wrap; }
+.classroom-view-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.classroom-view-tabs button[aria-pressed='true'] { background: var(--accent-weak); color: var(--accent); }
+.classroom-transcript .learning-reader { margin-top: 0; }
+.classroom-transcript .learning-intro { font-size: 12px; margin-top: 0; }
+.classroom-transcript .learning-entry { padding-left: 10px; }
+.classroom-transcript .learning-toolbar input { min-width: 0; flex-basis: 100%; }
+.learning-reader-embedded[data-tools-open='false'] > .learning-intro,
+.learning-reader-embedded[data-tools-open='false'] > .learning-toolbar,
+.learning-reader-embedded[data-tools-open='false'] > .learning-pdf-export,
+.learning-reader-embedded[data-tools-open='false'] > .learning-outline { display: none; }
+.classroom-segment-focused { outline: 2px solid var(--accent); outline-offset: -2px; scroll-margin-top: 12px; }
 .classroom-source { display: block; width: fit-content; font-size: 12px; color: var(--accent); margin-bottom: 8px; text-align: left; }
 .classroom-source.anchored { background: var(--accent-weak); }
 .pdf-page { overflow: hidden; background: #fff; }
