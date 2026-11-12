@@ -152,3 +152,7 @@ Pix2Text Python sidecar 接入 OCR 管线：第三引擎「文字+公式」（�
 ## OCR 状态误报修复与批量放开（2026-11-12）
 
 修复「已安装/已下载但显示未就绪」：Pix2Text 检测改查 importlib.metadata（原 import pix2text 需加载 torch，冷启动数十秒被 20s 超时误判为未安装）、解释器依次探测 python/py/python3、指引改 python -m pip 防环境错位；ppocr 状态增加缺失文件明细。OCR 批量移除 20 页上限，超时改为按页数×引擎速度自适应（上限 2 小时），UI 显示预估用时，见 [修复记录](35-ocr-status-and-batch.md)。office-conversion 进程树清理测试在 VM 间歇性失败（时序型 flaky），待 Windows 端确认。
+
+## Pix2Text 依赖链诊断与双击启动（2026-11-12）
+
+用户实测踩中 rapidocr 版本错位（pix2text→cnocr 新版要求 rapidocr≥3.9.1，旧版无 resolve_model_key 即 ImportError）：pix2textStatus 增加依赖链元数据检查（cnocr/rapidocr 版本与 issue 提示，UI/入口报错直给升级命令）。另交付双击启动：`启动学习助手.bat`（每次构建防陈旧产物+生产模式启动）与 `创建桌面快捷方式.bat`；正式打包（electron-builder）仍留 M5，见 [批次记录](36-p2t-deps-and-launcher.md)。

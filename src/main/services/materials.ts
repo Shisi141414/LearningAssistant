@@ -142,7 +142,8 @@ export async function startMaterialOcr(input: OcrInput): Promise<string> {
     if (input.engine === 'pix2text') {
       const status = await pix2textStatus()
       if (!status.python) throw new Error(status.pythonDetail)
-      if (!status.pix2text) throw new Error('本机 Python 未安装 pix2text 包。请在终端执行：pip install pix2text（清华源：pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple），完成后再试')
+      if (!status.pix2text) throw new Error('本机 Python 未安装 pix2text 包。请在终端执行：python -m pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple，完成后再试')
+      if (status.issue) throw new Error(status.issue)
     } else if (input.engine === 'tesseract') {
       if (!(await ocrModelsStatus()).ready) throw new Error('请先准备中英文 OCR 语言包')
     } else {

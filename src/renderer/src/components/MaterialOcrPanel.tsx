@@ -15,7 +15,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [models, setModels] = useState<OcrModelsStatus | null>(null)
   const [ppocr, setPpocr] = useState<{ presets: Array<{ key: string; label: string; ready: boolean; missing: string[] }> } | null>(null)
-  const [p2t, setP2t] = useState<{ python: boolean; pythonDetail: string; pix2text: boolean; pix2textVersion: string | null; sidecarRunning: boolean } | null>(null)
+  const [p2t, setP2t] = useState<{ python: boolean; pythonDetail: string; pix2text: boolean; pix2textVersion: string | null; sidecarRunning: boolean; issue: string | null } | null>(null)
   const [engine, setEngine] = useState<'ppocr' | 'pix2text' | 'tesseract'>('ppocr')
   const [language, setLanguage] = useState('zh-en')
   const [from, setFrom] = useState(1), [to, setTo] = useState(1)
@@ -113,11 +113,13 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
     </div>
     {engine === 'pix2text' && !p2tReady && (
       <div className="ocr-p2t-guide">
-        {p2t && !p2t.python
-          ? <p>未检测到可用的 Python。请安装 Python 3.8+（安装时勾选 Add python.exe to PATH），完成后点「重新检测」。</p>
-          : <p>本机 Python 已就绪（{p2t?.pythonDetail}），但缺少 pix2text 包。请在终端执行：</p>}
-        {p2t?.python && <p><code>python -m pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>}
-        <p className="muted">用 python -m pip 而非裸 pip，避免 pip 与 python 指向不同环境导致「装了仍提示未安装」。装完点「重新检测」。首次识别会自动下载公式识别模型（约 200 MiB，缓存到用户目录），首次请求可能需要几分钟；识别结果中公式为 LaTeX，可在笔记中用 $..$ / $$..$$ 渲染。</p>
+        {p2t?.issue
+          ? <p role="alert">{p2t.issue}（清华源可加 -i https://pypi.tuna.tsinghua.edu.cn/simple）</p>
+          : p2t && !p2t.python
+            ? <p>未检测到可用的 Python。请安装 Python 3.8+（安装时勾选 Add python.exe to PATH），完成后点「重新检测」。</p>
+            : <p>本机 Python 已就绪（{p2t?.pythonDetail}），但缺少 pix2text 包。请在终端执行：</p>}
+        {p2t?.python && !p2t?.issue && <p><code>python -m pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>}
+        {!p2t?.issue && <p className="muted">用 python -m pip 而非裸 pip，避免 pip 与 python 指向不同环境导致「装了仍提示未安装」。装完点「重新检测」。首次识别会自动下载公式识别模型（约 200 MiB，缓存到用户目录），首次请求可能需要几分钟；识别结果中公式为 LaTeX，可在笔记中用 $..$ / $$..$$ 渲染。</p>}
       </div>
     )}
     <div className="toolbar ocr-range">

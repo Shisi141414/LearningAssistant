@@ -21,6 +21,8 @@ export interface Pix2TextStatus {
   pix2text: boolean
   pix2textVersion: string | null
   sidecarRunning: boolean
+  /** 依赖链健康问题（人话+修复命令）；null 表示健康或 python/pix2text 本身缺失（走通用指引） */
+  issue: string | null
 }
 
 /** 内嵌 sidecar 脚本（版本随代码演进，落盘到 userData 执行） */
@@ -150,17 +152,45 @@ export async function pix2textStatus(): Promise<Pix2TextStatus> {
       continue
     }
     resolvedCommand = candidate
-    const pkg = await runPython(['-c', 'import importlib.metadata as m; print(m.version("pix2text"))'], 20_000)
-    const p2tOk = pkg.code === 0 && /^\d/.test(pkg.stdout.trim())
+    // 一次 spawn 查全依赖链元数据（毫秒级、不加载 torch）。
+    // 背景：pix2text → cnocr(新版) → rapidocr>=3.9.1；rapidocr 旧版没有
+    // resolve_model_key，出现"装了 pix2text 但识别即 ImportError"的错位
+    // （用户 Python 3.14 上 pip 解析出旧 rapidocr 实测踩中，2026-11）。
+    const pkg = await runPython(['-c', "import importlib.metadata as m\nfor name in ('pix2text','cnocr','rapidocr'):\n    try: print(name + '=' + m.version(name))\n    except Exception: print(name + '=MISSING')"], 20_000)
+    const found: Record<string, string> = {}
+    for (const line of pkg.stdout.split('\n')) {
+      const match = /^(\w+)=(.+)$/.exec(line.trim())
+      if (match) found[match[1]] = match[2]
+    }
+    const p2tOk = !!found.pix2text && found.pix2text !== 'MISSING'
+    let issue: string | null = null
+    if (p2tOk) {
+      if (!found.cnocr || found.cnocr === 'MISSING' || !found.rapidocr || found.rapidocr === 'MISSING') {
+        issue = 'pix2text 依赖不完整（缺 cnocr 或 rapidocr）。请执行：python -m pip install --force-reinstall pix2text'
+      } else if (versionLt(found.rapidocr, '3.9.1')) {
+        issue = `rapidocr 版本过旧（${found.rapidocr}，需 ≥3.9.1——cnocr 新版依赖其 API，旧版会在识别时报 ImportError）。请执行：python -m pip install -U rapidocr`
+      }
+    }
     return {
       python: true,
       pythonDetail: `Python ${detail.stdout.trim()}（${candidate.cmd}）`,
       pix2text: p2tOk,
-      pix2textVersion: p2tOk ? pkg.stdout.trim() : null,
-      sidecarRunning: !!sidecar
+      pix2textVersion: p2tOk ? found.pix2text ?? null : null,
+      sidecarRunning: !!sidecar,
+      issue
     }
   }
-  return { python: false, pythonDetail: lastDetail || '未找到可用的 python 命令（安装 Python 3.8+ 并加入 PATH；Windows 也可用 py 启动器）', pix2text: false, pix2textVersion: null, sidecarRunning: !!sidecar }
+  return { python: false, pythonDetail: lastDetail || '未找到可用的 python 命令（安装 Python 3.8+ 并加入 PATH；Windows 也可用 py 启动器）', pix2text: false, pix2textVersion: null, sidecarRunning: !!sidecar, issue: null }
+}
+
+/** 语义化版本比较：a < b（仅数字段，缺失段按 0） */
+function versionLt(a: string, b: string): boolean {
+  const pa = a.split('.').map(Number), pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0
+    if (x !== y) return x < y
+  }
+  return false
 }
 
 async function sidecarScriptPath(): Promise<string> {
@@ -179,7 +209,8 @@ export async function ensurePix2TextSidecar(): Promise<string> {
   }
   const status = await pix2textStatus()
   if (!status.python) throw new Error(status.pythonDetail)
-  if (!status.pix2text) throw new Error('本机 Python 未安装 pix2text 包。请在终端执行：pip install pix2text（清华源：pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple），完成后再试')
+  if (!status.pix2text) throw new Error('本机 Python 未安装 pix2text 包。请在终端执行：python -m pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple，完成后再试')
+  if (status.issue) throw new Error(status.issue)
 
   return withWork('公式识别服务启动', async () => {
     if (sidecar) { lastUsedAt = Date.now(); return `http://127.0.0.1:${sidecar.port}` }
