@@ -127,6 +127,7 @@ export const IPC = {
   AsrPickDir: 'asr:pickDir',
   MaterialsPpocrStatus: 'materials:ppocrStatus',
   MaterialsPpocrPrepare: 'materials:ppocrPrepare',
+  MaterialsPix2textStatus: 'materials:pix2textStatus',
 
   /* 配置与存储 */
   ConfigGet: 'config:get',

@@ -11,6 +11,7 @@ import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
+import { stopPix2TextSidecar } from './services/pix2text'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
 import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
@@ -106,6 +107,7 @@ app.on('before-quit', () => {
   stopClassroom()
   stopAllChats()
   stopMaterialJobs()
+  stopPix2TextSidecar()
   stopLearningPreparation()
   stopLearningAssets()
   stopLearningPackageExports()

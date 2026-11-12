@@ -76,6 +76,7 @@ const api = {
     ocrPrepare: () => invoke<OcrModelsStatus>(IPC.MaterialsOcrPrepare),
     ppocrStatus: () => invoke<{ presets: Array<{ key: string; label: string; ready: boolean }> }>(IPC.MaterialsPpocrStatus),
     ppocrPrepare: (preset: string) => invoke<{ presets: Array<{ key: string; label: string; ready: boolean }> }>(IPC.MaterialsPpocrPrepare, preset),
+    pix2textStatus: () => invoke<{ python: boolean; pythonDetail: string; pix2text: boolean; pix2textVersion: string | null; sidecarRunning: boolean }>(IPC.MaterialsPix2textStatus),
     ocrStart: (input: OcrInput) => invoke<ID>(IPC.MaterialsOcrStart, input),
     ocrPage: (input: { version_id: ID; page: number }) => invoke<OcrPage | null>(IPC.MaterialsOcrPage, input),
     ocrCorrect: (input: OcrCorrectionInput) => invoke<ID>(IPC.MaterialsOcrCorrect, input),

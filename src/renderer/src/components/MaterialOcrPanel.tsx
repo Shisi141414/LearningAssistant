@@ -15,7 +15,8 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [models, setModels] = useState<OcrModelsStatus | null>(null)
   const [ppocr, setPpocr] = useState<{ presets: Array<{ key: string; label: string; ready: boolean }> } | null>(null)
-  const [engine, setEngine] = useState<'ppocr' | 'tesseract'>('ppocr')
+  const [p2t, setP2t] = useState<{ python: boolean; pythonDetail: string; pix2text: boolean; pix2textVersion: string | null; sidecarRunning: boolean } | null>(null)
+  const [engine, setEngine] = useState<'ppocr' | 'pix2text' | 'tesseract'>('ppocr')
   const [language, setLanguage] = useState('zh-en')
   const [from, setFrom] = useState(1), [to, setTo] = useState(1)
   const [page, setPage] = useState(1)
@@ -28,6 +29,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
     let alive = true
     void window.api.materials.ocrModels().then(result => { if (!alive) return; if (result.ok) setModels(result.data); else setError(result.error) })
     void window.api.materials.ppocrStatus().then(result => { if (!alive) return; if (result.ok) setPpocr(result.data) })
+    void window.api.materials.pix2textStatus().then(result => { if (!alive) return; if (result.ok) setP2t(result.data) })
     return () => { alive = false }
   }, [])
   useEffect(() => {
@@ -45,7 +47,8 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   }, [version.id, page])
   const ppocrPreset = language === 'ja' ? 'v5-ja' : language === 'ko' ? 'v5-ko' : language === 'latin' ? 'v5-latin' : 'v6-tiny'
   const ppocrReady = ppocr?.presets.find(p => p.key === ppocrPreset)?.ready ?? false
-  const engineReady = engine === 'ppocr' ? ppocrReady : !!models?.ready
+  const p2tReady = !!p2t?.python && !!p2t?.pix2text
+  const engineReady = engine === 'ppocr' ? ppocrReady : engine === 'pix2text' ? p2tReady : !!models?.ready
   const prepare = async (): Promise<void> => {
     setBusy(true); setError('')
     try {
@@ -53,6 +56,11 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
         const result = await window.api.materials.ppocrPrepare(ppocrPreset)
         if (!mounted.current) return
         if (result.ok) setPpocr(result.data); else setError(result.error)
+      } else if (engine === 'pix2text') {
+        // Python 与 pip 包无法由应用代装：只做重新检测
+        const result = await window.api.materials.pix2textStatus()
+        if (!mounted.current) return
+        if (result.ok) setP2t(result.data); else setError(result.error)
       } else {
         const result = await window.api.materials.ocrPrepare()
         if (!mounted.current) return
@@ -62,7 +70,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   }
   const run = async (): Promise<void> => {
     setBusy(true); setError('')
-    try { const result = await window.api.materials.ocrStart({ version_id: version.id, from_page: from, to_page: to, engine, language }); if (!mounted.current) return; if (result.ok) await onVersion(result.data); else setError(result.error) }
+    try { const result = await window.api.materials.ocrStart({ version_id: version.id, from_page: from, to_page: to, engine, language: engine === 'ppocr' ? language : undefined }); if (!mounted.current) return; if (result.ok) await onVersion(result.data); else setError(result.error) }
     finally { setBusy(false) }
   }
   const save = async (): Promise<void> => {
@@ -75,8 +83,9 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
     <p className="muted">保留原件和旧版引用；识别或校正后生成新版本。请对照原页核对公式、表格与阅读顺序。</p>
     <div className="toolbar">
       <label>引擎
-        <select value={engine} onChange={e => setEngine(e.target.value as 'ppocr' | 'tesseract')} aria-label="OCR 引擎">
+        <select value={engine} onChange={e => setEngine(e.target.value as 'ppocr' | 'pix2text' | 'tesseract')} aria-label="OCR 引擎">
           <option value="ppocr">PP-OCR（推荐，中文准确率显著更高）</option>
+          <option value="pix2text">文字+公式（Pix2Text，公式转 LaTeX）</option>
           <option value="tesseract">Tesseract（备选）</option>
         </select>
       </label>
@@ -90,9 +99,18 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
           </select>
         </label>
       )}
-      <span role="status">{engineReady ? (engine === 'ppocr' ? '模型已就绪' : '中英文语言包已就绪') : busy ? '正在准备…' : '模型未就绪'}</span>
-      {!engineReady && !busy && <button disabled={busy} onClick={() => void prepare()}>{engine === 'ppocr' ? '下载 PP-OCR 模型（首次约 30–60 MiB）' : '下载中英文语言包（约 6 MiB）'}</button>}
+      <span role="status">{engineReady ? (engine === 'ppocr' ? '模型已就绪' : engine === 'pix2text' ? `Pix2Text 已就绪（${p2t?.pythonDetail ?? ''}${p2t?.pix2textVersion ? ' · pix2text ' + p2t.pix2textVersion : ''}）` : '中英文语言包已就绪') : busy ? '正在检测/准备…' : engine === 'pix2text' ? 'Pix2Text 环境未就绪' : '模型未就绪'}</span>
+      {!engineReady && !busy && <button disabled={busy} onClick={() => void prepare()}>{engine === 'ppocr' ? '下载 PP-OCR 模型（首次约 30–60 MiB）' : engine === 'pix2text' ? '重新检测' : '下载中英文语言包（约 6 MiB）'}</button>}
     </div>
+    {engine === 'pix2text' && !p2tReady && (
+      <div className="ocr-p2t-guide">
+        {p2t && !p2t.python
+          ? <p>未检测到可用的 Python。请安装 Python 3.8+（安装时勾选 Add python.exe to PATH），完成后点「重新检测」。</p>
+          : <p>本机 Python 已就绪（{p2t?.pythonDetail}），但缺少 pix2text 包。请在终端执行：</p>}
+        {p2t?.python && <p><code>pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>}
+        <p className="muted">装完后点「重新检测」。首次识别会自动下载公式识别模型（约 200 MiB，缓存到用户目录），首次请求可能需要几分钟；识别结果中公式为 LaTeX，可在笔记中用 $..$ / $$..$$ 渲染。</p>
+      </div>
+    )}
     <div className="toolbar ocr-range">
       <label>从第 <input aria-label="OCR 起始页" type="number" min={1} max={3000} value={from} onChange={e => setFrom(Number(e.target.value))} /> 页</label>
       <label>至第 <input aria-label="OCR 结束页" type="number" min={from} max={Math.min(3000, from + 19)} value={to} onChange={e => setTo(Number(e.target.value))} /> 页</label>

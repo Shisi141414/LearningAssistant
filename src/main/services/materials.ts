@@ -10,7 +10,8 @@ import { getDb, dbFilePath } from './db'
 import { beginWork, withWork } from './work'
 import { completeOcrVersion, derivedParent, insertDerived, validateOcrRange } from './material-derivations'
 import { OCR_MODEL_COMMIT, OCR_MODELS, ocrModelDirectory, ocrModelsStatus } from './ocr-models'
-import { ppocrModelPaths, presetForLanguage } from './ppocr-models'
+import { ppocrModelPaths, ppocrStatus, presetForLanguage } from './ppocr-models'
+import { ensurePix2TextSidecar, pix2textStatus } from './pix2text'
 import { managedMaterialFile } from './material-files'
 import { ensureMaterialConversion, materialParseInput } from './office-conversions'
 
@@ -137,7 +138,18 @@ export async function startMaterialOcr(input: OcrInput): Promise<string> {
   return withWork('OCR 任务准备', async () => {
     if (stopping) throw new Error('应用正在退出，暂不创建新任务')
     validateOcrRange(input)
-    if (!(await ocrModelsStatus()).ready) throw new Error('请先准备中英文 OCR 语言包')
+    // 前置检查按引擎分流：入口直接报错，好过排队后失败
+    if (input.engine === 'pix2text') {
+      const status = await pix2textStatus()
+      if (!status.python) throw new Error(status.pythonDetail)
+      if (!status.pix2text) throw new Error('本机 Python 未安装 pix2text 包。请在终端执行：pip install pix2text（清华源：pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple），完成后再试')
+    } else if (input.engine === 'tesseract') {
+      if (!(await ocrModelsStatus()).ready) throw new Error('请先准备中英文 OCR 语言包')
+    } else {
+      const presets = (await ppocrStatus()).presets
+      const preset = presetForLanguage(input.language)
+      if (!presets.find((p) => p.key === preset)?.ready) throw new Error(`PP-OCR 模型未就绪（${preset}），请先在下方「准备模型」`)
+    }
     if (stopping) throw new Error('应用正在退出，暂不创建新任务')
     const parent = derivedParent(input.version_id)
     const id = getDb().transaction(() => insertDerived(parent, 'ocr', input, 'queued'))()
@@ -165,10 +177,14 @@ async function pump(): Promise<void> {
     const ocr = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
     const require = createRequire(__filename)
     let ppocrPaths: import('./material-ocr').PpocrModelPaths | undefined
+    let p2tBaseUrl: string | undefined
     if (ocr) {
       validateOcrRange(ocr)
       if (ocr.engine === 'tesseract') {
         if (!(await ocrModelsStatus()).ready) throw new Error('OCR 语言包缺失或校验失败，请重新准备')
+      } else if (ocr.engine === 'pix2text') {
+        // 公式识别 sidecar：主进程启动并健康检查，worker 只发回环 HTTP
+        p2tBaseUrl = await ensurePix2TextSidecar()
       } else {
         // PP-OCR：按语言路由预设，主进程解析本地模型路径（worker 不联网、不做路径决策）
         const preset = presetForLanguage(ocr.language)
@@ -181,9 +197,11 @@ async function pump(): Promise<void> {
     const modelJson = ocr
       ? (ocr.engine === 'tesseract'
           ? JSON.stringify({ engine: 'tesseract.js', engineVersion: require('tesseract.js/package.json').version, coreVersion: require('tesseract.js-core/package.json').version, languages: ['chi_sim', 'eng'], source: 'tessdata_fast', commit: OCR_MODEL_COMMIT, files: OCR_MODELS })
-          : JSON.stringify({ engine: 'ppu-paddle-ocr', engineVersion: ppocrPaths?.engineVersion, preset: ppocrPaths?.preset, language: ocr.language ?? 'zh-en', source: 'ppu-paddle-ocr-models' }))
+          : ocr.engine === 'pix2text'
+            ? JSON.stringify({ engine: 'pix2text', source: 'python-sidecar', language: 'zh-en+latex' })
+            : JSON.stringify({ engine: 'ppu-paddle-ocr', engineVersion: ppocrPaths?.engineVersion, preset: ppocrPaths?.preset, language: ocr.language ?? 'zh-en', source: 'ppu-paddle-ocr-models' }))
       : undefined
-    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr && ocr.engine === 'tesseract' ? ocrModelDirectory() : undefined, ppocr: ppocrPaths, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
+    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr && ocr.engine === 'tesseract' ? ocrModelDirectory() : undefined, ppocr: ppocrPaths, p2tBaseUrl, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
   } catch (error) {
     if (!stopping) getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ? AND status = 'parsing'").run(String(error), next.id)
     converting = undefined; starting = undefined; release(); queueMicrotask(() => void pump()); return

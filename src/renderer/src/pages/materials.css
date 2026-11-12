@@ -19,6 +19,9 @@
 .material-reader select { max-width: 100%; }
 .material-reader progress { display: block; margin-top: 10px; width: 100%; }
 .material-error { color: var(--danger); overflow-wrap: anywhere; }
+.ocr-p2t-guide { margin: 12px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); }
+.ocr-p2t-guide p { margin: 6px 0; line-height: 1.7; }
+.ocr-p2t-guide code { padding: 2px 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow-wrap: anywhere; }
 .material-warnings { margin: 16px 0; font-size: 12px; color: var(--text-2); line-height: 1.7; }
 .material-warnings summary { cursor: pointer; }
 .material-search { margin-top: 20px; }

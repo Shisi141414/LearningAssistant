@@ -485,10 +485,10 @@ export interface MaterialVersion {
   status: ImportStatus; progress: number; error: string | null; warnings_json: string; created_at: number
   parent_version_id: ID | null; derivation: 'original' | 'ocr' | 'correction'
 }
-export type OcrEngine = 'ppocr' | 'tesseract'
+export type OcrEngine = 'ppocr' | 'pix2text' | 'tesseract'
 export interface OcrInput {
   version_id: ID; from_page: number; to_page: number
-  /** 识别引擎：ppocr（默认，PP-OCRv6/v5 按语言路由）| tesseract（chi_sim+eng 备选） */
+  /** 识别引擎：ppocr（默认，按语言路由）| pix2text（文字+公式一体，需本机 Python）| tesseract（备选） */
   engine?: OcrEngine
   /** 材料语言：zh-en（默认）| ja | ko | latin；仅 ppocr 引擎生效（对应模型预设） */
   language?: string

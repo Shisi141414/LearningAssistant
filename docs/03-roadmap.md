@@ -144,3 +144,7 @@ GeoGebra 风格数学符号面板接入课堂/对话/快捷栏/灵感输入（�
 ## OCR 引擎替换记录（2026-11-12）
 
 PP-OCR（ppu-paddle-ocr，onnxruntime-node）成为默认 OCR 引擎并按语言路由模型（zh-en→v6-tiny 统一、ja/ko/latin→专用），tesseract 降为备选引擎；模型下载/校验/worker 离线模式与 tesseract 语言包一致，见 [引擎记录](33-ppocr-engine.md)。中文乱码问题的根治待 Windows 真机对比验收；公式识别（Pix2Text sidecar）下一批。
+
+## 公式识别记录（2026-11-12）
+
+Pix2Text Python sidecar 接入 OCR 管线：第三引擎「文字+公式」（公式输出 LaTeX，`$$..$$`/`$..$` 与 KaTeX 笔记链路直通）；主进程管理 sidecar 生命周期（懒加载/空闲回收/退出清理），worker 只发回环 HTTP；同时修正 OCR 入口前置检查按引擎分流（原 tesseract 语言包检查对其它引擎是错误前置），见 [公式识别记录](34-formula-ocr.md)。真机质量与 sidecar 稳定性待 Windows 端验收（需本机 pip install pix2text）。
