@@ -95,7 +95,7 @@ export function updateProject(id: ID, patchInput: Partial<ProjectInput>): Projec
 }
 
 export function removeProject(id: ID): void {
-  getDb().prepare('DELETE FROM projects WHERE id = ?').run(id) // 里程碑/项目任务级联删除；手动任务 project_id 置 NULL 由 FK 处理（project_task 亦级联，符合语义）
+  getDb().prepare('DELETE FROM projects WHERE id = ?').run(id) // 里程碑与项目任务级联删除；独立手动任务未挂项目，不受影响
 }
 
 export function projectDetail(id: ID): ProjectDetail {
@@ -167,25 +167,24 @@ function parseKnowledgeRefs(json: string): TaskKnowledgeRef[] {
   }
 }
 
+/** 创建与更新使用同一组业务约束，避免更新绕过创建时的归属检查。 */
+function validateTaskLinks(projectId: string | null, milestoneId: string | null, kind: Task['kind'], refs: TaskKnowledgeRef[]): void {
+  const db = getDb()
+  if ((kind === 'project_task') !== !!projectId) throw new Error('项目任务必须挂项目；独立手动任务不能挂项目')
+  if (projectId && !db.prepare('SELECT id FROM projects WHERE id=?').get(projectId)) throw new Error('项目不存在')
+  if (milestoneId) {
+    if (!projectId) throw new Error('里程碑任务必须挂项目')
+    const milestone = db.prepare('SELECT project_id FROM project_milestones WHERE id=?').get(milestoneId) as { project_id: string } | undefined
+    if (!milestone || milestone.project_id !== projectId) throw new Error('任务挂载的里程碑不存在或不属于该项目')
+  }
+  if (new Set(refs.map(ref => ref.concept_id)).size !== refs.length) throw new Error('同一任务不能重复引用同一个知识点，请修改已有用途备注')
+  for (const ref of refs) if (!db.prepare('SELECT id FROM knowledge_points WHERE id=?').get(ref.concept_id)) throw new Error('知识点引用无效，请刷新知识页后重试')
+}
+
 function createTaskRow(input: TaskInput): Task {
   const db = getDb()
-  if (input.project_id) {
-    const project = db.prepare('SELECT id FROM projects WHERE id = ?').get(input.project_id)
-    if (!project) throw new Error('项目不存在')
-  }
-  if (input.milestone_id && !input.project_id) throw new Error('里程碑任务必须挂项目')
-  if (input.milestone_id) {
-    const ms = db.prepare('SELECT project_id FROM project_milestones WHERE id = ?').get(input.milestone_id) as { project_id: string } | undefined
-    if (!ms) throw new Error('里程碑不存在')
-    if (ms.project_id !== input.project_id) throw new Error('任务挂载的里程碑不属于该项目')
-  }
-  // 知识点引用校验：引用的知识点必须存在（防悬挂引用）
   const refs = input.knowledge_refs ?? []
-  for (const ref of refs) {
-    if (!db.prepare('SELECT id FROM knowledge_points WHERE id = ?').get(ref.concept_id)) {
-      throw new Error(`知识点引用无效（${ref.concept_id}），请刷新知识页后重试`)
-    }
-  }
+  validateTaskLinks(input.project_id ?? null, input.milestone_id ?? null, input.kind ?? (input.project_id ? 'project_task' : 'manual'), refs)
   const now = Date.now()
   const task: Task = {
     id: nanoid(),
@@ -215,15 +214,12 @@ export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: T
   const db = getDb()
   const cur = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined
   if (!cur) throw new Error('任务不存在')
-  if (patchInput.status === 'blocked' && (patchInput.blocked_reason ?? cur.blocked_reason).trim() === '' && cur.status !== 'blocked') {
+  if ((patchInput.status ?? cur.status) === 'blocked' && (patchInput.blocked_reason ?? cur.blocked_reason).trim() === '') {
     throw new Error('标记阻塞需要填写原因（blocked_reason）')
   }
   const refs = patchInput.knowledge_refs !== undefined ? patchInput.knowledge_refs : parseKnowledgeRefs(cur.knowledge_refs_json)
-  for (const ref of refs) {
-    if (!db.prepare('SELECT id FROM knowledge_points WHERE id = ?').get(ref.concept_id)) {
-      throw new Error(`知识点引用无效（${ref.concept_id}）`)
-    }
-  }
+  if ((patchInput.project_id !== undefined && patchInput.project_id !== cur.project_id) || (patchInput.kind !== undefined && patchInput.kind !== cur.kind)) throw new Error('当前版本不支持移动任务到其他项目或更改任务来源')
+  validateTaskLinks(cur.project_id, patchInput.milestone_id !== undefined ? patchInput.milestone_id : cur.milestone_id, cur.kind, refs)
   const next: Task = {
     ...rowToTask(cur),
     ...patchInput,

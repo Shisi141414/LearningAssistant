@@ -708,6 +708,11 @@ select:focus {
   padding-bottom: 6px;
 }
 
+.math-palette-below {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
 .math-palette-tabs button {
   border: none;
   background: transparent;

@@ -82,16 +82,16 @@ export function SchedulePage() {
     else showToast(res.error)
   }
 
-  const cycle = async (task: TaskWithProject): Promise<void> => {
-    const order: Task['status'][] = ['open', 'doing', 'done']
-    const next = task.status === 'blocked' ? 'doing' : order[(order.indexOf(task.status) + 1) % order.length]
+  const complete = async (task: TaskWithProject): Promise<void> => {
+    const next = task.status === 'done' ? 'open' : 'done'
     const res = await window.api.tasks.update(task.id, { status: next })
     if (res.ok) void reload()
+    else showToast(res.error)
   }
 
   const renderTask = (t: TaskWithProject): React.ReactNode => (
     <div key={t.id} className="row-item" style={{ padding: '8px 12px' }}>
-      <input type="checkbox" checked={t.status === 'done'} onChange={() => void cycle(t)} />
+      <input type="checkbox" aria-label={`完成任务：${t.title}`} checked={t.status === 'done'} onChange={() => void complete(t)} />
       <div className="grow">
         <div style={{ fontWeight: 500, textDecoration: t.status === 'done' ? 'line-through' : 'none' }}>{t.title}</div>
         <div className="meta">

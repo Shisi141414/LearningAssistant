@@ -113,7 +113,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.SubjectsCreate]: [record(subject)], [IPC.SubjectsUpdate]: [record({ ...patch(subject), id })],
   [IPC.ActivitiesList]: [optional(record({ kind: optional(kind), subject_id: optional(id) }))],
   [IPC.ActivitiesCreate]: [record(activity)], [IPC.ActivitiesUpdate]: [record({ ...patch(activity), id })],
-  [IPC.ProjectsList]: [], [IPC.ProjectsCreate]: [record({ title, subject_id: opt(id), goal: optional(content), description: optional(content) })],
+  [IPC.ProjectsList]: [opt(id)], [IPC.ProjectsCreate]: [record({ title, subject_id: opt(id), goal: optional(content), description: optional(content) })],
   [IPC.ProjectsUpdate]: [record({ id, title: optional(title), subject_id: opt(id), goal: optional(content), description: optional(content), status: optional(choice('active', 'paused', 'done', 'archived')) })],
   [IPC.ProjectsRemove]: [id], [IPC.ProjectsDetail]: [id],
   [IPC.MilestonesCreate]: [record({ project_id: id, title, detail: optional(content), due_at: opt(number) })],

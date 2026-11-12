@@ -538,6 +538,7 @@ export function ClassroomPage() {
 
       <div className="chat-input" style={{ border: '1px solid var(--border)', borderRadius: 10, marginBottom: 4 }}>
         <MathInput
+          label="课堂手动记录"
           placeholder="手动转写/补充记录（Enter 添加段落，Shift+Enter 换行，∑ 数学符号）"
           value={manualText}
           onChange={setManualText}

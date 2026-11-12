@@ -330,7 +330,12 @@ app.on('browser-window-created', (_event, win) => {
       await win.webContents.executeJavaScript(`location.hash = '/knowledge'`)
       await waitUi(`document.querySelectorAll('.concept-row').length === 2`, '刷新去除歧义')
       console.log('CONCEPT_TEST_OK real form, aliases, material links, card, keyboard, backlinks, ambiguity')
-      const bad = await importFile(broken, input), badVersion = await wait(bad.id, 'failed')
+      const beforeBroken = (await call('materials', 'list')).length
+      selectedFile = broken
+      assert.match(await fail('import', input), /文件内容与扩展名.*不符/)
+      assert.equal((await call('materials', 'list')).length, beforeBroken, '文件头不符必须在入库前拒绝')
+      // 容器头正确但正文损坏仍由后台解析器拒绝，保留失败记录与重试验收。
+      const bad = await importFile(zip('损坏内容.docx', { 'placeholder.txt': 'not a Word document' }), input), badVersion = await wait(bad.id, 'failed')
       await call('materials', 'retry', badVersion.id); await wait(bad.id, 'failed')
       const cancellation = await importFile(docx('取消.docx', '取消后重试'), input)
       await call('materials', 'cancel', cancellation.current_version_id); await wait(cancellation.id, 'cancelled')
@@ -963,12 +968,12 @@ app.on('browser-window-created', (_event, win) => {
       await waitUi(`document.querySelector('.office-converter [role="alert"]')?.textContent.includes('soffice')`, '拒绝错误转换程序')
       const legacyDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
       legacyDb.prepare("INSERT OR REPLACE INTO app_config(key,value) VALUES ('materials.libreoffice',?)").run(path.join(root,'missing','soffice.com'));legacyDb.close()
-      const legacyFile=path.join(source,'旧版原件.doc');fs.writeFileSync(legacyFile,'original must survive missing converter')
+      const legacyFile=path.join(source,'旧版原件.doc');fs.writeFileSync(legacyFile,Buffer.concat([Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1]),Buffer.from('original must survive missing converter')]))
       selectedFile=legacyFile
       const legacy=await call('materials','import',input)
       const legacyVersion=await wait(legacy.id,'failed')
       assert.match(legacyVersion.error,/ENOENT/)
-      assert.equal(fs.readFileSync(path.join(root,'materials',legacyVersion.id,'source.doc'),'utf8'),fs.readFileSync(legacyFile,'utf8'))
+      assert.deepEqual(fs.readFileSync(path.join(root,'materials',legacyVersion.id,'source.doc')),fs.readFileSync(legacyFile))
       assert.equal((await call('materials','blocks',{version_id:legacyVersion.id})).total,0)
       await call('materials','archive',legacy.id)
       await call('materials','converterAuto')
