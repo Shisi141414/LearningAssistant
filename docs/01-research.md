@@ -151,3 +151,13 @@ AsrProvider (接口：start/stop/feed/onPartial/onFinal/setHotwords?)
 - MinerU: https://github.com/opendatalab/mineru
 - DeepSeek API: https://api-docs.deepseek.com
 - 智谱 OpenAI 兼容: https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
+
+## OCR 与公式识别调研（2026-11-12，第二轮：实测 tesseract.js 中文乱码+公式差之后的替换方案）
+
+**结论**：
+1. **中文 OCR 换 PP-OCRv5 系**（社区共识全面碾压 Tesseract：中文手写 ~73% vs ~45% 准确率）。npm 生态已有纯 Node 集成：`ppu-paddle-ocr`（TS，Node/Bun/Deno，实测 99.22% 印刷体字符准确率）、`paddleocr`（v5+onnxruntime-node）。坑：Electron 打包后 onnxruntime 原生二进制 asar 解包与 ABI——与 sherpa-onnx/better-sqlite3 同类，已有经验可复用。→ **下一批首要工作：替换 tesseract.js**
+2. **公式识别（OCR→LaTeX）用 Pix2Text MFR**（mfr-1.5，TrOCR 架构，社区评最准确开源公式模型，原生中英混排+公式一体）。集成路径：Python sidecar（自带 FastAPI HTTP server，PyInstaller onefile 随应用分发，参考 electron-python-example）；优化项：MFR onnx 导出 + onnxruntime-node 自实现自回归解码（免 Python，工作量大）
+3. **MinerU 整管线不引入**：版面+公式+表格一体但重量级；我们已有切块/学习文档/公式校正管线，自组"文字 OCR + 公式模型"两段式更贴合
+4. **云端可选**：Mathpix API（~$0.002/次，免费档约 20 页 PDF/月）作"高精度按钮"，符合离线优先+联网增强
+
+链接：github.com/breezedeus/Pix2Text · npm: ppu-paddle-ocr · onnxruntime-node（官方支持 Electron）
