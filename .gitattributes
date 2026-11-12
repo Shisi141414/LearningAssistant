@@ -1,0 +1,20 @@
+# 行尾统一（防止 Windows/Linux 午作与 AI 工具链的 CRLF 污染）
+# 2026-11-12：曾发生 30 文件纯行尾变更污染工作树
+* text=auto eol=lf
+
+# Windows 批处理保留 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制（不做任何转换）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.onnx binary
+*.db binary
+*.ladoc binary
