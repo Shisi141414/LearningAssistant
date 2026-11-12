@@ -66,6 +66,7 @@ const rules: Partial<Record<string, Check[]>> = {
       record({ ...base, action: choice('edit'), type: choice(...Object.keys(learningTypes)), title: text(500) }),
       record({ ...base, action: choice('split'), position: (v) => number(v) && (v as number) <= 2_000_000 }),
       record({ ...base, action: choice('merge') }),
+      record({ ...base, action: choice('outline'), end_entry_id: id, parent_id: nullable(id) }),
       record({ ...base, action: choice('relate'), target_id: nullable(id) })
     ].some(check => check(value))
   }],

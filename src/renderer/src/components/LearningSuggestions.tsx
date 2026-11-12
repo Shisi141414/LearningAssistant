@@ -49,6 +49,7 @@ function SuggestionEditor({ document, subjectId, onApplied }: { document: Learni
   const valid = Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 1 && to >= from && to <= document.state.entries.length && to - from < 20
   const chosen = valid ? document.state.entries.slice(from - 1, to) : []
   const protectedRange = chosen.some(entry => entry.analysis.review_status === 'confirmed')
+  const chapterConflict = chosen.some(entry => (entry.parent_id ?? null) !== (chosen[0]?.parent_id ?? null)) || document.state.entries.some(entry => entry.parent_id && chosen.some(parent => parent.id === entry.parent_id))
   const generate = async (): Promise<void> => {
     setBusy(true); setError('')
     try {
@@ -74,8 +75,9 @@ function SuggestionEditor({ document, subjectId, onApplied }: { document: Learni
     <div className="toolbar"><label>模型 <select aria-label="语义整理模型" value={modelId} disabled={busy} onChange={e => setModelId(e.target.value)}><option value="">选择模型</option>{available.map(model => <option key={model.id} value={model.id}>{providers.find(provider => provider.id === model.provider_id)?.name} / {model.display_name || model.model_id}</option>)}</select></label></div>
     {!available.length && <p className="muted">请先到设置添加供应商并导入可用模型。</p>}
     <div className="toolbar"><label>从第 <input aria-label="AI 整理起始条目" type="number" min={1} max={document.state.entries.length} value={from} onChange={e => setFrom(Number(e.target.value))} /> 条</label><label>至第 <input aria-label="AI 整理结束条目" type="number" min={from} max={Math.min(from + 19, document.state.entries.length)} value={to} onChange={e => setTo(Number(e.target.value))} /> 条</label>
-      <button className="primary" disabled={busy || !valid || !modelId || protectedRange || jobs.some(job => job.status === 'running')} onClick={() => void generate()}>生成本批建议（发送文字）</button></div>
+      <button className="primary" disabled={busy || !valid || !modelId || protectedRange || chapterConflict || jobs.some(job => job.status === 'running')} onClick={() => void generate()}>生成本批建议（发送文字）</button></div>
     {protectedRange && <p className="muted">范围内有已确认条目，请改选待整理内容。已确认内容不会交给 AI 重写。</p>}
+    {chapterConflict && <p className="muted">请选同一父章节内的条目，不含仍有子项的章节；AI 不会改变已设置的目录。</p>}
     {error && <p className="material-error" role="alert">{error}</p>}
     {!!jobs.length && <div className="toolbar"><label>建议记录 <select aria-label="AI 整理建议记录" value={selected} onChange={e => setSelected(e.target.value)}>{jobs.map(job => <option key={job.id} value={job.id}>{statuses[job.status]} · {job.model_id} · {new Date(job.created_at).toLocaleTimeString()}</option>)}</select></label></div>}
     {detail && <div className="learning-suggestion-result">

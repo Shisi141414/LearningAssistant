@@ -6,6 +6,8 @@ export function selectedLearningEntries(document: LearningDocument, ids: string[
   if (!ids.length || ids.length > 20 || new Set(ids).size !== ids.length) throw new Error('每批请选择连续的 1–20 个待整理条目')
   const first = document.state.entries.findIndex(entry => entry.id === ids[0]), last = first + ids.length - 1
   const selected = document.state.entries.slice(first, last + 1)
+  const parent = selected[0]?.parent_id ?? null, selection = new Set(ids)
+  if (selected.some(entry => (entry.parent_id ?? null) !== parent) || document.state.entries.some(entry => entry.parent_id && selection.has(entry.parent_id) && !selection.has(entry.id))) throw new Error('AI 整理范围须在同一父章节，不能替换仍有子项的章节')
   if (first < 0 || selected.length !== ids.length || selected.some((entry, i) => entry.id !== ids[i] || entry.analysis.review_status === 'confirmed')) throw new Error('请选择连续的待整理条目；已确认条目受到保护')
   const chosen = new Set(ids)
   if (document.state.relations.some(r => chosen.has(r.from) || chosen.has(r.to))) throw new Error('所选条目已有证明/解答关联，请先人工处理')
@@ -78,7 +80,7 @@ export function parseLearningProposal(response: string, document: LearningDocume
       if (previous?.source_id === fragment.ref.source_id && previous.text_range![1] === fragment.ref.text_range![0]) previous.text_range![1] = fragment.ref.text_range![1]
       else refs.push(structuredClone(fragment.ref))
     }
-    proposal.entries.push({ id: proposal.entries.length ? newId() : ids[0], type: row.type as LearningEntryType, title: row.title.trim(), sources: refs, analysis: { method: 'ai', model, review_status: 'unreviewed' } })
+    proposal.entries.push({ id: proposal.entries.length ? newId() : ids[0], type: row.type as LearningEntryType, title: row.title.trim(), parent_id: document.state.entries.find(entry => entry.id === ids[0])?.parent_id ?? null, sources: refs, analysis: { method: 'ai', model, review_status: 'unreviewed' } })
     cursor = end + 1
   }
   if (cursor !== fragments.length) throw new Error('模型建议遗漏了末尾来源片段')

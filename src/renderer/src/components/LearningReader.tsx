@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { LearningChange, LearningDocument, LearningEntry, LearningEntryType, LearningSource, MaterialLocator } from '@shared/types'
-import { entryText, learningTypes, relationAllowed } from '@shared/learning-document'
+import { entryText, learningTypes, relationAllowed, learningAncestors, availableLearningParents } from '@shared/learning-document'
 import { MarkdownSegment } from './MarkdownSegment'
 import { PdfPage } from './PdfPage'
 import './learning-reader.css'
@@ -17,6 +17,8 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   const [error, setError] = useState(''), [query, setQuery] = useState(''), [type, setType] = useState('')
   const [offset, setOffset] = useState(0), [editing, setEditing] = useState<string | null>(null)
   const [preview, setPreview] = useState<LearningSource | null>(null)
+  const [chapter, setChapter] = useState(''), [focusedEntry, setFocusedEntry] = useState(targetEntryId)
+  const [navigation, setNavigation] = useState(0)
   useEffect(() => {
     let alive = true
     void window.api.learning.get({ version_id: versionId, ...(initialRevisionId ? { revision_id: initialRevisionId } : {}) }).then(result => {
@@ -31,10 +33,24 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
     })
     return () => { alive = false }
   }, [versionId, initialRevisionId, targetEntryId])
-  useEffect(() => { if (targetEntryId && document) window.document.getElementById(`learning-${targetEntryId}`)?.scrollIntoView({ block: 'center' }) }, [document?.revision_id, targetEntryId])
+  useEffect(() => { if (focusedEntry && document) window.document.getElementById(`learning-${focusedEntry}`)?.scrollIntoView({ block: 'center' }) }, [document?.revision_id, focusedEntry, offset, navigation])
   const sources = useMemo(() => new Map(document?.sources.map(source => [source.id, source]) ?? []), [document])
-  const rows = useMemo(() => document?.state.entries.map((entry, index) => ({ entry, index, text: entryText(entry, sources) })) ?? [], [document, sources])
-  const filtered = useMemo(() => rows.filter(row => (!type || row.entry.type === type) && (!query.trim() || (row.text + '\n' + row.entry.title).toLowerCase().includes(query.trim().toLowerCase()))), [rows, type, query])
+  const rows = useMemo(() => {
+    const paths = new Map<string, LearningEntry[]>(), byId = new Map(document?.state.entries.map(entry => [entry.id, entry]) ?? [])
+    return document?.state.entries.map((entry, index) => {
+      const parent = entry.parent_id ? byId.get(entry.parent_id)! : null
+      const path = parent ? [...(paths.get(parent.id) ?? []), parent] : []
+      paths.set(entry.id, path)
+      return { entry, index, text: entryText(entry, sources), path }
+    }) ?? []
+  }, [document, sources])
+  const sections = rows.filter(row => row.entry.type === 'section')
+  const filtered = useMemo(() => rows.filter(row => (!chapter || (chapter === 'root' ? !row.entry.parent_id && row.entry.type !== 'section' : row.entry.id === chapter || row.path.some(parent => parent.id === chapter))) && (!type || row.entry.type === type) && (!query.trim() || (row.text + '\n' + row.entry.title).toLowerCase().includes(query.trim().toLowerCase()))), [rows, type, query, chapter])
+  const jump = (id: string): void => {
+    const index = document?.state.entries.findIndex(entry => entry.id === id) ?? -1
+    if (index < 0) return
+    setType(''); setQuery(''); setChapter(''); setOffset(Math.floor(index / 100) * 100); setFocusedEntry(id); setNavigation(value => value + 1)
+  }
   const current = document?.current_revision_id === document?.revision_id
   const prepare = async (): Promise<void> => {
     setBusy(true); setError('')
@@ -43,7 +59,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   }
   const revision = async (id?: string): Promise<void> => {
     setBusy(true); setError('')
-    try { const result = await window.api.learning.get({ version_id: versionId, ...(id ? { revision_id: id } : {}) }); if (result.ok) { setDocument(result.data); setEditing(null); setOffset(0) } else setError(result.error) }
+    try { const result = await window.api.learning.get({ version_id: versionId, ...(id ? { revision_id: id } : {}) }); if (result.ok) { setDocument(result.data); setEditing(null); setOffset(0); setChapter(''); setFocusedEntry('') } else setError(result.error) }
     finally { setBusy(false) }
   }
   const change = async (input: LearningChange): Promise<void> => {
@@ -58,22 +74,25 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
       <div className="toolbar learning-toolbar">
         <label>修订 <select aria-label="学习文档修订" disabled={busy} value={document.revision_id} onChange={e => void revision(e.target.value)}>{document.history.map((item, i) => <option key={item.id} value={item.id}>修订 {document.history.length - i}{item.id === document.current_revision_id ? '（当前）' : ''} · {new Date(item.created_at).toLocaleTimeString()}</option>)}</select></label>
         <select aria-label="学习条目类型筛选" value={type} onChange={e => { setType(e.target.value); setOffset(0) }}><option value="">全部类型</option>{Object.entries(learningTypes).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select>
+        <select aria-label="学习章节筛选" value={chapter} onChange={event => { setChapter(event.target.value); setOffset(0) }}><option value="">全部章节</option><option value="root">未分章正文</option>{sections.map(row => <option key={row.entry.id} value={row.entry.id}>{'　'.repeat(row.path.length)}{row.entry.title || `章节 · 第 ${row.index + 1} 条`}</option>)}</select>
         <input aria-label="搜索学习条目" value={query} placeholder="搜索标题或正文…" onChange={e => { setQuery(e.target.value); setOffset(0) }} />
         <button disabled={busy} onClick={() => void revision()}>刷新当前修订</button>
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
+      <details className="learning-outline"><summary>章节目录 · {sections.length} 节</summary>{sections.length ? <nav aria-label="学习文档章节目录">{sections.map(row => <button key={row.entry.id} style={{ paddingLeft: `${row.path.length * 16 + 4}px` }} onClick={() => jump(row.entry.id)}>{row.entry.title || `章节 · 第 ${row.index + 1} 条`}</button>)}</nav> : <p className="muted">尚未设置章节。先把标题条目标为“章节”，再为后续条目设置章节归属。</p>}</details>
       {archived && <p className="muted">材料已归档，学习文档只读，已有引用仍可查看。</p>}
       {current && !archived && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
       {!current && <button disabled={busy} onClick={() => void revision()}>回到当前修订</button>}
       {preview && <aside className="learning-source-preview"><div className="toolbar"><strong>{sourceLabel(preview)} · 原件对照</strong><button onClick={() => setPreview(null)}>关闭对照</button></div>{(JSON.parse(preview.locator_json) as MaterialLocator).kind === 'pdf' ? <PdfPage versionId={versionId} pageNumber={(JSON.parse(preview.locator_json) as MaterialLocator).page!} /> : <button onClick={() => void window.api.materials.open(versionId).then(r => { if (!r.ok) setError(r.error) })}>打开原件查看</button>}</aside>}
-      {filtered.slice(offset, offset + 100).map(({ entry, index, text }) => {
+      {filtered.slice(offset, offset + 100).map(({ entry, index, text, path }) => {
         const related = document.state.relations.find(relation => relation.from === entry.id)
         const target = related && document.state.entries.find(e => e.id === related.to)
-        return <article className={`learning-entry learning-${entry.type}${entry.id === targetEntryId ? ' evidence-target' : ''}`} id={`learning-${entry.id}`} key={entry.id}>
+        return <article className={`learning-entry learning-${entry.type}${entry.id === focusedEntry ? ' evidence-target' : ''}`} id={`learning-${entry.id}`} key={entry.id}>
+          {!!path.length && <div className="learning-breadcrumb" aria-label="所在章节">{path.map(parent => <button key={parent.id} onClick={() => jump(parent.id)}>{parent.title || '未命名章节'}</button>)}</div>}
           <div className="learning-entry-heading"><span className="muted">第 {index + 1} 条</span><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title || (entry.type === 'narrative' ? '待整理正文' : learningTypes[entry.type])}</h3><span className="muted" title={entry.analysis.method === 'ai' ? entry.analysis.model : undefined}>{entry.analysis.method === 'ai' ? entry.analysis.review_status === 'confirmed' ? 'AI 建议 · 已核对' : 'AI 建议 · 待核对' : entry.analysis.review_status === 'confirmed' ? '人工确认' : '待整理'}</span></div>
           <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => setPreview(sources.get(ref.source_id)!)}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
           {text.trim() ? <div className="learning-entry-text"><MarkdownSegment text={text} subjectId={subjectId} /></div> : <p className="muted">此来源尚无可提取文字，请对照原件；扫描页可先完成 OCR 后建立新版学习文档。</p>}
-          {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => { setType(''); setQuery(''); setOffset(Math.floor(document.state.entries.findIndex(e => e.id === target.id) / 100) * 100); setTimeout(() => window.document.getElementById(`learning-${target.id}`)?.scrollIntoView({ block: 'center' }), 50) }}>{target.title || learningTypes[target.type]}</button></p>}
+          {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
           {current && !archived && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
           {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
           <KnowledgeEvidence key={`evidence:${document.revision_id}:${entry.id}`} source={{ kind: 'learning', material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entry.id }} title={entry.title} subjectId={subjectId} quoteLength={text.length} />
@@ -88,6 +107,9 @@ function EntryEditor({ entry, text, document, first, busy, onChange }: { entry: 
   const [type, setType] = useState(entry.type), [title, setTitle] = useState(entry.title)
   const [position, setPosition] = useState<number | null>(null)
   const [target, setTarget] = useState(document.state.relations.find(r => r.from === entry.id)?.to ?? '')
+  const [parent, setParent] = useState(entry.parent_id ?? ''), [endId, setEndId] = useState(entry.id)
+  const index = document.state.entries.findIndex(item => item.id === entry.id)
+  const parents = availableLearningParents(document.state.entries, index)
   const base = { version_id: document.version_id, expected_revision_id: document.current_revision_id, entry_id: entry.id }
   const targets = document.state.entries.filter(e => e.id !== entry.id && relationAllowed(entry.type, e.type))
   const readPosition = (input: HTMLTextAreaElement): void => { setPosition(input.selectionStart === input.selectionEnd ? input.selectionStart : null) }
@@ -98,6 +120,10 @@ function EntryEditor({ entry, text, document, first, busy, onChange }: { entry: 
     <label>在来源文字中放置光标，确定拆分点<textarea aria-label="选择学习条目拆分位置" readOnly value={text} onSelect={e => readPosition(e.currentTarget)} onMouseUp={e => readPosition(e.currentTarget)} onKeyUp={e => readPosition(e.currentTarget)} /></label>
     <div className="toolbar"><button disabled={busy || position === null || position <= 0 || position >= text.length} onClick={() => void onChange({ ...base, action: 'split', position: position! })}>在光标处拆分</button><button disabled={busy || first} onClick={() => void onChange({ ...base, action: 'merge' })}>合并到上一条</button></div>
     <p className="muted">合并保留前一条的类型和标题；涉及证明/解答关联时，请先解除关联。每次保存生成新修订，来源正文保持不变。</p>
+    <div className="learning-outline-editor"><h4>章节归属</h4><p className="muted">从本条起选择连续范围。已有子章节保留，所选章节须包含完整子树；本操作不改变正文或语义确认状态。</p>
+      <label>父章节<select aria-label="学习条目父章节" value={parent} disabled={busy} onChange={event => setParent(event.target.value)}><option value="">顶层 / 未分章</option>{parents.map(section => <option key={section.id} value={section.id}>{'　'.repeat(learningAncestors(section.id, document.state.entries).length)}{section.title || `章节 · 第 ${document.state.entries.indexOf(section) + 1} 条`}</option>)}</select></label>
+      <label>范围结束于<select aria-label="章节归属结束条目" value={endId} disabled={busy} onChange={event => setEndId(event.target.value)}>{document.state.entries.slice(index).map((item, offset) => <option key={item.id} value={item.id}>第 {index + offset + 1} 条 · {item.title || learningTypes[item.type]}</option>)}</select></label>
+      <button disabled={busy} onClick={() => void onChange({ ...base, action: 'outline', parent_id: parent || null, end_entry_id: endId })}>保存章节归属</button></div>
     {['proof', 'solution'].includes(entry.type) && <div className="toolbar"><label>{entry.type === 'proof' ? '证明对象' : '解答对象'} <select aria-label="学习条目关联目标" value={target} disabled={busy} onChange={e => setTarget(e.target.value)}><option value="">未指定 / 解除关联</option>{targets.map(e => <option key={e.id} value={e.id}>{learningTypes[e.type]} · {e.title || `第 ${document.state.entries.indexOf(e) + 1} 条`}</option>)}</select></label><button disabled={busy} onClick={() => void onChange({ ...base, action: 'relate', target_id: target || null })}>保存关联</button></div>}
   </div>
 }

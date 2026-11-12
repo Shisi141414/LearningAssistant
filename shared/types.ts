@@ -463,6 +463,7 @@ export interface LearningSource { id: ID; ordinal: number; raw_text: string; hea
 export interface LearningSourceRef { source_id: ID; text_range?: [number, number] }
 export interface LearningEntry {
   id: ID; type: LearningEntryType; title: string; sources: LearningSourceRef[]
+  parent_id?: ID | null
   analysis: { method: 'extracted' | 'manual'; review_status: 'unreviewed' | 'confirmed' } | { method: 'ai'; model: string; review_status: 'unreviewed' | 'confirmed' }
 }
 export interface LearningRelation { from: ID; to: ID; type: 'proves' | 'solves'; review_status: 'unreviewed' | 'confirmed' }
@@ -475,6 +476,7 @@ export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_i
   { action: 'edit'; type: LearningEntryType; title: string } |
   { action: 'split'; position: number } |
   { action: 'merge' } |
+  { action: 'outline'; end_entry_id: ID; parent_id: ID | null } |
   { action: 'relate'; target_id: ID | null }
 )
 export interface LearningSuggestInput { version_id: ID; expected_revision_id: ID; entry_ids: ID[]; model_db_id: ID }
