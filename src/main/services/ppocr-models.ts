@@ -69,7 +69,8 @@ export const PPOCR_PRESETS: Record<string, PpocrPreset> = {
 }
 
 export interface PpocrModelsStatus {
-  presets: Array<{ key: string; label: string; ready: boolean }>
+  /** missing：未下载或校验失败的文件名（诊断用，UI 直接展示） */
+  presets: Array<{ key: string; label: string; ready: boolean; missing: string[] }>
 }
 
 const MODEL_MAX_BYTES = 96 * 1024 * 1024
@@ -100,11 +101,13 @@ export async function ppocrStatus(): Promise<PpocrModelsStatus> {
   for (const preset of Object.values(PPOCR_PRESETS)) {
     const dir = ppocrModelDirectory(preset.key)
     let ready = true
+    const missing: string[] = []
     for (const rel of Object.values(preset.files)) {
-      const sha = await readSha(join(dir, `${rel.split('/').pop()}.sha256`))
-      if (!sha || !(await validFile(join(dir, rel.split('/').pop() as string), sha))) ready = false
+      const name = rel.split('/').pop() as string
+      const sha = await readSha(join(dir, `${name}.sha256`))
+      if (!sha || !(await validFile(join(dir, name), sha))) { ready = false; missing.push(name) }
     }
-    presets.push({ key: preset.key, label: preset.label, ready })
+    presets.push({ key: preset.key, label: preset.label, ready, missing })
   }
   return { presets }
 }

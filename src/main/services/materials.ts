@@ -167,6 +167,7 @@ async function pump(): Promise<void> {
   const release = beginWork('材料解析')
   getDb().prepare("UPDATE material_versions SET status = 'parsing', error = NULL, progress = 1 WHERE id = ?").run(next.id)
   let worker: Worker
+  const ocr: OcrInput | undefined = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
   try {
     if (next.format === 'doc' || next.format === 'ppt') {
       converting = new AbortController()
@@ -174,7 +175,6 @@ async function pump(): Promise<void> {
       converting = undefined
       if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
     }
-    const ocr = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
     const require = createRequire(__filename)
     let ppocrPaths: import('./material-ocr').PpocrModelPaths | undefined
     let p2tBaseUrl: string | undefined
@@ -207,7 +207,13 @@ async function pump(): Promise<void> {
     converting = undefined; starting = undefined; release(); queueMicrotask(() => void pump()); return
   }
   let settled = false
-  const timer = setTimeout(() => active?.id === next.id && active.finish('failed', next.derivation === 'ocr' ? '识别超过十分钟，请减少页数后重试' : '解析超过两分钟，请拆分文件或转换后重试'), next.derivation === 'ocr' ? 600_000 : 120_000)
+  // 超时随页数×引擎速度自适应（页数上限已放开，写死 10 分钟会误杀长任务）；
+  // 封顶 2 小时：挂死的 sidecar/网络不该无限占用队列。
+  const pageCount = ocr ? ocr.to_page - ocr.from_page + 1 : 0
+  const perPageMs = ocr?.engine === 'pix2text' ? 30_000 : ocr?.engine === 'tesseract' ? 9_000 : 5_000
+  const baseMs = ocr ? (ocr.engine === 'pix2text' ? 360_000 : 60_000) : 0
+  const jobTimeoutMs = ocr ? Math.min(7_200_000, Math.max(600_000, baseMs + pageCount * perPageMs)) : 120_000
+  const timer = setTimeout(() => active?.id === next.id && active.finish('failed', next.derivation === 'ocr' ? `识别超时（${Math.round(jobTimeoutMs / 60_000)} 分钟）——公式引擎首次含模型下载会显著变慢，可分批重试` : '解析超过两分钟，请拆分文件或转换后重试'), jobTimeoutMs)
   const finish = (status: 'ready' | 'failed' | 'cancelled' | 'queued', error?: string, result?: ParseResult): void => {
     if (settled) return
     settled = true; clearTimeout(timer)

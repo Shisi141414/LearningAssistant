@@ -6,7 +6,7 @@ import { PdfPage } from './PdfPage'
 export function MaterialOcrPanel({ version, onVersion }: { version: MaterialVersion; onVersion: (id: string) => Promise<void> }) {
   const [opened, setOpened] = useState(false)
   return <details className="material-ocr" onToggle={event => { if (event.currentTarget.open) setOpened(true) }}>
-    <summary>扫描页识别与校正 <span className="muted">· 本地处理 · 每次最多 20 页</span></summary>
+    <summary>扫描页识别与校正 <span className="muted">· 本地处理</span></summary>
     {opened && <OcrEditor key={version.id} version={version} onVersion={onVersion} />}
   </details>
 }
@@ -14,7 +14,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   const mounted = useRef(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [models, setModels] = useState<OcrModelsStatus | null>(null)
-  const [ppocr, setPpocr] = useState<{ presets: Array<{ key: string; label: string; ready: boolean }> } | null>(null)
+  const [ppocr, setPpocr] = useState<{ presets: Array<{ key: string; label: string; ready: boolean; missing: string[] }> } | null>(null)
   const [p2t, setP2t] = useState<{ python: boolean; pythonDetail: string; pix2text: boolean; pix2textVersion: string | null; sidecarRunning: boolean } | null>(null)
   const [engine, setEngine] = useState<'ppocr' | 'pix2text' | 'tesseract'>('ppocr')
   const [language, setLanguage] = useState('zh-en')
@@ -78,7 +78,16 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
     try { const result = await window.api.materials.ocrCorrect({ version_id: version.id, page, text: draft }); if (!mounted.current) return; if (result.ok) await onVersion(result.data); else setError(result.error) }
     finally { setBusy(false) }
   }
-  const validRange = Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 1 && to >= from && to <= 3000 && to - from < 20
+  const validRange = Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 1 && to >= from && to <= 3000
+  const pageCount = validRange ? to - from + 1 : 0
+  // 预估用时（CPU 推理的经验值，随引擎而异）；公式引擎首次另含模型下载与加载
+  const fmtDur = (seconds: number): string => seconds < 90 ? `${Math.max(5, Math.round(seconds / 5) * 5)} 秒` : `约 ${Math.max(1, Math.round(seconds / 60))} 分钟`
+  const estimate = !validRange ? '' : engine === 'pix2text'
+    ? `本次 ${pageCount} 页约 ${fmtDur(210 + pageCount * 27)}（首次另含模型下载加载 3–5 分钟，之后每页约 15–40 秒）`
+    : engine === 'tesseract'
+      ? `本次 ${pageCount} 页约 ${fmtDur(pageCount * 7.5)}（每页约 5–10 秒）`
+      : `本次 ${pageCount} 页约 ${fmtDur(pageCount * 3.5)}（每页约 2–5 秒）`
+  const ppocrMissing = engine === 'ppocr' ? ppocr?.presets.find(p => p.key === ppocrPreset)?.missing ?? [] : []
   return <div className="ocr-editor">
     <p className="muted">保留原件和旧版引用；识别或校正后生成新版本。请对照原页核对公式、表格与阅读顺序。</p>
     <div className="toolbar">
@@ -107,16 +116,20 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
         {p2t && !p2t.python
           ? <p>未检测到可用的 Python。请安装 Python 3.8+（安装时勾选 Add python.exe to PATH），完成后点「重新检测」。</p>
           : <p>本机 Python 已就绪（{p2t?.pythonDetail}），但缺少 pix2text 包。请在终端执行：</p>}
-        {p2t?.python && <p><code>pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>}
-        <p className="muted">装完后点「重新检测」。首次识别会自动下载公式识别模型（约 200 MiB，缓存到用户目录），首次请求可能需要几分钟；识别结果中公式为 LaTeX，可在笔记中用 $..$ / $$..$$ 渲染。</p>
+        {p2t?.python && <p><code>python -m pip install pix2text -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>}
+        <p className="muted">用 python -m pip 而非裸 pip，避免 pip 与 python 指向不同环境导致「装了仍提示未安装」。装完点「重新检测」。首次识别会自动下载公式识别模型（约 200 MiB，缓存到用户目录），首次请求可能需要几分钟；识别结果中公式为 LaTeX，可在笔记中用 $..$ / $$..$$ 渲染。</p>
       </div>
     )}
     <div className="toolbar ocr-range">
       <label>从第 <input aria-label="OCR 起始页" type="number" min={1} max={3000} value={from} onChange={e => setFrom(Number(e.target.value))} /> 页</label>
-      <label>至第 <input aria-label="OCR 结束页" type="number" min={from} max={Math.min(3000, from + 19)} value={to} onChange={e => setTo(Number(e.target.value))} /> 页</label>
-      <button className="primary" disabled={busy || dirty || !engineReady || !validRange} onClick={() => void run()}>识别为新版本</button>
-      <span className="muted">使用 PDF 实际页序号</span>
+      <label>至第 <input aria-label="OCR 结束页" type="number" min={from} max={3000} value={to} onChange={e => setTo(Number(e.target.value))} /> 页</label>
+      {/* pix2text 环境检测为参考信号（曾因检测超时误报），不硬闸运行按钮——服务端入口会做权威检查并给可操作报错 */}
+      <button className="primary" disabled={busy || dirty || !validRange || (engine !== 'pix2text' && !engineReady)} onClick={() => void run()}>识别为新版本</button>
+      <span className="muted">{estimate || '使用 PDF 实际页序号'}</span>
     </div>
+    {engine === 'ppocr' && !ppocrReady && ppocrMissing.length > 0 && (
+      <p className="muted">缺文件：{ppocrMissing.join('、')}（未下载或校验失败。点「下载」重新获取；若反复失败，检查网络或存储位置是否迁移过）</p>
+    )}
     {error && <p role="alert" className="material-error">{error}</p>}
     <div className="toolbar"><label>核对第 <input aria-label="OCR 核对页" type="number" min={1} max={3000} value={page} disabled={dirty || busy} onChange={e => { const n = Number(e.target.value); if (Number.isSafeInteger(n) && n >= 1 && n <= 3000) setPage(n) }} /> 页</label>
       {source && <span className="muted">{source.corrected_text !== null ? '已有人工校正' : '尚未人工校正'} · 识别分数 {Math.round(source.confidence)} / 100</span>}

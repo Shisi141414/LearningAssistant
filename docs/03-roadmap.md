@@ -148,3 +148,7 @@ PP-OCR（ppu-paddle-ocr，onnxruntime-node）成为默认 OCR 引擎并按语言
 ## 公式识别记录（2026-11-12）
 
 Pix2Text Python sidecar 接入 OCR 管线：第三引擎「文字+公式」（公式输出 LaTeX，`$$..$$`/`$..$` 与 KaTeX 笔记链路直通）；主进程管理 sidecar 生命周期（懒加载/空闲回收/退出清理），worker 只发回环 HTTP；同时修正 OCR 入口前置检查按引擎分流（原 tesseract 语言包检查对其它引擎是错误前置），见 [公式识别记录](34-formula-ocr.md)。真机质量与 sidecar 稳定性待 Windows 端验收（需本机 pip install pix2text）。
+
+## OCR 状态误报修复与批量放开（2026-11-12）
+
+修复「已安装/已下载但显示未就绪」：Pix2Text 检测改查 importlib.metadata（原 import pix2text 需加载 torch，冷启动数十秒被 20s 超时误判为未安装）、解释器依次探测 python/py/python3、指引改 python -m pip 防环境错位；ppocr 状态增加缺失文件明细。OCR 批量移除 20 页上限，超时改为按页数×引擎速度自适应（上限 2 小时），UI 显示预估用时，见 [修复记录](35-ocr-status-and-batch.md)。office-conversion 进程树清理测试在 VM 间歇性失败（时序型 flaky），待 Windows 端确认。

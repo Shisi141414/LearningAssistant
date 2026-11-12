@@ -54,7 +54,7 @@ export async function recognizeMaterial(
   let paddle: import('ppu-paddle-ocr').PaddleOcrService | undefined
   try {
     const document = await loading.promise
-    if (input.from_page < 1 || input.to_page > document.numPages || input.to_page < input.from_page || input.to_page - input.from_page >= 20) throw new Error('请选择文档内连续的 1–20 页')
+    if (input.from_page < 1 || input.to_page > document.numPages || input.to_page < input.from_page) throw new Error('页码超出文档范围')
 
     if (usePpocr && ppocr) {
       const { PaddleOcrService } = await import('ppu-paddle-ocr')

@@ -98,14 +98,19 @@ let sidecar: { child: ChildProcess; port: number; startedAt: number } | null = n
 let lastUsedAt = 0
 const IDLE_SHUTDOWN_MS = 5 * 60_000
 let idleTimer: ReturnType<typeof setInterval> | null = null
+/** 已解析可用的解释器（pythonCandidates 首次命中后缓存，sidecar 复用同一解释器） */
+let resolvedCommand: { cmd: string; base: string[] } | null = null
 
-function pythonCommand(): { cmd: string; base: string[] } {
+function pythonCandidates(): Array<{ cmd: string; base: string[] }> {
   const custom = configGet('p2t.pythonPath')
-  return { cmd: custom ?? 'python', base: [] }
+  if (custom) return [{ cmd: custom, base: [] }]
+  if (resolvedCommand) return [resolvedCommand]
+  // Windows 常见 py 启动器；Linux/macOS 为 python3。逐个探测取首个可用。
+  return [{ cmd: 'python', base: [] }, { cmd: 'py', base: [] }, { cmd: 'python3', base: [] }]
 }
 
 function runPython(args: string[], timeoutMs: number): Promise<{ code: number | null; stdout: string; stderr: string }> {
-  const { cmd, base } = pythonCommand()
+  const { cmd, base } = resolvedCommand ?? pythonCandidates()[0]
   return new Promise((resolve) => {
     try {
       const child = spawn(cmd, [...base, ...args], { windowsHide: true })
@@ -122,22 +127,40 @@ function runPython(args: string[], timeoutMs: number): Promise<{ code: number | 
   })
 }
 
-/** 环境检测：python 可用性与 pix2text 包安装状态 */
+/** 环境检测：解释器逐个探测；包状态查 importlib.metadata（毫秒级）。
+ *  注意不能用 `import pix2text` 检测——那会加载 torch，冷启动数十秒，
+ *  曾被 20s 超时误判为"未安装"，导致装好了也显示未就绪。 */
 export async function pix2textStatus(): Promise<Pix2TextStatus> {
-  const py = await runPython(['-c', 'import sys; print(sys.version.split()[0])'], 15_000)
-  const pythonOk = py.code === 0 && /^\d+\.\d+/.test(py.stdout.trim())
-  if (!pythonOk) {
-    return { python: false, pythonDetail: py.code === -1 ? '未找到 python 命令（需安装 Python 3.8+ 并加入 PATH）' : `python 不可用：${py.stderr.trim().slice(0, 120)}`, pix2text: false, pix2textVersion: null, sidecarRunning: !!sidecar }
+  const candidates = pythonCandidates()
+  let lastDetail = ''
+  for (const candidate of candidates) {
+    const detail = await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve) => {
+      try {
+        const child = spawn(candidate.cmd, [...candidate.base, '-c', 'import sys; print(sys.version.split()[0])'], { windowsHide: true })
+        let stdout = '', stderr = ''
+        const timer = setTimeout(() => child.kill(), 15_000)
+        child.stdout?.on('data', (d) => { stdout += String(d) })
+        child.stderr?.on('data', (d) => { stderr += String(d) })
+        child.on('error', (e) => { clearTimeout(timer); resolve({ code: -1, stdout, stderr: String(e) }) })
+        child.on('close', (code) => { clearTimeout(timer); resolve({ code, stdout, stderr }) })
+      } catch (e) { resolve({ code: -1, stdout: '', stderr: String(e) }) }
+    })
+    if (detail.code !== 0 || !/^\d+\.\d+/.test(detail.stdout.trim())) {
+      lastDetail = detail.code === -1 ? `未找到 ${candidate.cmd} 命令` : `${candidate.cmd} 不可用：${(detail.stderr || detail.stdout).trim().slice(0, 120)}`
+      continue
+    }
+    resolvedCommand = candidate
+    const pkg = await runPython(['-c', 'import importlib.metadata as m; print(m.version("pix2text"))'], 20_000)
+    const p2tOk = pkg.code === 0 && /^\d/.test(pkg.stdout.trim())
+    return {
+      python: true,
+      pythonDetail: `Python ${detail.stdout.trim()}（${candidate.cmd}）`,
+      pix2text: p2tOk,
+      pix2textVersion: p2tOk ? pkg.stdout.trim() : null,
+      sidecarRunning: !!sidecar
+    }
   }
-  const pkg = await runPython(['-c', 'import pix2text; print(getattr(pix2text, "__version__", ""))'], 20_000)
-  const p2tOk = pkg.code === 0
-  return {
-    python: true,
-    pythonDetail: `Python ${py.stdout.trim()}`,
-    pix2text: p2tOk,
-    pix2textVersion: p2tOk ? pkg.stdout.trim() || null : null,
-    sidecarRunning: !!sidecar
-  }
+  return { python: false, pythonDetail: lastDetail || '未找到可用的 python 命令（安装 Python 3.8+ 并加入 PATH；Windows 也可用 py 启动器）', pix2text: false, pix2textVersion: null, sidecarRunning: !!sidecar }
 }
 
 async function sidecarScriptPath(): Promise<string> {
@@ -161,7 +184,8 @@ export async function ensurePix2TextSidecar(): Promise<string> {
   return withWork('公式识别服务启动', async () => {
     if (sidecar) { lastUsedAt = Date.now(); return `http://127.0.0.1:${sidecar.port}` }
     const script = await sidecarScriptPath()
-    const { cmd, base } = pythonCommand()
+    // pix2textStatus 已解析并缓存可用解释器；兜底 custom/python
+    const { cmd, base } = resolvedCommand ?? { cmd: configGet('p2t.pythonPath') ?? 'python', base: [] as string[] }
     const child = spawn(cmd, [...base, script], { windowsHide: true })
     const port = await new Promise<number>((resolve, reject) => {
       let out = ''

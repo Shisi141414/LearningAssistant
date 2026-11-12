@@ -10,7 +10,8 @@ export function derivedParent(id: string): MaterialVersion {
 }
 export function validateOcrRange(input: OcrInput): void {
   derivedParent(input.version_id)
-  if (!Number.isSafeInteger(input.from_page) || !Number.isSafeInteger(input.to_page) || input.from_page < 1 || input.to_page < input.from_page || input.to_page - input.from_page >= 20) throw new Error('每次请选择连续的 1–20 页')
+  // 页数不设上限：任务超时按页数×引擎速度自适应（materials.ts pump），UI 显示预估用时
+  if (!Number.isSafeInteger(input.from_page) || !Number.isSafeInteger(input.to_page) || input.from_page < 1 || input.to_page < input.from_page || input.to_page > 100_000) throw new Error('请选择有效的连续页码范围')
   const count = getDb().prepare("SELECT COUNT(DISTINCT json_extract(locator_json, '$.page')) AS n FROM material_blocks WHERE version_id = ? AND json_extract(locator_json, '$.page') BETWEEN ? AND ?").get(input.version_id, input.from_page, input.to_page) as { n: number }
   if (count.n !== input.to_page - input.from_page + 1) throw new Error('所选页码超出材料范围')
 }
