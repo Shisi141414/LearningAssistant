@@ -1,5 +1,11 @@
 .material-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 24px; }
 .material-import { flex-wrap: wrap; }
+.learning-package-import { margin: 16px 0; }
+.learning-package-import .toolbar { flex-wrap: wrap; }
+.learning-package-preview { margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); overflow-wrap: anywhere; }
+.learning-package-preview h3 { margin-top: 0; }
+.learning-package-preview select { max-width: 100%; }
+.learning-package-preview p { line-height: 1.7; }
 .material-shelf { border-right: 1px solid var(--border); padding-right: 20px; }
 .material-shelf-label { color: var(--text-2); font-size: 12px; margin-bottom: 12px; }
 .material-book { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: 6px; width: 100%; margin-bottom: 12px; padding: 16px; background: var(--bg-panel); border: 1px solid var(--border); }

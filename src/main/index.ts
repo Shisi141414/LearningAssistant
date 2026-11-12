@@ -16,6 +16,8 @@ import { recoverLearningSuggestions, stopLearningSuggestions } from './services/
 import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
 import { stopLearningAssets } from './services/learning-assets'
 import { stopLearningPackageExports } from './services/learning-package-export'
+import { stopLearningPackageImports } from './services/learning-package-import'
+import { recoverLearningPackageImports } from './services/learning-package-import-store'
 
 declareMaterialProtocol()
 
@@ -57,13 +59,14 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // 课堂模式需要麦克风：只放行媒体权限（'media' 含音视频采集），其余默认拒绝
   session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
     callback(permission === 'media' && trustedRenderer(wc.getURL()) && details.isMainFrame)
   })
 
   getDb() // 初始化数据库（迁移 + 种子）
+  await recoverLearningPackageImports()
   getDb().prepare("UPDATE classroom_sessions SET ended_at = ?, end_reason = 'interrupted' WHERE ended_at IS NULL").run(Date.now())
   registerAllIpc()
   registerMaterialProtocol()
@@ -90,6 +93,7 @@ app.on('before-quit', () => {
   stopLearningPreparation()
   stopLearningAssets()
   stopLearningPackageExports()
+  stopLearningPackageImports()
   stopLearningSuggestions()
   stopKnowledgeSuggestions()
   closeDb()

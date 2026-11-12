@@ -14,6 +14,18 @@ import { learningPackageFiles, learningPackageLimits as limits } from '@shared/l
 import { validateLearningPackage } from './learning-package-validation'
 
 export interface DecodedLearningPackage { manifest: LearningPackage; sha256: string; files: { path: string; file: string }[] }
+/** 安装前复核复制后的实际文件，避免预览与确认期间字节变化。只在工作线程使用。 */
+export async function verifyLearningPackageFiles(manifest: LearningPackage, files: Map<string, string>, signal?: AbortSignal): Promise<void> {
+  validateLearningPackage(manifest)
+  const declared = learningPackageFiles(manifest)
+  if (files.size !== declared.length || declared.some(item => !files.has(item.path))) throw new Error('导入附件与清单不一致')
+  for (const item of declared) {
+    const actual = await fileDigest(files.get(item.path)!, item.byte_length, signal)
+    if (actual.sha256 !== item.sha256 || actual.byte_length !== item.byte_length) throw new Error('导入文件在预览后发生变化，请重新选择文档包')
+    const asset = manifest.assets.find(asset => asset.path === item.path)
+    if (asset) await checkImage(files.get(item.path)!, asset)
+  }
+}
 const zipPath = /^(document\.json|source\/(original\.(pdf|docx|pptx|doc|ppt)|converted\.(docx|pptx))|assets\/[A-Za-z0-9_-]{1,128}\.(png|jpg))$/
 class CheckedBytes extends Transform {
   private bytes = 0

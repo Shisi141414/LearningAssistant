@@ -1,12 +1,19 @@
 import { IPC } from '@shared/ipc-channels'
 import { dialog } from 'electron'
 import { exportLearningPackage, cancelLearningPackageExport } from '../services/learning-package-export'
+import { previewLearningPackage, confirmLearningPackage, cancelLearningPackageImport } from '../services/learning-package-import'
 import { ipcMain, handleResult } from './helpers'
 import { changeLearningDocument, getLearningDocument, prepareLearningDocument } from '../services/learning-documents'
 import { prepareLearningAssets, cancelLearningAssets, cropLearningPdfAsset } from '../services/learning-assets'
 import { applyLearningSuggestion, cancelLearningSuggestion, dismissLearningSuggestion, learningSuggestionDetail, listLearningSuggestions, startLearningSuggestion } from '../services/learning-suggestions'
 
 export function registerLearningIpc(): void {
+  ipcMain.handle(IPC.LearningPackagePreview, () => handleResult(async () => {
+    const chosen = await dialog.showOpenDialog({ title: '导入学习文档包并预览', properties: ['openFile'], filters: [{ name: '学习文档包', extensions: ['ladoc'] }] })
+    return chosen.canceled || !chosen.filePaths[0] ? null : previewLearningPackage(chosen.filePaths[0])
+  }))
+  ipcMain.handle(IPC.LearningPackageImport, (_e, input) => handleResult(() => confirmLearningPackage(input)))
+  ipcMain.handle(IPC.LearningPackageImportCancel, () => handleResult(cancelLearningPackageImport))
   ipcMain.handle(IPC.LearningPackageExportCancel, (_e, id) => handleResult(() => cancelLearningPackageExport(id)))
   ipcMain.handle(IPC.LearningPackageExport, (_e, input) => handleResult(async () => {
     const document = getLearningDocument(input)

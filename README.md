@@ -81,7 +81,8 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [学习文档公式校正、内容节点与来源保留](docs/18-learning-formulas.md)
 - [学习文档嵌入配图、人工归属与附件来源](docs/19-learning-figures.md)
 - [PDF 原页选区配图、坐标来源与回链](docs/20-pdf-figure-crops.md)
-- [可移植学习文档包：契约、后台校验与所选修订导出（导入待接入）](docs/21-portable-learning-package.md)
+- [可移植学习文档包：契约、后台校验与所选修订导出](docs/21-portable-learning-package.md)
+- [学习文档包预览、确认导入与中断恢复](docs/22-portable-learning-import.md)
 
 ## 开发约定
 

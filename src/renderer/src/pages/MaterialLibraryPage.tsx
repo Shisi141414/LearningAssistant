@@ -8,6 +8,7 @@ import { ConceptText } from '../components/ConceptText'
 import { MaterialOcrPanel } from '../components/MaterialOcrPanel'
 import { LearningReader } from '../components/LearningReader'
 import { OfficeConverterPanel } from '../components/OfficeConverterPanel'
+import { LearningPackageImport } from '../components/LearningPackageImport'
 
 const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲义', slides: '课件', supplement: '补充材料' }
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
@@ -124,6 +125,12 @@ export function MaterialLibraryPage() {
       <button className="primary" disabled={busy || !subject} onClick={() => void importFile()}>{busy ? '正在导入…' : '+ 导入材料'}</button>
       <span className="muted">PDF / Word / PPT · 每件最多 50 MiB</span>
     </div>
+    <LearningPackageImport subjectId={subject} onImported={async result => {
+      setParams({ material: result.material_id, version: result.version_id, revision: result.revision_id })
+      const next = await window.api.materials.get(result.material_id)
+      if (next.ok) setDetail(next.data)
+      setOffset(0); setQuery(''); await reload()
+    }} />
     <OfficeConverterPanel />
     {error && <p role="alert" className="material-error">{error}</p>}
     <div className="material-workspace">

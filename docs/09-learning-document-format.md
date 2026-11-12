@@ -1,6 +1,6 @@
 # 统一学习文档格式草案
 
-> 2026-11-11 · 设计与报告：codex · 状态：0.1 交换格式草案；后续已接入规范来源、人工语义拆分及类型排版，见 [运行时记录](12-semantic-entries.md)，并增加 [AI 拆分审核](13-ai-semantic-review.md)、[旧格式输入适配](14-legacy-office-conversion.md)、[Office 配图](19-learning-figures.md) 与 [PDF 选区](20-pdf-figure-crops.md)。0.2 的 [文档包契约、编解码与导出](21-portable-learning-package.md) 已实现，导入入口尚待接入。下文保留草案阶段的设计与验证范围。
+> 2026-11-11 · 设计与报告：codex · 状态：0.1 交换格式草案；后续已接入规范来源、人工语义拆分及类型排版，见 [运行时记录](12-semantic-entries.md)，并增加 [AI 拆分审核](13-ai-semantic-review.md)、[旧格式输入适配](14-legacy-office-conversion.md)、[Office 配图](19-learning-figures.md) 与 [PDF 选区](20-pdf-figure-crops.md)。0.2 的 [文档包契约、编解码与导出](21-portable-learning-package.md) 已实现，预览与确认导入已接通，见 [导入记录](22-portable-learning-import.md)。下文保留草案阶段的设计与验证范围。
 
 ## 1. 用户目标与核心决定
 

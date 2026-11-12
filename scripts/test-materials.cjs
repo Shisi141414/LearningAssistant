@@ -15,13 +15,17 @@ if (!process.versions.electron) {
   const resume = require('node:child_process').spawnSync(require('electron'), [__filename, '--material-resume', info.isolatedData, info.resumeId], { env, windowsHide: true, encoding: 'utf8', timeout: 30_000 })
   process.stdout.write(resume.stdout || ''); process.stderr.write(resume.stderr || '')
   if (resume.error) console.error(resume.error.message)
-  process.exit(resume.status ?? 1)
+  if(resume.status!==0)process.exit(resume.status??1)
+  const fresh=require('node:child_process').spawnSync(require('electron'),[__filename,'--package-fresh',info.isolatedData],{env,windowsHide:true,encoding:'utf8',timeout:30_000})
+  process.stdout.write(fresh.stdout||'');process.stderr.write(fresh.stderr||'');if(fresh.error)console.error(fresh.error.message)
+  process.exit(fresh.status??1)
 }
 const electron = require('electron')
 const { app } = electron
 // 隔离验收使用软件离屏绘制，隐藏窗口也会生成新帧，避免截图落后于真实 DOM。
 app.disableHardwareAcceleration()
 const resumeIndex = process.argv.indexOf('--material-resume')
+const freshIndex = process.argv.indexOf('--package-fresh')
 const root = resumeIndex >= 0 ? process.argv[resumeIndex + 1] : fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'learning-assistant-materials-'))
 app.setPath('userData', root); app.setPath('sessionData', root)
 const { zipSync, strToU8, unzipSync } = require('fflate')
@@ -110,6 +114,11 @@ function captureRendered(win) {
     win.webContents.invalidate()
   })
 }
+function originalPackageState(document,ids){
+  const reverse=key=>new Map(Object.entries(ids[key]).map(([old,id])=>[id,old])),entries=reverse('entries'),sources=reverse('sources'),assets=reverse('assets'),state=structuredClone(document.state)
+  state.entries=state.entries.map(entry=>({...entry,id:entries.get(entry.id),...(entry.parent_id?{parent_id:entries.get(entry.parent_id)}:{}),sources:entry.sources.map(ref=>({...ref,source_id:sources.get(ref.source_id)})),...(entry.figures?{figures:entry.figures.map(figure=>({...figure,asset_id:assets.get(figure.asset_id)}))}:{})}))
+  state.relations=state.relations.map(relation=>({...relation,from:entries.get(relation.from),to:entries.get(relation.to)}));return state
+}
 const Module = require('node:module'), originalLoad = Module._load
 Module._load = function (request, parent, isMain) {
   if (request === 'electron') return { ...electron, BrowserWindow: HiddenWindow, dialog: { ...electron.dialog, showOpenDialog: async () => ({ canceled: !selectedFile, filePaths: selectedFile ? [selectedFile] : [] }), showSaveDialog: async () => ({ canceled: !saveFile, filePath: saveFile }) }, shell: { ...electron.shell, openPath: async file => { opened.push(file); return '' } } }
@@ -151,6 +160,21 @@ app.on('browser-window-created', (_event, win) => {
       }
     }
     try {
+      if(freshIndex>=0){
+        const sourceRoot=process.argv[freshIndex+1],saved=JSON.parse(fs.readFileSync(path.join(sourceRoot,'portable-import-test.json'),'utf8')),subjects=await call('subjects','list')
+        for(const bundle of [saved.word,saved.pdf]){
+          selectedFile=bundle.file;const preview=await call('learning','packagePreview'),result=await call('learning','packageImport',{ticket:preview.ticket,subject_id:subjects[0].id,include_concepts:true})
+          assert.equal(result.created,true);const doc=await call('learning','get',{version_id:result.version_id}),db=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'),{readonly:true})
+          const journal=db.prepare('SELECT * FROM learning_package_imports WHERE version_id=?').get(result.version_id),ids=JSON.parse(journal.id_map_json),version=db.prepare('SELECT * FROM material_versions WHERE id=?').get(result.version_id)
+          assert.deepEqual(originalPackageState(doc,ids),bundle.manifest.state);assert.deepEqual(doc.sources.map(({id,...source})=>source),bundle.manifest.sources.map(({id,...source})=>source))
+          assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(root,version.file_path))).digest('hex'),bundle.manifest.original.sha256)
+          assert.equal(journal.origin_revision_id,bundle.manifest.document.revision_id);assert.equal(doc.assets.length,bundle.manifest.assets.length)
+          assert.equal(db.prepare('SELECT count(*) n FROM knowledge_evidence WHERE version_id=?').get(result.version_id).n,bundle.manifest.evidence.length)
+          db.close();await win.webContents.executeJavaScript(`location.hash='/library?material=${result.material_id}&version=${result.version_id}&revision=${result.revision_id}'`)
+          await waitUi(`document.querySelectorAll('.learning-entry-figures img').length>0&&Array.from(document.querySelectorAll('.learning-entry-figures img')).every(img=>img.naturalWidth>0)`,'新数据目录的配图可读')
+        }
+        console.log('PACKAGE_FRESH_TEST_OK independent empty database, original SHA, complete remapped state and figures, concepts/evidence and PDF crop locators');clearTimeout(deadline);app.quit();return
+      }
       if (resumeIndex >= 0) {
         const savedPackage=JSON.parse(fs.readFileSync(path.join(root,'portable-worker-test.json'),'utf8')),packageStage=fs.mkdtempSync(path.join(root,'package-restart-'))
         const resumedPackage=await runPackageWorker({action:'read',file:savedPackage.file,directory:packageStage})
@@ -159,6 +183,11 @@ app.on('browser-window-created', (_event, win) => {
         const savedExport=JSON.parse(fs.readFileSync(path.join(root,'portable-export-test.json'),'utf8'))
         const resumedExport=await runPackageWorker({action:'read',file:savedExport.file,directory:fs.mkdtempSync(path.join(root,'export-restart-'))})
         assert.equal(resumedExport.manifest.document.revision_id,savedExport.revision);assert.deepEqual(resumedExport.manifest.state,savedExport.state)
+        const importedCheckpoint=JSON.parse(fs.readFileSync(path.join(root,'portable-import-test.json'),'utf8')),importedDoc=await call('learning','get',{version_id:importedCheckpoint.version})
+        assert.deepEqual(importedDoc.state,importedCheckpoint.state);assert.equal(importedDoc.assets.length,2)
+        const interruptedPackage=JSON.parse(fs.readFileSync(path.join(root,'package-recovery-test.json'),'utf8')),recoveryDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'),{readonly:true})
+        assert.equal(fs.existsSync(path.join(root,'materials',interruptedPackage.version)),false,'重启清理未发布的复制目录')
+        assert.equal(recoveryDb.prepare('SELECT count(*) n FROM learning_package_imports WHERE id=?').get(interruptedPackage.id).n,0);recoveryDb.close()
         const savedCrop=JSON.parse(fs.readFileSync(path.join(root,'learning-crop-test.json'),'utf8'))
         const resumedCrop=await call('learning','get',{version_id:savedCrop.version})
         assert.deepEqual(resumedCrop.assets.map(a=>({sha256:a.sha256,locator:a.locator_json})),savedCrop.assets)
@@ -718,6 +747,35 @@ app.on('browser-window-created', (_event, win) => {
       assert.deepEqual((await call('learning','get',{version_id:packageDoc.version_id})).state,packageDoc.state)
       fs.writeFileSync(path.join(root,'portable-export-test.json'),JSON.stringify({file:saveFile,revision:figureDoc.revision_id,state:figureDoc.state}))
       console.log('PACKAGE_EXPORT_TEST_OK actual UI save, concept and fixed evidence selection, historical export, cancelled dialog/job, atomic replacement and protected data paths')
+      const importBundleFile=path.join(exportDirectory,'完整修订待导入.ladoc');fs.writeFileSync(importBundleFile,goodExport)
+      const importDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
+      const materialCount=()=>importDb.prepare('SELECT count(*) n FROM materials').get().n,originalCount=materialCount()
+      selectedFile=undefined;assert.equal(await call('learning','packagePreview'),null)
+      selectedFile=importBundleFile;await click('导入学习文档包');await waitUi(`!!document.querySelector('.learning-package-preview')`,'包导入预览')
+      assert.equal(materialCount(),originalCount,'预览不写入材料库')
+      win.setSize(1024,768);await new Promise(resolve=>setTimeout(resolve,150));await win.webContents.executeJavaScript(`document.querySelector('.learning-package-preview').scrollIntoView({block:'start',behavior:'instant'})`)
+      await waitUi(`(()=>{const rect=document.querySelector('.learning-package-preview')?.getBoundingClientRect();return rect&&rect.top>=0&&rect.top<180})()`,'预览进入可视范围')
+      assert.equal(await win.webContents.executeJavaScript(`document.documentElement.scrollWidth<=innerWidth`),true)
+      await new Promise(resolve=>setTimeout(resolve,100));await captureRendered(win);await new Promise(resolve=>setTimeout(resolve,100));fs.writeFileSync(path.join(root,'learning-package-import-preview.png'),(await captureRendered(win)).toPNG())
+      await click('取消预览');await waitUi(`!document.querySelector('.learning-package-preview')`,'取消包预览');assert.equal(materialCount(),originalCount)
+      const cancelledRead=await win.webContents.executeJavaScript(`(async()=>{const pending=window.api.learning.packagePreview();await new Promise(r=>setTimeout(r,20));const cancelled=await window.api.learning.packageImportCancel();return [cancelled,await pending]})()`)
+      assert.equal(cancelledRead[0].data,true);assert.equal(cancelledRead[1].ok,false);assert.equal(materialCount(),originalCount)
+      await click('导入学习文档包');await waitUi(`!!document.querySelector('.learning-package-preview')`,'再次选择包');await setSelect('[aria-label="文档包目标学科"]',input.subject_id)
+      await click('确认导入');await waitUi(`document.querySelector('.learning-package-import')?.textContent.includes('已导入独立副本')&&!!document.querySelector('.learning-entry-figures img')`,'确认保存独立副本并阅读')
+      const importJournal=importDb.prepare("SELECT * FROM learning_package_imports WHERE status='ready' ORDER BY created_at DESC LIMIT 1").get(),importIds=JSON.parse(importJournal.id_map_json)
+      let importedDoc=await call('learning','get',{version_id:importJournal.version_id})
+      assert.deepEqual(originalPackageState(importedDoc,importIds),packageDoc.state);assert.equal(materialCount(),originalCount+1);assert.equal(importIds.concepts[matchedConcept.id],matchedConcept.id)
+      assert.deepEqual((await call('learning','get',{version_id:packageDoc.version_id})).state,packageDoc.state,'原材料保留')
+      importedDoc=await call('learning','change',{version_id:importedDoc.version_id,expected_revision_id:importedDoc.revision_id,entry_id:importedDoc.state.entries[0].id,action:'edit',type:'narrative',title:'导入副本手动修改'})
+      const duplicatePreview=await call('learning','packagePreview'),duplicateImport=await call('learning','packageImport',{ticket:duplicatePreview.ticket,subject_id:input.subject_id,include_concepts:false})
+      assert.equal(duplicateImport.created,false);assert.equal(duplicateImport.revision_id,importedDoc.revision_id);assert.equal(materialCount(),originalCount+1)
+      assert.equal((await win.webContents.executeJavaScript(`window.api.learning.packageImport(${JSON.stringify({ticket:duplicatePreview.ticket,subject_id:input.subject_id,include_concepts:true})})`)).ok,false,'票据只用一次')
+      const allSubjects=await call('subjects','list'),crossSubject=allSubjects.find(item=>item.id!==input.subject_id).id,crossPreview=await call('learning','packagePreview')
+      const crossImport=await call('learning','packageImport',{ticket:crossPreview.ticket,subject_id:crossSubject,include_concepts:false})
+      assert.equal(crossImport.created,true);assert.notEqual(crossImport.material_id,importJournal.material_id);assert.equal(importDb.prepare('SELECT count(*) n FROM knowledge_evidence WHERE version_id=?').get(crossImport.version_id).n,0)
+      importDb.close();win.setSize(1360,860)
+      const importCheckpoint={version:importedDoc.version_id,state:importedDoc.state,word:{file:importBundleFile,manifest:exported.manifest}}
+      console.log('PACKAGE_IMPORT_TEST_OK real preview, no-write cancellation, cancelled worker, confirm and image reading, exact concept reuse, one-time ticket, edited duplicate and cross-subject copy')
       const cropMaterial=await importFile(pdf('PDF选区教材.pdf',true),input);await wait(cropMaterial.id)
       const cropInitial=await call('learning','prepare',cropMaterial.current_version_id),cropInput={version_id:cropInitial.version_id,page:1,rect:[0.1,0.2,0.4,0.3]}
       const cropCancelled=await win.webContents.executeJavaScript(`Promise.all([window.api.learning.assetsCrop(${JSON.stringify(cropInput)}),window.api.learning.assetsCancel(${JSON.stringify(cropInitial.version_id)})])`)
@@ -765,9 +823,11 @@ app.on('browser-window-created', (_event, win) => {
       fs.writeFileSync(path.join(root,'learning-crop-test.json'),JSON.stringify({material:cropMaterial.id,version:cropInitial.version_id,caption:cropCaption,firstRevision:cropInitial.revision_id,assets:cropCurrent.assets.map(a=>({sha256:a.sha256,locator:a.locator_json}))}))
       win.setSize(1360,860)
       console.log('PDF_CROP_TEST_OK real pointer and percent selections, cancellation, page bounds, duplicate reuse, image display, history, 1024 width and restart checkpoint')
-      saveFile=path.join(exportDirectory,'PDF选区讲义.ladoc');await call('learning','packageExport',{version_id:cropCurrent.version_id,revision_id:cropCurrent.revision_id})
+      const cropExportCurrent=await call('learning','get',{version_id:cropCurrent.version_id})
+      saveFile=path.join(exportDirectory,'PDF选区讲义.ladoc');await call('learning','packageExport',{version_id:cropExportCurrent.version_id,revision_id:cropExportCurrent.revision_id})
       const pdfExport=await runPackageWorker({action:'read',file:saveFile,directory:fs.mkdtempSync(path.join(root,'pdf-export-read-'))})
-      assert.deepEqual(pdfExport.manifest.state,cropCurrent.state);assert.deepEqual(pdfExport.manifest.assets.map(row=>row.locator_json),cropCurrent.assets.map(row=>row.locator_json))
+      assert.deepEqual(pdfExport.manifest.state,cropExportCurrent.state);assert.deepEqual(pdfExport.manifest.assets.map(row=>row.locator_json),cropExportCurrent.assets.map(row=>row.locator_json))
+      importCheckpoint.pdf={file:saveFile,manifest:pdfExport.manifest};fs.writeFileSync(path.join(root,'portable-import-test.json'),JSON.stringify(importCheckpoint))
       // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
       let semanticMode='valid', semanticRequests=0,knowledgeMode='valid',knowledgeRequests=0
       semanticServer=require('node:http').createServer(async(req,res)=>{
@@ -923,6 +983,11 @@ app.on('browser-window-created', (_event, win) => {
       const db = new (require('better-sqlite3'))(path.join(root, 'learning-assistant.db'))
       db.prepare("UPDATE material_versions SET status = 'parsing' WHERE id = ?").run(recovery.current_version_id)
       db.prepare('INSERT INTO classroom_sessions (id, note_id, started_at) VALUES (?, ?, ?)').run('interrupted-classroom-fixture', classNote.id, Date.now())
+      // 模拟复制中断遗留；当前进程结束后，下一次真实启动应清理日志中的半成品。
+      const interruptedVersion=require('node:crypto').randomBytes(16).toString('base64url').slice(0,21),interruptedId='package-recovery-fixture',interruptedDirectory=path.join(root,'materials',interruptedVersion)
+      fs.mkdirSync(interruptedDirectory);fs.writeFileSync(path.join(interruptedDirectory,'source.pdf'),'incomplete import');fs.chmodSync(path.join(interruptedDirectory,'source.pdf'),0o444)
+      db.prepare("INSERT INTO learning_package_imports(id,package_sha256,subject_id,status,planned_version_id,directory_created,owner_pid,inventory_json,origin_document_id,origin_version_id,origin_revision_id,include_concepts,created_at) VALUES (?,?,?,'staging',?,1,?,'[\"source.pdf\"]','origin','version','revision',0,0)").run(interruptedId,'a'.repeat(64),input.subject_id,interruptedVersion,process.pid)
+      fs.writeFileSync(path.join(root,'package-recovery-test.json'),JSON.stringify({id:interruptedId,version:interruptedVersion}))
       db.close()
       console.log('MATERIAL_TEST_OK ' + JSON.stringify({ formats: ['docx', 'pptx', 'pdf'], versions: true, duplicate: true, cancelRetry: true, failedRetry: true, sourceLocators: true, archivePreservesReferences: true, renderer: true, node: process.versions.node, isolatedData: root, resumeId: recovery.id }))
       clearTimeout(deadline); app.quit()

@@ -461,5 +461,32 @@ CREATE TABLE learning_asset_extractions (
   created_at INTEGER NOT NULL
 );
 `
+  },
+  {
+    version: 15,
+    name: 'portable_learning_imports',
+    sql: `
+CREATE TABLE learning_package_imports (
+  id TEXT PRIMARY KEY,
+  package_sha256 TEXT NOT NULL,
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  status TEXT NOT NULL CHECK(status IN ('staging','ready')),
+  planned_version_id TEXT NOT NULL,
+  directory_created INTEGER NOT NULL DEFAULT 0,
+  owner_pid INTEGER NOT NULL,
+  inventory_json TEXT NOT NULL,
+  material_id TEXT REFERENCES materials(id) ON DELETE RESTRICT,
+  version_id TEXT REFERENCES material_versions(id) ON DELETE RESTRICT,
+  revision_id TEXT REFERENCES learning_revisions(id) ON DELETE RESTRICT,
+  origin_document_id TEXT NOT NULL,
+  origin_version_id TEXT NOT NULL,
+  origin_revision_id TEXT NOT NULL,
+  id_map_json TEXT NOT NULL DEFAULT '{}',
+  include_concepts INTEGER NOT NULL,
+  result_json TEXT,
+  created_at INTEGER NOT NULL,
+  UNIQUE(package_sha256, subject_id)
+);
+`
   }
 ]

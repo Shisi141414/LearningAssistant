@@ -3,6 +3,9 @@ import type { LearningAsset, LearningAssetExtraction, LearningSource, LearningSt
 export interface LearningPackageFile { path: string; sha256: string; byte_length: number }
 export interface LearningPackageExportInput { version_id: string; revision_id: string }
 export interface LearningPackageExportResult { file_name: string; sha256: string; byte_length: number; revision_id: string }
+export interface LearningPackagePreview { ticket: string; title: string; file_name: string; format: MaterialFormat; kind: MaterialKind; subject_name: string | null; sources: number; entries: number; assets: number; concepts: number; evidence: number; sha256: string }
+export interface LearningPackageImportInput { ticket: string; subject_id: string; include_concepts: boolean }
+export interface LearningPackageImportResult { material_id: string; version_id: string; revision_id: string; created: boolean; concepts_created: number; concepts_reused: number; concept_conflicts: number; include_concepts: boolean }
 /** 标准 ZIP 中 document.json 的公开固定修订快照；不是整个应用数据库备份。 */
 export interface LearningPackage {
   format: 'learning-assistant/document'
