@@ -27,6 +27,7 @@ const opt = (check: Check): Check => optional(nullable(check))
 const choice = (...values: string[]): Check => (v) => typeof v === 'string' && values.includes(v)
 const number: Check = (v) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0
 const bool: Check = (v) => typeof v === 'boolean'
+const learningRange: Check = v => Array.isArray(v) && v.length === 2 && v.every(item => number(item) && item <= 2_000_000)
 const record = (fields: Record<string, Check>): Check => (value) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const object = value as Record<string, unknown>
@@ -67,6 +68,8 @@ const rules: Partial<Record<string, Check[]>> = {
       record({ ...base, action: choice('split'), position: (v) => number(v) && (v as number) <= 2_000_000 }),
       record({ ...base, action: choice('merge') }),
       record({ ...base, action: choice('outline'), end_entry_id: id, parent_id: nullable(id) }),
+      record({ ...base, action: choice('formula'), formula: record({ range: learningRange, latex: text(2000, true), display: bool }) }),
+      record({ ...base, action: choice('formula-remove'), range: learningRange }),
       record({ ...base, action: choice('relate'), target_id: nullable(id) })
     ].some(check => check(value))
   }],

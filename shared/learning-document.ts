@@ -1,4 +1,5 @@
 import type { LearningChange, LearningEntry, LearningEntryType, LearningSource, LearningSourceRef, LearningState } from './types'
+import { validateLearningFormulas, formulaPreview } from './learning-formulas'
 
 export const learningTypes: Record<LearningEntryType, string> = { section: '章节', narrative: '叙述', definition: '定义', theorem: '定理', proposition: '命题', lemma: '引理', corollary: '推论', proof: '证明', example: '例题', exercise: '习题', solution: '解答', figure: '配图说明', table: '表格文字', equation: '公式文字', note: '注意' }
 const statements: LearningEntryType[] = ['theorem', 'proposition', 'lemma', 'corollary']
@@ -37,6 +38,7 @@ export function validateLearningState(state: LearningState, sourceList: Learning
   const coverage = new Map<string, [number, number][]>()
   let lastOrdinal = -1, lastEnd = -1
   let openSections: string[] = []
+  let formulaCount = 0
   for (const entry of state.entries) {
     if (!entry.id || ids.has(entry.id) || !Object.hasOwn(learningTypes, entry.type) || entry.title.length > 500 || entry.title.includes('\0') || !entry.sources.length) throw new Error('条目 ID、类型、标题或来源不合法')
     const parent = entry.parent_id ?? null
@@ -61,6 +63,9 @@ export function validateLearningState(state: LearningState, sourceList: Learning
       lastOrdinal = source.ordinal; lastEnd = end
       const ranges = coverage.get(source.id) ?? []; ranges.push([start, end]); coverage.set(source.id, ranges)
     }
+    validateLearningFormulas(entry.formulas, entryText(entry, sources))
+    formulaCount += entry.formulas?.length ?? 0
+    if (formulaCount > 200) throw new Error('本篇最多保存 200 个公式校正，请拆分长材料')
   }
   for (const source of sourceList) {
     const ranges = coverage.get(source.id)
@@ -88,6 +93,7 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
     entry.type = change.type; entry.title = change.title.trim()
     entry.analysis = { method: 'manual', review_status: 'confirmed' }
   } else if (change.action === 'split') {
+    if (entry.formulas?.length) throw new Error('请先移除此条目的公式校正，再拆分，避免校正范围错位')
     const text = entryText(entry, sources), position = change.position
     if (!Number.isSafeInteger(position) || position <= 0 || position >= text.length || !safeBoundary(text, position)) throw new Error('请把光标放在正文内部的完整字符之间')
     const left: LearningSourceRef[] = [], right: LearningSourceRef[] = []
@@ -110,6 +116,7 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
   } else if (change.action === 'merge') {
     if (!index) throw new Error('第一条前面没有可合并的条目')
     const before = state.entries[index - 1]
+    if (entry.formulas?.length || before.formulas?.length) throw new Error('请先移除这两条的公式校正，再合并，避免校正范围错位')
     if ((before.parent_id ?? null) !== (entry.parent_id ?? null) || state.entries.some(item => item.parent_id === entry.id || item.parent_id === before.id)) throw new Error('合并须在同一父章节，且不能合并有子条目的章节；请先调整章节归属')
     if (state.relations.some(r => [r.from, r.to].includes(entry.id) || [r.from, r.to].includes(before.id))) throw new Error('请先解除这两条涉及的证明/解答关联，再合并')
     for (const ref of entry.sources) {
@@ -126,6 +133,17 @@ export function changeLearningState(previous: LearningState, sourceList: Learnin
     if (change.parent_id && selected.has(change.parent_id)) throw new Error('父章节不能包含在所选范围中')
     if (state.entries.some(item => !selected.has(item.id) && item.parent_id && selected.has(item.parent_id))) throw new Error('所选范围须包含章节的完整子树，请扩展结束条目')
     for (const item of state.entries.slice(index, end + 1)) if (!item.parent_id || !selected.has(item.parent_id)) item.parent_id = change.parent_id
+  } else if (change.action === 'formula') {
+    validateLearningFormulas([change.formula], entryText(entry, sources))
+    const preview = formulaPreview(change.formula.latex, change.formula.display)
+    if (preview.error) throw new Error(`公式无法排版，请检查 LaTeX：${preview.error}`)
+    entry.formulas = [...(entry.formulas ?? []).filter(formula => formula.range[0] !== change.formula.range[0] || formula.range[1] !== change.formula.range[1]), structuredClone(change.formula)].sort((a, b) => a.range[0] - b.range[0])
+    entry.analysis = { method: 'manual', review_status: 'confirmed' }
+  } else if (change.action === 'formula-remove') {
+    const kept = (entry.formulas ?? []).filter(formula => formula.range[0] !== change.range[0] || formula.range[1] !== change.range[1])
+    if (kept.length === (entry.formulas?.length ?? 0)) throw new Error('该公式校正已不存在，请刷新修订')
+    if (kept.length) entry.formulas = kept
+    else delete entry.formulas
   } else {
     state.relations = state.relations.filter(r => r.from !== entry.id)
     if (change.target_id) state.relations.push({ from: entry.id, to: change.target_id, type: entry.type === 'proof' ? 'proves' : 'solves', review_status: 'confirmed' })
