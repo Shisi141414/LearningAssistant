@@ -1,6 +1,6 @@
 // 可选的真实材料验收：配置文件/教材放在仓库外或被忽略的目录，始终使用隔离应用数据。
 // node scripts/test-real-materials.cjs <local-config.json>
-// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?,assets?}], converterPath?, restart?, unsupported?:[path]}
+// 配置：{cases:[{path,kind,query?,expectPages?,expectOcr?,learning?,assets?,crop?:{page,rect}}], converterPath?, restart?, unsupported?:[path]}
 const fs = require('node:fs')
 const path = require('node:path')
 const assert = require('node:assert/strict')
@@ -63,7 +63,8 @@ app.on('browser-window-created', (_event, win) => {
             const document=await call('learning','get',{version_id:item.versionId})
             assert.deepEqual(document.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),item.assets.items)
             assert.equal(document.revision_id,item.assets.revision)
-            assert.ok(document.asset_extraction)
+            if(item.assets.office)assert.ok(document.asset_extraction)
+            for(const asset of document.assets)assert.equal(await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${asset.id}').then(response=>response.status)`),200)
           }
         }
         console.log('REAL_MATERIAL_RESTART_OK immutable conversions, sources and blocks survive restart without the converter')
@@ -120,8 +121,17 @@ app.on('browser-window-created', (_event, win) => {
         if(test.assets){
           const before=await call('learning','prepare',version.id),after=await call('learning','assetsPrepare',version.id)
           assert.equal(after.revision_id,before.revision_id);assert.deepEqual(after.sources,before.sources)
-          assets={revision:after.revision_id,items:after.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),count:after.assets.length,warnings:after.asset_extraction.warnings}
+          assets={office:true,revision:after.revision_id,items:after.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),count:after.assets.length,warnings:after.asset_extraction.warnings}
           for(const asset of after.assets){const status=await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${asset.id}').then(response=>response.status)`);assert.equal(status,200)}
+        }
+        if(test.crop){
+          const before=await call('learning','prepare',version.id),after=await call('learning','assetsCrop',{version_id:version.id,...test.crop})
+          assert.equal(after.revision_id,before.revision_id);assert.deepEqual(after.sources,before.sources)
+          assets={office:false,revision:after.revision_id,items:after.assets.map(asset=>({sha256:asset.sha256,locator:asset.locator_json})),count:after.assets.length,warnings:[]}
+          for(const asset of after.assets){
+            const image=await win.webContents.executeJavaScript(`fetch('study-material://learning-assets/${asset.id}').then(async response=>{if(response.status!==200)throw Error('选区读取失败');return Array.from(new Uint8Array(await response.arrayBuffer()))})`)
+            const file=path.join(root,`real-crop-${asset.id}.png`);fs.writeFileSync(file,Buffer.from(image));assert.equal(hash(file),asset.sha256)
+          }
         }
         const detail=await call('materials','get',material.id),converted=detail.conversions[0]
         if(['doc','ppt'].includes(version.format)){

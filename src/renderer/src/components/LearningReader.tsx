@@ -7,7 +7,7 @@ import './learning-reader.css'
 import { LearningSuggestions } from './LearningSuggestions'
 import { KnowledgeEvidence } from './KnowledgeEvidence'
 import { LearningFormulaContent, LearningFormulaEditor } from './LearningFormulaContent'
-import { LearningAssetPanel, LearningEntryFigures, LearningFigureEditor } from './LearningFigures'
+import { LearningAssetPanel, LearningEntryFigures, LearningFigureEditor, learningAssetLocation } from './LearningFigures'
 
 function sourceLabel(source: LearningSource): string {
   const locator = JSON.parse(source.locator_json) as MaterialLocator
@@ -18,7 +18,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
   const [error, setError] = useState(''), [query, setQuery] = useState(''), [type, setType] = useState('')
   const [offset, setOffset] = useState(0), [editing, setEditing] = useState<string | null>(null)
-  const [preview, setPreview] = useState<LearningSource | null>(null)
+  const [preview, setPreview] = useState<{ label: string; locator: MaterialLocator } | null>(null)
   const [chapter, setChapter] = useState(''), [focusedEntry, setFocusedEntry] = useState(targetEntryId)
   const [navigation, setNavigation] = useState(0)
   useEffect(() => {
@@ -86,17 +86,17 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
       {archived && <p className="muted">材料已归档，学习文档只读，已有引用仍可查看。</p>}
       {current && !archived && <LearningSuggestions document={document} subjectId={subjectId} onApplied={next => { setDocument(next); setEditing(null); setOffset(0) }} />}
       {!current && <button disabled={busy} onClick={() => void revision()}>回到当前修订</button>}
-      {preview && <aside className="learning-source-preview"><div className="toolbar"><strong>{sourceLabel(preview)} · 原件对照</strong><button onClick={() => setPreview(null)}>关闭对照</button></div>{(JSON.parse(preview.locator_json) as MaterialLocator).kind === 'pdf' ? <PdfPage versionId={versionId} pageNumber={(JSON.parse(preview.locator_json) as MaterialLocator).page!} /> : <button onClick={() => void window.api.materials.open(versionId).then(r => { if (!r.ok) setError(r.error) })}>打开原件查看</button>}</aside>}
+      {preview && <aside className="learning-source-preview"><div className="toolbar"><strong>{preview.label} · 原件对照</strong><button onClick={() => setPreview(null)}>关闭对照</button></div>{preview.locator.kind === 'pdf' ? <PdfPage versionId={versionId} pageNumber={preview.locator.page!} selection={preview.locator.crop ? { value: preview.locator.crop.rect, onChange: () => undefined, disabled: true, readOnly: true } : undefined} /> : <button onClick={() => void window.api.materials.open(versionId).then(r => { if (!r.ok) setError(r.error) })}>打开原件查看</button>}</aside>}
       {filtered.slice(offset, offset + 100).map(({ entry, index, text, path }) => {
         const related = document.state.relations.find(relation => relation.from === entry.id)
         const target = related && document.state.entries.find(e => e.id === related.to)
         return <article className={`learning-entry learning-${entry.type}${entry.id === focusedEntry ? ' evidence-target' : ''}`} id={`learning-${entry.id}`} key={entry.id}>
           {!!path.length && <div className="learning-breadcrumb" aria-label="所在章节">{path.map(parent => <button key={parent.id} onClick={() => jump(parent.id)}>{parent.title || '未命名章节'}</button>)}</div>}
           <div className="learning-entry-heading"><span className="muted">第 {index + 1} 条</span><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title || (entry.type === 'narrative' ? '待整理正文' : learningTypes[entry.type])}</h3><span className="muted" title={entry.analysis.method === 'ai' ? entry.analysis.model : undefined}>{entry.analysis.method === 'ai' ? entry.analysis.review_status === 'confirmed' ? 'AI 建议 · 已核对' : 'AI 建议 · 待核对' : entry.analysis.review_status === 'confirmed' ? '人工确认' : '待整理'}</span></div>
-          <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => setPreview(sources.get(ref.source_id)!)}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
+          <div className="learning-source-links">{entry.sources.map((ref, i) => <button key={`${ref.source_id}-${i}`} onClick={() => { const source = sources.get(ref.source_id)!; setPreview({ label: sourceLabel(source), locator: JSON.parse(source.locator_json) }) }}>{sourceLabel(sources.get(ref.source_id)!)}</button>)}</div>
           {text.trim() ? <div className="learning-entry-text">{entry.formulas?.length ? <LearningFormulaContent text={text} formulas={entry.formulas} subjectId={subjectId} /> : <MarkdownSegment text={text} subjectId={subjectId} />}</div> : <p className="muted">此来源尚无可提取文字，请对照原件；扫描页可先完成 OCR 后建立新版学习文档。</p>}
           {!!entry.formulas?.length && <details className="learning-formula-source"><summary>人工公式校正 · 查看来源原文</summary><p>{text}</p><p className="muted">本条知识证据及知识候选使用此来源原文；公式校正保留在当前修订中。</p></details>}
-          {!!entry.figures?.length && <LearningEntryFigures figures={entry.figures} assets={document.assets ?? []} />}
+          {!!entry.figures?.length && <LearningEntryFigures figures={entry.figures} assets={document.assets ?? []} onLocate={asset => { setPreview({ label: learningAssetLocation(asset), locator: JSON.parse(asset.locator_json) }); requestAnimationFrame(() => window.document.querySelector('.learning-source-preview')?.scrollIntoView({ block: 'start' })) }} />}
           {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
           {current && !archived && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
           {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}

@@ -7,7 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type {
-  LearningDocument, LearningChange, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
+  LearningDocument, LearningChange, LearningPdfCrop, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
@@ -48,6 +48,7 @@ const api = {
     prepare: (id: ID) => invoke<LearningDocument>(IPC.LearningPrepare, id),
     assetsPrepare: (id: ID) => invoke<LearningDocument>(IPC.LearningAssetsPrepare, id),
     assetsCancel: (id: ID) => invoke<boolean>(IPC.LearningAssetsCancel, id),
+    assetsCrop: (input: LearningPdfCrop) => invoke<LearningDocument>(IPC.LearningAssetsCrop, input),
     change: (input: LearningChange) => invoke<LearningDocument>(IPC.LearningChange, input)
   },
   concepts: {

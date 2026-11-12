@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { IPC } from '@shared/ipc-channels'
 import { learningTypes } from '@shared/learning-document'
 import { evidenceRoles } from '@shared/evidence'
+import { validLearningCropRect } from '@shared/learning-crops'
 
 export function trustedRenderer(url: string): boolean {
   try {
@@ -63,6 +64,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.LearningPrepare]: [id],
   [IPC.LearningAssetsPrepare]: [id],
   [IPC.LearningAssetsCancel]: [id],
+  [IPC.LearningAssetsCrop]: [record({ version_id: id, page: v => number(v) && (v as number) >= 1 && (v as number) <= 100_000, rect: validLearningCropRect })],
   [IPC.LearningChange]: [(value) => {
     const base = { version_id: id, expected_revision_id: id, entry_id: id }
     return [

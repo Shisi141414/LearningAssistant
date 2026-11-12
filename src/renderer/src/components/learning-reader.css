@@ -65,3 +65,10 @@
 .learning-figure-editor label { display: grid; gap: 6px; min-width: 0; }
 .learning-figure-editor select { max-width: 100%; }
 .learning-figure-editor > button { justify-self: start; }
+.pdf-crop-rectangle { position: absolute; border: 2px solid #4f46e5; background: #4f46e522; box-sizing: border-box; pointer-events: none; }
+.learning-pdf-crop { margin: 12px 0; padding-bottom: 12px; border-bottom: 1px solid #e5e5e0; }
+.learning-pdf-crop .pdf-page { max-height: 620px; overflow: auto; margin-bottom: 12px; }
+.learning-pdf-crop .toolbar input { width: 92px; }
+.learning-crop-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin: 12px 0; }
+.learning-crop-fields label { display: flex; flex-direction: column; gap: 4px; }
+.learning-crop-fields input { width: 100px; }

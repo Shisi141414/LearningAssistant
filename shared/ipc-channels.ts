@@ -30,6 +30,7 @@ export const IPC = {
   LearningChange: 'learning:change',
   LearningAssetsPrepare: 'learning:assetsPrepare',
   LearningAssetsCancel: 'learning:assetsCancel',
+  LearningAssetsCrop: 'learning:assetsCrop',
   LearningSuggestStart: 'learning:suggestStart',
   LearningSuggestList: 'learning:suggestList',
   LearningSuggestGet: 'learning:suggestGet',

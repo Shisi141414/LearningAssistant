@@ -73,14 +73,14 @@ function illustratedPptx(){
   entries['ppt/media/figure.png']=pictureBytes
   return zip('配图课件.pptx',entries)
 }
-function pdf() {
-  const content = 'BT /F1 12 Tf 72 720 Td (Mechanics page one) Tj ET'
+function pdf(name = '教材.pdf', illustrated = false) {
+  const content = 'BT /F1 12 Tf 72 720 Td (Mechanics page one) Tj ET' + (illustrated ? ' 0.7 0.8 0.9 rg 72 500 200 100 re f 0 0 0 RG 72 500 200 100 re S 272 550 m 350 550 l 340 558 l 350 550 m 340 542 l S' : '')
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${content.length} >>\nstream\n${content}\nendstream`]
   let data = '%PDF-1.4\n'; const offsets = [0]
   objects.forEach((object, i) => { offsets.push(Buffer.byteLength(data)); data += `${i + 1} 0 obj\n${object}\nendobj\n` })
   const start = Buffer.byteLength(data)
   data += `xref\n0 ${offsets.length}\n0000000000 65535 f \n` + offsets.slice(1).map(n => String(n).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF`
-  const file = path.join(source, '教材.pdf'); fs.writeFileSync(file, data); return file
+  const file = path.join(source, name); fs.writeFileSync(file, data); return file
 }
 const pdfFile = pdf()
 const broken = path.join(source, '损坏.docx'); fs.writeFileSync(broken, 'not a document')
@@ -143,6 +143,14 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const savedCrop=JSON.parse(fs.readFileSync(path.join(root,'learning-crop-test.json'),'utf8'))
+        const resumedCrop=await call('learning','get',{version_id:savedCrop.version})
+        assert.deepEqual(resumedCrop.assets.map(a=>({sha256:a.sha256,locator:a.locator_json})),savedCrop.assets)
+        assert.equal(resumedCrop.state.entries[0].figures[0].caption,savedCrop.caption)
+        assert.equal((await call('learning','get',{version_id:savedCrop.version,revision_id:savedCrop.firstRevision})).state.entries[0].figures,undefined)
+        await win.webContents.executeJavaScript(`location.hash='/library?material=${savedCrop.material}&version=${savedCrop.version}'`)
+        await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后 PDF 配图入口')
+        await click('学习文档');await waitUi(`document.querySelector('.learning-entry-figures img')?.naturalWidth>0`,'重启后 PDF 选区图片')
         const savedFigure=JSON.parse(fs.readFileSync(path.join(root,'learning-figure-test.json'),'utf8'))
         const resumedFigure=await call('learning','get',{version_id:savedFigure.version})
         assert.equal(resumedFigure.assets.length,2)
@@ -639,6 +647,53 @@ app.on('browser-window-created', (_event, win) => {
       const imageOnlyDoc=await call('learning','prepare',imageOnly.current_version_id)
       assert.equal((await call('learning','assetsPrepare',imageOnlyDoc.version_id)).assets.length,2)
       console.log('FIGURE_TEST_OK actual DOCX/PPTX extraction, cancellation, same-image locations, attachment serving, captions/history/removal, image-only input, slide order, 1024 layout and restart checkpoint')
+      const cropMaterial=await importFile(pdf('PDF选区教材.pdf',true),input);await wait(cropMaterial.id)
+      const cropInitial=await call('learning','prepare',cropMaterial.current_version_id),cropInput={version_id:cropInitial.version_id,page:1,rect:[0.1,0.2,0.4,0.3]}
+      const cropCancelled=await win.webContents.executeJavaScript(`Promise.all([window.api.learning.assetsCrop(${JSON.stringify(cropInput)}),window.api.learning.assetsCancel(${JSON.stringify(cropInitial.version_id)})])`)
+      assert.equal(cropCancelled[0].ok,false);assert.equal(cropCancelled[1].data,true)
+      assert.equal((await call('learning','get',{version_id:cropInitial.version_id})).assets.length,0)
+      const outOfPage=await win.webContents.executeJavaScript(`window.api.learning.assetsCrop(${JSON.stringify({...cropInput,page:999})})`)
+      assert.equal(outOfPage.ok,false);assert.match(outOfPage.error,/共 2 页/)
+      await win.webContents.executeJavaScript(`location.hash='/library?material=${cropMaterial.id}&version=${cropInitial.version_id}'`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'PDF 配图学习文档')
+      await click('学习文档');await waitUi(`!!document.querySelector('.learning-assets')`,'PDF 配图面板')
+      await win.webContents.executeJavaScript(`document.querySelector('.learning-assets').open=true`)
+      await click('选择 PDF 配图');await waitUi(`!!document.querySelector('.pdf-crop-overlay')`,'PDF 选区原页')
+      await win.webContents.executeJavaScript(`document.querySelector('.pdf-crop-surface').scrollIntoView({block:'start',behavior:'instant'})`)
+      const cropBounds=await win.webContents.executeJavaScript(`(()=>{const b=document.querySelector('.pdf-crop-overlay').getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height}})()`)
+      const dragStart={x:Math.round(cropBounds.x+cropBounds.width*.1),y:Math.round(cropBounds.y+cropBounds.height*.2)},dragEnd={x:Math.round(cropBounds.x+cropBounds.width*.65),y:Math.round(cropBounds.y+cropBounds.height*.45)}
+      win.webContents.sendInputEvent({type:'mouseMove',...dragStart});win.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...dragStart});win.webContents.sendInputEvent({type:'mouseMove',...dragEnd});win.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...dragEnd})
+      await waitUi(`!!document.querySelector('.pdf-crop-rectangle')&&!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='保存选区配图')?.disabled`,'鼠标拖动生成选区')
+      await click('保存选区配图');await waitUi(`document.querySelectorAll('.learning-assets-grid img').length===1&&document.querySelector('.learning-assets-grid img')?.naturalWidth>0`,'保存 PDF 选区配图')
+      let cropCurrent=await call('learning','get',{version_id:cropInitial.version_id})
+      assert.equal(cropCurrent.revision_id,cropInitial.revision_id);assert.deepEqual(cropCurrent.sources,cropInitial.sources)
+      const cropLocator=JSON.parse(cropCurrent.assets[0].locator_json)
+      assert.equal(cropLocator.page,1);assert.equal(cropLocator.source,'pdf-crop:v1');assert.ok(cropLocator.crop.rect[2]>.54&&cropLocator.crop.rect[2]<.56)
+      assert.equal((await call('learning','assetsCrop',{version_id:cropInitial.version_id,page:1,rect:cropLocator.crop.rect})).assets.length,1,'同位置复用附件')
+      await setText('[aria-label="配图左侧百分比"]','90');await setText('[aria-label="配图宽度百分比"]','20');await click('应用选区')
+      await waitUi(`document.querySelector('[role="alert"]')?.textContent.includes('选区须在页面内')`,'越界百分比选区拒绝')
+      assert.equal(await win.webContents.executeJavaScript(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='保存选区配图').disabled`),true)
+      for(const [label,value] of [['左侧','50'],['顶部','20'],['宽度','40'],['高度','30']])await setText(`[aria-label="配图${label}百分比"]`,value)
+      await click('应用选区');await waitUi(`!!document.querySelector('.pdf-crop-rectangle')`,'键盘百分比选区')
+      win.setSize(1024,768);await new Promise(resolve=>setTimeout(resolve,100))
+      assert.equal(await win.webContents.executeJavaScript(`document.documentElement.scrollWidth<=innerWidth`),true,'PDF 选区在 1024 宽内')
+      await win.webContents.executeJavaScript(`document.querySelector('.pdf-crop-surface').scrollIntoView({block:'center',behavior:'instant'})`)
+      await captureRendered(win);fs.writeFileSync(path.join(root,'learning-crop-selection.png'),(await captureRendered(win)).toPNG())
+      await click('保存选区配图');await waitUi(`document.querySelectorAll('.learning-assets-grid img').length===2&&Array.from(document.querySelectorAll('.learning-assets-grid img')).every(img=>img.naturalWidth>0)`,'追加 PDF 选区')
+      cropCurrent=await call('learning','get',{version_id:cropInitial.version_id})
+      const cropEntry=cropCurrent.state.entries[0],cropCaption='原页选取的受力图'
+      await click('整理条目',`document.getElementById('learning-${cropEntry.id}')`);await waitUi(`!!document.querySelector('[aria-label="条目配图选择"]')`,'PDF 配图归属编辑')
+      await setSelect('[aria-label="条目配图选择"]',cropCurrent.assets[0].id);await setText('[aria-label="条目配图图注"]',cropCaption);await click('保存配图引用')
+      await waitUi(`!document.querySelector('.learning-editor')&&document.querySelector('.learning-entry-figures img')?.naturalWidth>0`,'PDF 配图条目阅读')
+      await win.webContents.executeJavaScript(`document.querySelector('.learning-assets').open=false;document.querySelector('.learning-entry-figures').scrollIntoView({block:'center',behavior:'instant'})`)
+      await new Promise(resolve=>setTimeout(resolve,100));await captureRendered(win);fs.writeFileSync(path.join(root,'learning-crop-preview.png'),(await captureRendered(win)).toPNG())
+      await click('查看配图原页');await waitUi(`!!document.querySelector('.learning-source-preview .pdf-crop-rectangle')&&document.querySelector('.learning-source-preview canvas')?.width>0`,'配图回到原页并标记原选区')
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.learning-source-preview .pdf-crop-overlay').style.cursor`),'default')
+      await click('关闭对照')
+      await setSelect('[aria-label="学习文档修订"]',cropInitial.revision_id);await waitUi(`document.querySelector('.learning-reader')?.textContent.includes('历史修订只读')&&!document.querySelector('.learning-pdf-crop')&&!document.querySelector('.learning-entry-figures')`,'旧修订无新增配图且选区操作只读')
+      fs.writeFileSync(path.join(root,'learning-crop-test.json'),JSON.stringify({material:cropMaterial.id,version:cropInitial.version_id,caption:cropCaption,firstRevision:cropInitial.revision_id,assets:cropCurrent.assets.map(a=>({sha256:a.sha256,locator:a.locator_json}))}))
+      win.setSize(1360,860)
+      console.log('PDF_CROP_TEST_OK real pointer and percent selections, cancellation, page bounds, duplicate reuse, image display, history, 1024 width and restart checkpoint')
       // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
       let semanticMode='valid', semanticRequests=0,knowledgeMode='valid',knowledgeRequests=0
       semanticServer=require('node:http').createServer(async(req,res)=>{

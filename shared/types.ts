@@ -407,6 +407,7 @@ export interface MaterialInput { subject_id: ID; title?: string; kind: MaterialK
 export interface MaterialLocator {
   kind: MaterialFormat; page?: number; slide?: number; paragraph?: number; source?: string
   bbox?: number[]; pageSize?: number[]
+  crop?: { rect: LearningCropRect; rotation: number; engine: string }
 }
 export interface ParsedBlock { text: string; heading: string; locator: MaterialLocator }
 export interface MaterialBlock { id: ID; version_id: ID; ordinal: number; heading: string; text: string; locator_json: string }
@@ -463,6 +464,8 @@ export interface LearningSource { id: ID; ordinal: number; raw_text: string; hea
 export interface LearningSourceRef { source_id: ID; text_range?: [number, number] }
 export interface LearningFormula { range: [number, number]; latex: string; display: boolean }
 export interface LearningFigure { asset_id: ID; caption: string }
+export type LearningCropRect = [number, number, number, number]
+export interface LearningPdfCrop { version_id: ID; page: number; rect: LearningCropRect }
 export interface LearningAsset { id: ID; mime_type: 'image/png' | 'image/jpeg'; sha256: string; width: number; height: number; locator_json: string; alt_text: string }
 export interface LearningAssetExtraction { engine: string; warnings: string[]; created_at: number }
 export type LearningContentNode = { type: 'text'; text: string } | { type: 'math'; formula: LearningFormula; source_text: string }

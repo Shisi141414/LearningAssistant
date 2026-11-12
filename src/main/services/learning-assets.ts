@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, writeFile, chmod, unlink, rmdir, readFile, stat } from 
 import { dirname, join, relative } from 'node:path'
 import { createHash } from 'node:crypto'
 import { nanoid } from 'nanoid'
-import type { LearningAsset, LearningAssetExtraction, LearningDocument, MaterialVersion } from '@shared/types'
+import type { LearningAsset, LearningAssetExtraction, LearningDocument, LearningPdfCrop, MaterialVersion } from '@shared/types'
+import { validLearningCropRect, validLearningPdfFigureLocator } from '@shared/learning-crops'
 import type { ParsedLearningAssets } from './learning-asset-parser'
 import { dbFilePath, getDb } from './db'
 import { beginWork } from './work'
@@ -14,7 +15,7 @@ import { getLearningDocument } from './learning-documents'
 
 const engine = 'officeparser 8.7.1 / learning-images-v1'
 let stopping = false
-let active: { version: string; promise: Promise<LearningDocument>; cancel: () => void } | undefined
+let active: { version: string; key: string; promise: Promise<LearningDocument>; cancel: () => void } | undefined
 export function learningAssets(documentId: string): LearningAsset[] {
   return getDb().prepare('SELECT id,mime_type,sha256,width,height,locator_json,alt_text FROM learning_assets WHERE document_id=? ORDER BY created_at,rowid').all(documentId) as LearningAsset[]
 }
@@ -29,10 +30,21 @@ function editableDocument(version: string): LearningDocument {
   return document
 }
 /** 全部文件落盘后才登记。文件名只用程序生成的 ID，失败清理本批已知文件。 */
-export async function storeLearningAssets(version: string, result: ParsedLearningAssets, aborted: () => boolean = () => false): Promise<void> {
+export async function storeLearningAssets(version: string, result: ParsedLearningAssets, aborted: () => boolean = () => false, mode: 'office' | 'pdf' = 'office'): Promise<void> {
   const document = editableDocument(version)
-  if (learningAssetExtraction(document.id)) throw new Error('已有配图提取记录，不能覆盖已保存附件')
+  if (mode === 'office' && learningAssetExtraction(document.id)) throw new Error('已有配图提取记录，不能覆盖已保存附件')
   if (!Array.isArray(result.assets) || result.assets.length > 100 || result.assets.reduce((n, a) => n + a.bytes.byteLength, 0) > 50 * 1024 * 1024 || !Array.isArray(result.warnings)) throw new Error('图片提取结果超出限制')
+  const existing = learningAssets(document.id)
+  if (mode === 'pdf') {
+    if (result.assets.length !== 1) throw new Error('每次只保存一个 PDF 选区')
+    const row = getDb().prepare('SELECT format FROM material_versions WHERE id=?').get(version) as { format: string }
+    if (row.format !== 'pdf') throw new Error('只能从 PDF 原件保存选区')
+    if (existing.some(asset => asset.locator_json === result.assets[0].locator_json)) return
+  }
+  if (existing.length + result.assets.length > 100) throw new Error('本篇图片超过 100 张，请拆分材料')
+  const oldFiles = getDb().prepare('SELECT file_path FROM learning_assets WHERE document_id=?').all(document.id) as { file_path: string }[]
+  const oldBytes = (await Promise.all(oldFiles.map(async row => (await stat(managedMaterialFile(row.file_path))).size))).reduce((n, size) => n + size, 0)
+  if (oldBytes + result.assets.reduce((n, asset) => n + asset.bytes.byteLength, 0) > 50 * 1024 * 1024) throw new Error('本篇图片超过 50 MiB，请拆分材料')
   const base = dirname(dbFilePath()), directory = join(base, 'materials', 'learning-assets')
   await mkdir(directory, { recursive: true })
   const stage = await mkdtemp(join(directory, 'extract-')), files: string[] = [], rows: Array<LearningAsset & { file_path: string }> = []
@@ -42,7 +54,7 @@ export async function storeLearningAssets(version: string, result: ParsedLearnin
       if (aborted() || stopping) throw new Error('配图提取已取消，文档保持原样')
       if (!['image/png', 'image/jpeg'].includes(asset.mime_type) || !/^[a-f0-9]{64}$/.test(asset.sha256) || !asset.bytes.byteLength || asset.bytes.byteLength > 8 * 1024 * 1024 || !Number.isSafeInteger(asset.width) || !Number.isSafeInteger(asset.height) || asset.width < 1 || asset.height < 1 || asset.width * asset.height > 16_000_000 || asset.locator_json.length > 2000 || asset.alt_text.length > 1000) throw new Error('图片结果格式无效')
       const locator = JSON.parse(asset.locator_json)
-      if (!['docx', 'pptx'].includes(locator.kind) || !/^image:\d+(\.\d+)*$/.test(locator.source) || locator.slide !== undefined && (!Number.isSafeInteger(locator.slide) || locator.slide < 1)) throw new Error('图片来源无效')
+      if (mode === 'pdf' ? !validLearningPdfFigureLocator(locator) : !['docx', 'pptx'].includes(locator.kind) || !/^image:\d+(\.\d+)*$/.test(locator.source) || locator.slide !== undefined && (!Number.isSafeInteger(locator.slide) || locator.slide < 1)) throw new Error('图片来源无效')
       const id = nanoid(), file = join(stage, `${id}.${asset.mime_type === 'image/png' ? 'png' : 'jpg'}`)
       files.push(file)
       await writeFile(file, asset.bytes, { flag: 'wx' }); await chmod(file, 0o444)
@@ -51,10 +63,11 @@ export async function storeLearningAssets(version: string, result: ParsedLearnin
     if (aborted() || stopping) throw new Error('配图提取已取消，文档保持原样')
     editableDocument(version)
     getDb().transaction(() => {
-      if (learningAssetExtraction(document.id)) throw new Error('配图已被其他操作保存，请刷新')
+      if (mode === 'office' && learningAssetExtraction(document.id)) throw new Error('配图已被其他操作保存，请刷新')
+      if (learningAssets(document.id).length + rows.length > 100) throw new Error('本篇图片超过 100 张，请拆分材料')
       const now = Date.now(), put = getDb().prepare('INSERT INTO learning_assets(id,document_id,mime_type,sha256,file_path,width,height,locator_json,alt_text,created_at) VALUES (?,?,?,?,?,?,?,?,?,?)')
       for (const row of rows) put.run(row.id, document.id, row.mime_type, row.sha256, row.file_path, row.width, row.height, row.locator_json, row.alt_text, now)
-      getDb().prepare('INSERT INTO learning_asset_extractions(document_id,engine,warnings_json,created_at) VALUES (?,?,?,?)').run(document.id, engine, JSON.stringify(result.warnings.slice(0, 300).map(w => String(w).slice(0, 1000))), now)
+      if (mode === 'office') getDb().prepare('INSERT INTO learning_asset_extractions(document_id,engine,warnings_json,created_at) VALUES (?,?,?,?)').run(document.id, engine, JSON.stringify(result.warnings.slice(0, 300).map(w => String(w).slice(0, 1000))), now)
     })()
     registered = true
   } finally {
@@ -66,13 +79,24 @@ export function prepareLearningAssets(version: string): Promise<LearningDocument
   if (stopping) return Promise.reject(new Error('应用正在退出'))
   const document = editableDocument(version)
   if (learningAssetExtraction(document.id)) return Promise.resolve(document)
-  if (active) return active.version === version ? active.promise : Promise.reject(new Error('已有配图提取任务，请等待或取消后再试'))
   const versionRow = getDb().prepare('SELECT * FROM material_versions WHERE id=?').get(version) as MaterialVersion
   const input = materialParseInput(version, materialPath(version), versionRow.format)
-  if (input.format === 'pdf') return Promise.reject(new Error('PDF 页内配图提取尚未接入，请先对照原页'))
+  if (input.format === 'pdf') return Promise.reject(new Error('PDF 请使用原页选区保存配图'))
+  return runLearningAssetJob(version, `office:${version}`, { file: input.file, format: input.format, fingerprint: input.expectedFingerprint ?? versionRow.fingerprint })
+}
+export function cropLearningPdfAsset(crop: LearningPdfCrop): Promise<LearningDocument> {
+  if (stopping) return Promise.reject(new Error('应用正在退出'))
+  editableDocument(crop.version_id)
+  if (!Number.isSafeInteger(crop.page) || crop.page < 1 || crop.page > 100_000 || !validLearningCropRect(crop.rect)) return Promise.reject(new Error('请选择有效 PDF 页码与页内选区'))
+  const version = getDb().prepare('SELECT * FROM material_versions WHERE id=?').get(crop.version_id) as MaterialVersion
+  if (version.format !== 'pdf') return Promise.reject(new Error('只能从 PDF 原件保存选区'))
+  return runLearningAssetJob(version.id, `pdf:${JSON.stringify(crop)}`, { file: materialPath(version.id), format: 'pdf', fingerprint: version.fingerprint, crop })
+}
+function runLearningAssetJob(version: string, key: string, input: { file: string; format: 'docx' | 'pptx' | 'pdf'; fingerprint: string; crop?: LearningPdfCrop }): Promise<LearningDocument> {
+  if (active) return active.key === key ? active.promise : Promise.reject(new Error('已有配图任务，请等待或取消后再试'))
   const release = beginWork('学习文档配图提取')
   let worker: Worker
-  try { worker = new Worker(join(__dirname, 'learning-asset-worker.js'), { workerData: { file: input.file, format: input.format, fingerprint: input.expectedFingerprint ?? versionRow.fingerprint }, resourceLimits: { maxOldGenerationSizeMb: 512 } }) }
+  try { worker = new Worker(join(__dirname, 'learning-asset-worker.js'), { workerData: input, resourceLimits: { maxOldGenerationSizeMb: 512 } }) }
   catch (error) { release(); return Promise.reject(error) }
   let cancelled = false, finishing = false, cancel = (): void => undefined
   const promise = new Promise<LearningDocument>((resolve, reject) => {
@@ -82,7 +106,7 @@ export function prepareLearningAssets(version: string): Promise<LearningDocument
       try {
         if (error) throw error
         if (cancelled || stopping) throw new Error('配图提取已取消，文档保持原样')
-        await storeLearningAssets(version, result!, () => cancelled)
+        await storeLearningAssets(version, result!, () => cancelled, input.crop ? 'pdf' : 'office')
         resolve(getLearningDocument({ version_id: version })!)
       } catch (failure) { reject(failure) }
       finally { active = undefined; release() }
@@ -93,7 +117,7 @@ export function prepareLearningAssets(version: string): Promise<LearningDocument
     worker.on('error', error => void finish(error instanceof Error ? error : new Error(String(error))))
     worker.on('exit', code => { if (!finishing) void finish(new Error(`图片提取线程退出（${code}）`)) })
   })
-  active = { version, promise, cancel }
+  active = { version, key, promise, cancel }
   return promise
 }
 export function cancelLearningAssets(version: string): boolean { if (active?.version !== version) return false; active.cancel(); return true }
