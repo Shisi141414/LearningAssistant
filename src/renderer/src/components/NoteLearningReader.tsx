@@ -9,6 +9,7 @@ import { LearningFormulaContent } from './LearningFormulaContent'
 import { NoteLearningSync } from './NoteLearningSync'
 import { LearningPdfExport } from './LearningPdfExport'
 import { useLiveNoteLearning } from '../hooks/useLiveNoteLearning'
+import { LearningSuggestions } from './LearningSuggestions'
 import './learning-reader.css'
 
 function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigation }: {
@@ -26,10 +27,11 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
   const [preview, setPreview] = useState<NoteLearningSyncPreview | null>(null)
   const [followLive, setFollowLive] = useState(true)
   const [toolsOpen, setToolsOpen] = useState(false)
+  const [reviewingAi, setReviewingAi] = useState(false)
   const [appliedLive, setAppliedLive] = useState(live?.revision)
   const livePending = !!live && live.revision !== appliedLive
   useLiveNoteLearning({ noteId, token: live?.revision, applied: appliedLive,
-    enabled: !!live?.active && followLive && !revision && !busy && !editing && !preview && !loading,
+    enabled: !!live?.active && followLive && !revision && !busy && !editing && !preview && !loading && !reviewingAi,
     onDocument: (next, token) => { setDocument(next); setAppliedLive(token); setError('') }, onError: setError })
   useEffect(() => {
     let alive = true
@@ -90,13 +92,14 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
     </div>
     {live && <div className="learning-live-status">{classroomNavigation && <button disabled={busy} aria-expanded={toolsOpen} onClick={() => setToolsOpen(value => !value)}>阅读与导出选项</button>}<label><input type="checkbox" aria-label="跟随课堂新来源" checked={followLive} onChange={event => setFollowLive(event.target.checked)} />跟随课堂新来源</label>
       <button disabled={!allRows.length || busy || !!editing || !!preview} onClick={() => jump(allRows.at(-1)!.entry.id)}>查看最后条目</button>
-      {livePending && <p role="status">{editing || preview || busy ? '课堂新内容已保存，当前编辑、预览或导出保持不变；完成或收起后再更新。' : revision ? '课堂已有新内容，当前历史修订保持不变。' : !followLive ? '课堂已有新内容，恢复跟随后更新。' : '正在合并课堂新内容…'}</p>}
+      {livePending && <p role="status">{editing || preview || busy || reviewingAi ? '课堂新内容已保存，当前编辑、预览或导出保持不变；完成或收起后再更新。' : revision ? '课堂已有新内容，当前历史修订保持不变。' : !followLive ? '课堂已有新内容，恢复跟随后更新。' : '正在合并课堂新内容…'}</p>}
     </div>}
     {error && <p role="alert">{error}</p>}
     {loading ? <p className="muted">正在读取统一文档…</p> : document && <>
       <p className="muted">{classroomNavigation && !toolsOpen ? `${rows.length} / ${document.state.entries.length} 个条目${type || chapter || query ? ' · 筛选中' : ''}` : `${document.title} · ${document.state.entries.length} 个条目 · 当前显示 ${rows.length} 条 · 快照保存于 ${new Date(document.created_at).toLocaleString()}`}</p>
       <LearningPdfExport source={{ kind: 'note', note_id: noteId, revision_id: document.revision_id }} disabled={busy || !!editing || !document.state.entries.length} onBusy={setBusy} emptySources={document.sources.filter(source => !source.raw_text.trim()).length} />
       {!document.state.entries.length && <p className="empty">笔记尚无段落；先添加内容或继续课堂转写。</p>}
+      {current && !document.pending_sync && <LearningSuggestions kind="note" document={document} subjectId={document.subject_id} onApplied={update} onReviewChange={setReviewingAi} onBusy={setBusy} disabled={busy || !!editing || !!preview || loading} />}
       {!current && <p className="muted">所选固定修订只读。读取最新笔记后可继续整理。</p>}
       {current && document.pending_sync && <aside className="learning-sync-notice"><p>新来源变化涉及已整理的条目，当前人工结构已保留。先预览并确认同步，再继续编辑。</p><button disabled={busy} onClick={() => void showPreview()}>预览来源变化</button></aside>}
       {preview && <NoteLearningSync key={preview.fingerprint} document={document} preview={preview} busy={busy} onCancel={() => setPreview(null)} onConfirm={() => void confirmSync()} />}
@@ -117,7 +120,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
             </div> })}
           </details>
           {target && <p className="learning-relation">{related!.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
-          {current && !document.pending_sync && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
+          {current && !document.pending_sync && <button disabled={busy || (reviewingAi && editing !== entry.id)} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
           {current && !document.pending_sync && editing === entry.id && <LearningEntryEditor key={`${document.revision_id}:${entry.id}`} entry={entry} text={text} state={document.state} first={!index} busy={busy} onOperation={operation => change(entry.id, operation)} />}
         </article>
       })}

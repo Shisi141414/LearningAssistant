@@ -527,3 +527,6 @@ export interface LearningSuggestion {
   status: LearningSuggestionStatus; error: string | null; created_at: number; applied_revision_id: ID | null
 }
 export interface LearningSuggestionDetail extends LearningSuggestion { proposal: LearningProposal | null }
+export type NoteLearningSuggestInput = Omit<LearningSuggestInput, 'version_id'> & { note_id: ID }
+export type NoteLearningSuggestion = Omit<LearningSuggestion, 'version_id'> & { note_id: ID }
+export interface NoteLearningSuggestionDetail extends NoteLearningSuggestion { proposal: LearningProposal | null }

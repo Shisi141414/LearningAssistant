@@ -118,6 +118,15 @@ export function changeNoteLearning(input: NoteLearningChange): NoteLearningDocum
     return readRevision(live.document, next, next)
   })()
 }
+/** AI 结构同样通过最新来源与修订检查；仅新增修订，原始段落不改写。 */
+export function publishNoteLearningState(noteId: string, expectedRevision: string, state: LearningState): NoteLearningDocument {
+  return getDb().transaction(() => {
+    const current = getNoteLearning({ note_id: noteId })
+    if (current.revision_id !== expectedRevision || current.pending_sync) throw new Error('笔记或来源已有变化，请读取最新笔记后重新生成建议')
+    const live = liveNote(noteId), next = saveRevision(live, state)
+    return readRevision(live.document, next, next)
+  })()
+}
 export function previewNoteLearningSync(noteId: string): NoteLearningSyncPreview {
   return getDb().transaction(() => {
     const live = liveNote(noteId), latest = latestRevision(live.document.id)

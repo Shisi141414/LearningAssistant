@@ -12,6 +12,7 @@ import { nanoid } from 'nanoid'
 import { addSegment } from '../services/segments'
 import { attachMaterialRefs } from '../services/classroom-materials'
 import { captureNoteLearning, getNoteLearning, changeNoteLearning, previewNoteLearningSync, syncNoteLearning } from '../services/note-learning'
+import { startNoteSuggestion, listNoteSuggestions, noteSuggestionDetail, cancelNoteSuggestion, dismissNoteSuggestion, applyNoteSuggestion } from '../services/note-learning-suggestions'
 
 interface NoteRow {
   id: string
@@ -54,6 +55,12 @@ function touchNote(db: ReturnType<typeof getDb>, noteId: ID): void {
 }
 
 export function registerNotesIpc(): void {
+  ipcMain.handle(IPC.NotesLearningSuggestStart, (_e, input) => handleResult(() => startNoteSuggestion(input)))
+  ipcMain.handle(IPC.NotesLearningSuggestList, (_e, id) => handleResult(() => listNoteSuggestions(id)))
+  ipcMain.handle(IPC.NotesLearningSuggestGet, (_e, id) => handleResult(() => noteSuggestionDetail(id)))
+  ipcMain.handle(IPC.NotesLearningSuggestCancel, (_e, id) => handleResult(() => cancelNoteSuggestion(id)))
+  ipcMain.handle(IPC.NotesLearningSuggestDismiss, (_e, id) => handleResult(() => dismissNoteSuggestion(id)))
+  ipcMain.handle(IPC.NotesLearningSuggestApply, (_e, id) => handleResult(() => applyNoteSuggestion(id)))
   ipcMain.handle(IPC.NotesLearningGet, (_e, input: { note_id: ID; revision_id?: ID }) => handleResult(() => getNoteLearning(input)))
   ipcMain.handle(IPC.NotesLearningChange, (_e, input: NoteLearningChange) => handleResult(() => changeNoteLearning(input)))
   ipcMain.handle(IPC.NotesLearningPreview, (_e, id: ID) => handleResult(() => previewNoteLearningSync(id)))

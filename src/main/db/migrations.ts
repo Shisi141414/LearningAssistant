@@ -527,5 +527,25 @@ CREATE INDEX idx_note_learning_history ON note_learning_revisions(document_id, c
 -- NULL 兼容迁移 16：按既有段落快照重建初始条目，无须改写旧快照。
 ALTER TABLE note_learning_revisions ADD COLUMN state_json TEXT;
 `
+  },
+  {
+    version: 18,
+    name: 'note_learning_suggestions',
+    sql: `
+CREATE TABLE note_learning_suggestions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES note_learning_documents(id) ON DELETE RESTRICT,
+  base_revision_id TEXT NOT NULL REFERENCES note_learning_revisions(id) ON DELETE RESTRICT,
+  request_json TEXT NOT NULL,
+  provider_name TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('running','ready','failed','cancelled','applied','dismissed')),
+  proposal_json TEXT,
+  error TEXT,
+  applied_revision_id TEXT REFERENCES note_learning_revisions(id) ON DELETE RESTRICT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_note_learning_suggestions ON note_learning_suggestions(document_id, created_at);
+`
   }
 ]

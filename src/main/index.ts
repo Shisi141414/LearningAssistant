@@ -13,6 +13,7 @@ import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
 import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
+import { recoverNoteSuggestions, stopNoteSuggestions } from './services/note-learning-suggestions'
 import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
 import { stopLearningAssets } from './services/learning-assets'
 import { stopLearningPackageExports } from './services/learning-package-export'
@@ -74,6 +75,7 @@ app.whenReady().then(async () => {
   stopRecovery = startOrganizationRecovery()
   startMaterialRecovery()
   recoverLearningSuggestions()
+  recoverNoteSuggestions()
   recoverKnowledgeSuggestions()
   createWindow()
 
@@ -97,6 +99,7 @@ app.on('before-quit', () => {
   stopLearningPdfs()
   stopLearningPackageImports()
   stopLearningSuggestions()
+  stopNoteSuggestions()
   stopKnowledgeSuggestions()
   closeDb()
 })
