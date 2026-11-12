@@ -23,7 +23,7 @@ export const electronMock = {
 globalThis.__electronMock = electronMock
 process.env.ELECTRON_RENDERER_URL = 'http://localhost:5173'
 const mainFrame = { url: process.env.ELECTRON_RENDERER_URL + '/' }
-export const sender = Object.assign(new EventEmitter(), { mainFrame, isDestroyed: () => false, send: (channel, data) => events.push({ channel, data }) })
+export const sender = Object.assign(new EventEmitter(), { id: 1, mainFrame, isDestroyed: () => false, send: (channel, data) => events.push({ channel, data }) })
 export const event = { sender, senderFrame: mainFrame }
 export const invoke = (channel, ...args) => handlers.get(channel)(event, ...args)
 
@@ -38,7 +38,7 @@ registerHooks({
     return next(specifier, context)
   },
   load(url, context, next) {
-    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage,shell}=globalThis.__electronMock;', shortCircuit: true }
+    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage,shell,BrowserWindow}=globalThis.__electronMock;', shortCircuit: true }
     return next(url, context)
   }
 })

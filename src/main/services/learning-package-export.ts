@@ -1,9 +1,10 @@
 import { Worker } from 'node:worker_threads'
-import { stat, realpath, rename, unlink, mkdtemp, rmdir } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { stat, rename, unlink, mkdtemp, rmdir } from 'node:fs/promises'
+import { basename, join } from 'node:path'
 import type { EvidenceSource, MaterialFormat, MaterialKind, OcrPage } from '@shared/types'
 import type { LearningPackage, LearningPackageExportInput, LearningPackageExportResult } from '@shared/learning-package'
-import { getDb, dbFilePath } from './db'
+import { getDb } from './db'
+import { externalExportTarget } from './export-target'
 import { getLearningDocument } from './learning-documents'
 import { listConcepts } from './concepts'
 import { materialPath } from './materials'
@@ -13,7 +14,6 @@ import { beginWork } from './work'
 let stopping = false
 let active: { version: string; cancel: () => void } | undefined
 type FileRef = { path: string; file: string; sha256: string }
-function inside(root: string, file: string): boolean { const rel = relative(root, file); return !isAbsolute(rel) && rel !== '..' && !rel.startsWith('..' + sep) }
 function snapshot(input: LearningPackageExportInput): { manifest: LearningPackage; refs: FileRef[] } {
   return getDb().transaction(() => {
     const db = getDb(), document = getLearningDocument(input)
@@ -60,13 +60,7 @@ export async function exportLearningPackage(input: LearningPackageExportInput, o
   active = job
   const check = (): void => { if (cancelled || stopping) throw new Error('文档导出已取消，已有文件保留') }
   try {
-    const directory = await realpath(dirname(resolve(output))), data = await realpath(dirname(dbFilePath()))
-    if (inside(data, directory)) throw new Error('请选择应用数据目录以外的保存位置')
-    if (!output.toLowerCase().endsWith('.ladoc')) throw new Error('学习文档包请使用 .ladoc 扩展名')
-    const target = join(directory, basename(output))
-    // 不允许覆盖指向托管数据的链接；普通用户目标仍交由系统保存框确认覆盖。
-    const actual = await realpath(target).catch((error: NodeJS.ErrnoException) => { if (error.code === 'ENOENT') return null; throw error })
-    if (actual && inside(data, actual)) throw new Error('保存目标指向应用数据，请选择其他位置')
+    const { directory, target } = await externalExportTarget(output, '.ladoc')
     check()
     const { manifest, refs } = snapshot(input)
     const lengths = await Promise.all(refs.map(async ref => { const info = await stat(ref.file); if (!info.isFile()) throw new Error('附件不是普通文件'); return info.size }))

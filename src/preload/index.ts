@@ -7,6 +7,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
+import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
 import type {
   LearningDocument, LearningChange, LearningPdfCrop, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
@@ -44,6 +45,8 @@ const api = {
     packageImportCancel: () => invoke<boolean>(IPC.LearningPackageImportCancel),
     packageExport: (input: LearningPackageExportInput) => invoke<LearningPackageExportResult | null>(IPC.LearningPackageExport, input),
     packageExportCancel: (versionId: ID) => invoke<boolean>(IPC.LearningPackageExportCancel, versionId),
+    pdfExport: (input: LearningPdfInput) => invoke<LearningPdfResult | null>(IPC.LearningPdfExport, input),
+    pdfCancel: () => invoke<boolean>(IPC.LearningPdfCancel),
     suggestStart: (input: LearningSuggestInput) => invoke<LearningSuggestion>(IPC.LearningSuggestStart, input),
     suggestList: (versionId: ID) => invoke<LearningSuggestion[]>(IPC.LearningSuggestList, versionId),
     suggestGet: (id: ID) => invoke<LearningSuggestionDetail>(IPC.LearningSuggestGet, id),

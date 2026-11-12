@@ -1,0 +1,39 @@
+* { box-sizing: border-box; }
+html { margin: 0; padding: 0; }
+body { margin: 0; padding: 0; background: white; color: #202020; font: 11pt/1.7 SimSun, "宋体", serif; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+h1,h2,h3,h4 { font-family: SimHei, "黑体", sans-serif; line-height: 1.4; break-after: avoid; overflow-wrap: anywhere; }
+h1 { font-size: 23pt; margin: 0 0 5mm; }
+h2 { font-size: 17pt; border-bottom: 1pt solid #335469; padding-bottom: 2mm; margin: 8mm 0 4mm; }
+h3 { font-size: 12pt; margin: 4mm 0 2mm; }
+h3 small { font: 9pt SimSun, "宋体", serif; color: #666; }
+h4 { font-size: 10pt; margin: 3mm 0 1mm; }
+p { margin: 1mm 0 3mm; orphans: 2; widows: 2; }
+header { border-bottom: 1pt solid #9baeb9; margin-bottom: 6mm; padding-bottom: 4mm; }
+header p, .reference { font-size: 9pt; color: #555; overflow-wrap: anywhere; }
+nav { margin-bottom: 7mm; }
+nav p { margin: 1mm 0; }
+a { color: #215e83; text-decoration: underline; text-underline-offset: 2pt; }
+.entry { border-left: 2pt solid #8b97a1; padding: 0 0 0 3mm; margin-bottom: 5mm; }
+.entry.type-section { border-left: 0; padding: 0; }
+.type-definition { border-color: #0e7490; }
+.type-theorem,.type-proposition,.type-lemma,.type-corollary { border-color: #6d28d9; }
+.type-proof,.type-solution { border-color: #15803d; }
+.type-example,.type-exercise { border-color: #b45309; }
+.type-figure,.type-table,.type-equation { border-color: #0369a1; }
+.type-note { border-color: #be123c; }
+.type-proof .entry-body,.type-solution .entry-body { font-family: KaiTi, "楷体", serif; }
+.entry-body,.original { white-space: pre-wrap; overflow-wrap: anywhere; }
+.entry-body { min-width: 0; }
+.md-seg { display: contents; }
+.entry-body span[style*="overflow-x"],.learning-formula-display,.katex-display { overflow: visible !important; }
+.learning-formula-display { display: block; margin: 3mm 0; text-align: center; }
+.katex-display { margin: 1mm 0; }
+.katex-display > .katex,.katex-display > .katex > .katex-html { display: inline-block; }
+.katex { white-space: nowrap; }
+.learning-formula-error,.katex-error { color: #a13d26; overflow-wrap: anywhere; white-space: pre-wrap; }
+figure { margin: 4mm 0; text-align: center; break-inside: avoid; }
+img { display: block; max-width: 100%; max-height: 150mm; width: auto; height: auto; margin: auto; object-fit: contain; }
+figcaption { font-size: 9pt; margin-top: 2mm; overflow-wrap: anywhere; }
+.sources { break-before: page; }
+.sources article { margin-bottom: 4mm; }
+.original { font-size: 10pt; }

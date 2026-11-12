@@ -16,6 +16,7 @@ import { recoverLearningSuggestions, stopLearningSuggestions } from './services/
 import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
 import { stopLearningAssets } from './services/learning-assets'
 import { stopLearningPackageExports } from './services/learning-package-export'
+import { stopLearningPdfs } from './services/learning-pdf'
 import { stopLearningPackageImports } from './services/learning-package-import'
 import { recoverLearningPackageImports } from './services/learning-package-import-store'
 
@@ -93,6 +94,7 @@ app.on('before-quit', () => {
   stopLearningPreparation()
   stopLearningAssets()
   stopLearningPackageExports()
+  stopLearningPdfs()
   stopLearningPackageImports()
   stopLearningSuggestions()
   stopKnowledgeSuggestions()

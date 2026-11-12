@@ -54,7 +54,7 @@ function renderKatex(latex: string, displayMode: boolean, key: string): ReactNod
 }
 
 /** 行内解析：`code` 保护 → $...$ 公式 → **加粗** */
-function renderInline(text: string, keyPrefix: string, subjectId?: string | null): ReactNode[] {
+function renderInline(text: string, keyPrefix: string, subjectId?: string | null, plain = false): ReactNode[] {
   const out: ReactNode[] = []
   text.split(/(`[^`\n]+`)/g).forEach((part, ci) => {
     if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
@@ -73,15 +73,15 @@ function renderInline(text: string, keyPrefix: string, subjectId?: string | null
       }
       seg.split(/(\*\*[^*\n]+\*\*)/g).forEach((b, bi) => {
         const bm = /^\*\*(.+)\*\*$/.exec(b)
-        if (bm) out.push(<strong key={`${keyPrefix}c${ci}i${si}b${bi}`}><ConceptText text={bm[1]} subjectId={subjectId} /></strong>)
-        else if (b) out.push(<ConceptText key={`${keyPrefix}c${ci}i${si}b${bi}`} text={b} subjectId={subjectId} />)
+        if (bm) out.push(<strong key={`${keyPrefix}c${ci}i${si}b${bi}`}>{plain ? bm[1] : <ConceptText text={bm[1]} subjectId={subjectId} />}</strong>)
+        else if (b) out.push(plain ? b : <ConceptText key={`${keyPrefix}c${ci}i${si}b${bi}`} text={b} subjectId={subjectId} />)
       })
     })
   })
   return out
 }
 
-export function MarkdownSegment({ text, subjectId }: { text: string; subjectId?: string | null }): ReactNode {
+export function MarkdownSegment({ text, subjectId, plain = false }: { text: string; subjectId?: string | null; plain?: boolean }): ReactNode {
   const nodes = useMemo(() => {
     const out: ReactNode[] = []
     parseBlocks(text).forEach((block, i) => {
@@ -89,12 +89,12 @@ export function MarkdownSegment({ text, subjectId }: { text: string; subjectId?:
         out.push(renderKatex(block.value, true, `m${i}`))
       } else {
         out.push(
-          <Fragment key={`t${i}`}>{renderInline(block.value, `t${i}`, subjectId)}</Fragment>
+          <Fragment key={`t${i}`}>{renderInline(block.value, `t${i}`, subjectId, plain)}</Fragment>
         )
       }
     })
     return out
-  }, [text, subjectId])
+  }, [text, subjectId, plain])
 
   return <div className="md-seg">{nodes}</div>
 }

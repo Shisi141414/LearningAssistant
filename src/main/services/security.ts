@@ -62,6 +62,8 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
+  [IPC.LearningPdfCancel]: [],
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
   [IPC.NotesLearningChange]: [learningChange('note_id', false)],
   [IPC.NotesLearningPreview]: [id],

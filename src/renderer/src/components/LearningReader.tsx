@@ -1,4 +1,5 @@
 import { LearningEntryEditor } from './LearningEntryEditor'
+import { LearningPdfExport } from './LearningPdfExport'
 import { useEffect, useMemo, useState } from 'react'
 import type { LearningChange, LearningDocument, LearningEntry, LearningSource, MaterialLocator } from '@shared/types'
 import { entryText, learningTypes } from '@shared/learning-document'
@@ -96,6 +97,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
         {exporting && <><span role="status">正在保存所选修订与原件…</span><button onClick={() => void window.api.learning.packageExportCancel(versionId).then(result => { if (!result.ok) setError(result.error) })}>取消导出</button></>}
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
+      <LearningPdfExport source={{ kind: 'material', version_id: versionId, revision_id: document.revision_id }} disabled={busy || !!editing} onBusy={setBusy} emptySources={document.sources.filter(source => !source.raw_text.trim()).length} />
       <LearningAssetPanel key={document.id} document={document} editable={!!current && !archived} busy={busy} onBusy={setBusy} onUpdated={setDocument} onError={setError} />
       <details className="learning-outline"><summary>章节目录 · {sections.length} 节</summary>{sections.length ? <nav aria-label="学习文档章节目录">{sections.map(row => <button key={row.entry.id} style={{ paddingLeft: `${row.path.length * 16 + 4}px` }} onClick={() => jump(row.entry.id)}>{row.entry.title || `章节 · 第 ${row.index + 1} 条`}</button>)}</nav> : <p className="muted">尚未设置章节。先把标题条目标为“章节”，再为后续条目设置章节归属。</p>}</details>
       {archived && <p className="muted">材料已归档，学习文档只读，已有引用仍可查看。</p>}

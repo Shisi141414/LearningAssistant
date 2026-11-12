@@ -11,6 +11,8 @@
  */
 
 export const IPC = {
+  LearningPdfExport: 'learning:pdfExport',
+  LearningPdfCancel: 'learning:pdfCancel',
   NotesLearningGet: 'notes:learningGet',
   NotesLearningChange: 'notes:learningChange',
   NotesLearningPreview: 'notes:learningPreview',

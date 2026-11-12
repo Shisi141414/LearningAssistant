@@ -8,9 +8,9 @@ export function FormulaView({ latex, display }: { latex: string; display: boolea
   const preview = useMemo(() => formulaPreview(latex, display), [latex, display])
   return preview.error ? <span className="learning-formula-error" title={preview.error}>{latex}</span> : <span className={`learning-formula${display ? ' learning-formula-display' : ''}`} dangerouslySetInnerHTML={{ __html: preview.html }} />
 }
-export function LearningFormulaContent({ text, formulas, subjectId }: { text: string; formulas: LearningFormula[]; subjectId: string | null }) {
+export function LearningFormulaContent({ text, formulas, subjectId, plain = false }: { text: string; formulas: LearningFormula[]; subjectId: string | null; plain?: boolean }) {
   const nodes = useMemo(() => learningContent(text, formulas), [text, formulas])
-  return <>{nodes.map((node, index) => <Fragment key={index}>{node.type === 'text' ? <ConceptText text={node.text} subjectId={subjectId} /> : <FormulaView latex={node.formula.latex} display={node.formula.display} />}</Fragment>)}</>
+  return <>{nodes.map((node, index) => <Fragment key={index}>{node.type === 'text' ? plain ? node.text : <ConceptText text={node.text} subjectId={subjectId} /> : <FormulaView latex={node.formula.latex} display={node.formula.display} />}</Fragment>)}</>
 }
 export function LearningFormulaEditor({ text, formulas = [], selection, busy, onOperation }: { text: string; formulas?: LearningFormula[]; selection: [number, number] | null; busy: boolean; onOperation: (input: Extract<LearningOperation, { action: 'formula' | 'formula-remove' }>) => Promise<void> }) {
   const [editing, setEditing] = useState<LearningFormula | null>(null)

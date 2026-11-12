@@ -7,6 +7,7 @@ import { materialHref, materialLocation } from '../utils/material'
 import { LearningEntryEditor } from './LearningEntryEditor'
 import { LearningFormulaContent } from './LearningFormulaContent'
 import { NoteLearningSync } from './NoteLearningSync'
+import { LearningPdfExport } from './LearningPdfExport'
 import './learning-reader.css'
 
 export function NoteLearningReader({ noteId, onOpenOriginal }: { noteId: string; onOpenOriginal: () => void }) {
@@ -76,6 +77,7 @@ export function NoteLearningReader({ noteId, onOpenOriginal }: { noteId: string;
     {error && <p role="alert">{error}</p>}
     {loading ? <p className="muted">正在读取统一文档…</p> : document && <>
       <p className="muted">{document.title} · {document.state.entries.length} 个条目 · 当前显示 {rows.length} 条 · 快照保存于 {new Date(document.created_at).toLocaleString()}</p>
+      <LearningPdfExport source={{ kind: 'note', note_id: noteId, revision_id: document.revision_id }} disabled={busy || !!editing || !document.state.entries.length} onBusy={setBusy} emptySources={document.sources.filter(source => !source.raw_text.trim()).length} />
       {!document.state.entries.length && <p className="empty">笔记尚无段落；先添加内容或继续课堂转写。</p>}
       {!current && <p className="muted">历史修订只读。读取最新笔记后可继续整理。</p>}
       {current && document.pending_sync && <aside className="learning-sync-notice"><p>新来源变化涉及已整理的条目，当前人工结构已保留。先预览并确认同步，再继续编辑。</p><button disabled={busy} onClick={() => void showPreview()}>预览来源变化</button></aside>}

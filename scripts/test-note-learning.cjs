@@ -24,7 +24,7 @@ Module._load = function(request, parent, isMain) { return request === 'electron'
 const deadline = setTimeout(() => { console.error('NOTE_LEARNING_TIMEOUT'); app.exit(2) }, 40_000)
 app.on('browser-window-created', (_event, win) => {
   win.webContents.once('did-finish-load', async () => {
-    const js = code => win.webContents.executeJavaScript(code)
+    const js = code => win.webContents.executeJavaScript(code).catch(error => { throw Error(`${error.message}\n表达式：${code.slice(0, 1000)}`) })
     const call = async (method, ...args) => {
       const result = await js(`window.api.notes[${JSON.stringify(method)}](...${JSON.stringify(args)})`)
       assert.equal(result.ok, true, result.error); return result.data
@@ -33,7 +33,7 @@ app.on('browser-window-created', (_event, win) => {
       const limit = Date.now() + 8000
       while (!await js(expression)) { if (Date.now() > limit) throw Error(await js('document.body.innerText')); await new Promise(resolve => setTimeout(resolve, 40)) }
     }
-    const click = async (label, scope = 'document') => js(`Array.from(${scope}.querySelectorAll('button')).find(button=>button.textContent.trim()===${JSON.stringify(label)})?.click()`)
+    const click = async (label, scope = 'document') => js(`(()=>{const button=Array.from(${scope}.querySelectorAll('button')).find(button=>button.textContent.trim()===${JSON.stringify(label)});if(!button||button.disabled)throw Error('按钮不可操作：'+${JSON.stringify(label)});button.click();return new Promise(resolve=>requestAnimationFrame(()=>resolve(true)))})()`)
     const input = async (selector, value) => js(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(element,${JSON.stringify(value)});element.dispatchEvent(new Event('input',{bubbles:true}))})()`)
     const select = async (selector, value) => js(`(()=>{const element=document.querySelector(${JSON.stringify(selector)});element.value=${JSON.stringify(value)};element.dispatchEvent(new Event('change',{bubbles:true}))})()`)
     const article = index => `document.querySelectorAll('.learning-entry')[${index}]`
