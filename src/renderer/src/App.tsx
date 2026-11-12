@@ -19,6 +19,8 @@ import { MaterialLibraryPage } from './pages/MaterialLibraryPage'
 import { useAppStore } from './stores/app'
 import { useChatStore } from './stores/chat'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { ProjectsPage } from './pages/ProjectsPage'
+import { ProjectDetail } from './pages/ProjectDetail'
 import { useConceptStore } from './stores/concepts'
 import './pages/knowledge.css'
 
@@ -63,6 +65,8 @@ export default function App() {
         <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/knowledge" element={<KnowledgePage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/projects/:projectId" element={<ProjectDetail />} />
         <Route path="/library" element={<MaterialLibraryPage />} />
         <Route path="/exercises" element={<Placeholder title="习题库" stage="M3" desc="习题条目化管理、思路图示、错误点标记、关联教材与笔记。" />} />
         <Route path="/review" element={<Placeholder title="作业与复习" stage="M4" desc="learnx 作业同步、FSRS 遗忘曲线复习调度、桌面小组件。" />} />

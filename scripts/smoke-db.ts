@@ -112,6 +112,26 @@ const actNoteAfter = (db.prepare("SELECT COUNT(*) AS c FROM notes WHERE id = 'no
 const actIdAfter = (db.prepare("SELECT activity_id FROM notes WHERE id = 'note-act'").get() as { activity_id: string | null }).activity_id
 assert(actNoteAfter === 1 && actIdAfter === null, '删除活动后笔记保留且 activity_id 置 NULL（ON DELETE SET NULL）')
 
+console.log('9. 项目与任务（020 迁移，R4 统一任务模型）')
+const projTables = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects','project_milestones','tasks')").all() as Array<{ name: string }>).map((r) => r.name)
+assert(projTables.length === 3, 'projects/project_milestones/tasks 三表已创建')
+db.prepare('INSERT INTO projects (id, subject_id, title, goal, description, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run('proj-1', null, '跨学科项目', '交付一个可运行原型', '', 'active', Date.now(), Date.now())
+db.prepare('INSERT INTO project_milestones (id, project_id, title, detail, due_at, status, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run('ms-1', 'proj-1', '建模', '', null, 'open', 0, Date.now(), Date.now())
+db.prepare("INSERT INTO tasks (id, kind, project_id, milestone_id, title, status, knowledge_refs_json, created_at, updated_at) VALUES (?, 'project_task', ?, ?, ?, 'open', ?, ?, ?)").run('task-1', 'proj-1', 'ms-1', '推导控制方程', '[]', Date.now(), Date.now())
+db.prepare("INSERT INTO tasks (id, kind, project_id, milestone_id, title, status, knowledge_refs_json, created_at, updated_at) VALUES (?, 'manual', NULL, NULL, ?, 'open', '[]', ?, ?)").run('task-2', '独立待办', Date.now(), Date.now())
+let badKind = false
+try {
+  db.prepare("INSERT INTO tasks (id, kind, title, created_at, updated_at) VALUES (?, 'homework', ?, ?, ?)").run('task-bad', 'x', Date.now(), Date.now())
+} catch { badKind = true }
+assert(badKind, 'tasks.kind CHECK 约束拒绝未登记类型')
+db.prepare('DELETE FROM project_milestones WHERE id = ?').run('ms-1')
+const task1Ms = (db.prepare("SELECT milestone_id FROM tasks WHERE id = 'task-1'").get() as { milestone_id: string | null }).milestone_id
+assert(task1Ms === null, '删除里程碑后任务保留且退回项目级（SET NULL）')
+db.prepare('DELETE FROM projects WHERE id = ?').run('proj-1')
+const projTasks = (db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE kind = 'project_task'").get() as { c: number }).c
+const manualTasks = (db.prepare("SELECT COUNT(*) AS c FROM tasks WHERE kind = 'manual'").get() as { c: number }).c
+assert(projTasks === 0 && manualTasks === 1, '删除项目级联删除项目任务，手动任务不受影响')
+
 console.log('')
 if (failed > 0) {
   console.error(`✗ 冒烟测试失败：${failed} 项断言未通过`)

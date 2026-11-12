@@ -15,6 +15,7 @@ import { registerConceptsIpc } from './concepts.ipc'
 import { registerLearningIpc } from './learning.ipc'
 import { registerEvidenceIpc } from './evidence.ipc'
 import { registerKnowledgeSuggestionsIpc } from './knowledge-suggestions.ipc'
+import { registerProjectsIpc } from './projects.ipc'
 
 export function registerAllIpc(): void {
   registerKnowledgeSuggestionsIpc()
@@ -31,4 +32,5 @@ export function registerAllIpc(): void {
   registerDiagnosticsIpc()
   registerMaterialsIpc()
   registerConceptsIpc()
+  registerProjectsIpc()
 }

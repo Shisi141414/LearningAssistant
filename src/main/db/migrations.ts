@@ -567,5 +567,55 @@ CREATE TABLE note_package_imports (
   UNIQUE(package_sha256, subject_id)
 );
 `
+  },
+  {
+    version: 20,
+    name: 'projects_and_tasks',
+    sql: `
+-- R4 项目管理：项目 / 里程碑 / 统一任务模型（R5 日程与 R6 备忘分流复用 tasks 表）
+CREATE TABLE projects (
+  id TEXT PRIMARY KEY,
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  goal TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','paused','done','archived')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE project_milestones (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  due_at INTEGER,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','done')),
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_milestones_project ON project_milestones(project_id, sort_order);
+
+-- 统一任务模型：kind 区分来源（project_task 项目任务 | manual 手动；
+-- R5 计划接入 assignment 作业 | review 复习；R6 备忘可分流为 manual）
+CREATE TABLE tasks (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'manual' CHECK(kind IN ('project_task','manual')),
+  project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+  milestone_id TEXT REFERENCES project_milestones(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  detail TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','doing','blocked','done')),
+  blocked_reason TEXT NOT NULL DEFAULT '',
+  due_at INTEGER,
+  planned_at INTEGER,
+  knowledge_refs_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_tasks_project ON tasks(project_id, status);
+CREATE INDEX idx_tasks_due ON tasks(due_at) WHERE due_at IS NOT NULL;
+`
   }
 ]

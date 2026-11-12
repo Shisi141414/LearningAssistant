@@ -13,6 +13,7 @@ const NAV = [
   { to: '/activities', label: '活动' },
   { to: '/chat', label: '对话' },
   { to: '/knowledge', label: '知识与概念' },
+  { to: '/projects', label: '项目' },
   { to: '/library', label: '材料库' },
   { to: '/exercises', label: '习题库', badge: 'M3' },
   { to: '/review', label: '复习', badge: 'M4' },

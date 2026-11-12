@@ -289,6 +289,92 @@ export interface InspirationInput {
   context_text?: string
 }
 
+/* ---------- 项目与任务（R4 统一任务模型） ---------- */
+
+export type ProjectStatus = 'active' | 'paused' | 'done' | 'archived'
+
+export interface Project {
+  id: ID
+  subject_id: ID | null
+  title: string
+  /** 项目要求/目标 */
+  goal: string
+  description: string
+  status: ProjectStatus
+  created_at: Timestamp
+  updated_at: Timestamp
+  /** 列表附带统计 */
+  counts?: { milestones: number; milestones_done: number; tasks: number; tasks_done: number }
+}
+
+export interface ProjectInput {
+  title: string
+  subject_id?: ID | null
+  goal?: string
+  description?: string
+  status?: ProjectStatus
+}
+
+export interface Milestone {
+  id: ID
+  project_id: ID
+  title: string
+  detail: string
+  due_at: Timestamp | null
+  status: 'open' | 'done'
+  sort_order: number
+  created_at: Timestamp
+  updated_at: Timestamp
+}
+
+export interface MilestoneInput {
+  project_id: ID
+  title: string
+  detail?: string
+  due_at?: Timestamp | null
+}
+
+export type TaskKind = 'project_task' | 'manual'
+export type TaskStatus = 'open' | 'doing' | 'blocked' | 'done'
+
+/** 任务对知识点的引用：为什么这个任务用到了这个知识点 */
+export interface TaskKnowledgeRef {
+  concept_id: ID
+  why: string
+}
+
+export interface Task {
+  id: ID
+  kind: TaskKind
+  project_id: ID | null
+  milestone_id: ID | null
+  title: string
+  detail: string
+  status: TaskStatus
+  blocked_reason: string
+  due_at: Timestamp | null
+  planned_at: Timestamp | null
+  knowledge_refs_json: string
+  created_at: Timestamp
+  updated_at: Timestamp
+}
+
+export interface TaskInput {
+  kind?: TaskKind
+  project_id?: ID | null
+  milestone_id?: ID | null
+  title: string
+  detail?: string
+  due_at?: Timestamp | null
+  knowledge_refs?: TaskKnowledgeRef[]
+}
+
+/** 项目详情：里程碑（含各自任务数）+ 任务（按状态分组由前端做） */
+export interface ProjectDetail extends Project {
+  milestones: Array<Milestone & { tasks_count: number; tasks_done: number }>
+  tasks: Task[]
+}
+
 /* ---------- 通用 ---------- */
 
 export interface ApiOk<T> {

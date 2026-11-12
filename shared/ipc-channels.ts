@@ -156,7 +156,21 @@ export const IPC = {
   /* 灵感 */
   InspirationsList: 'inspirations:list',
   InspirationsAdd: 'inspirations:add',
-  InspirationsRemove: 'inspirations:remove'
+  InspirationsRemove: 'inspirations:remove',
+
+  /* 项目与任务（R4） */
+  ProjectsList: 'projects:list',
+  ProjectsCreate: 'projects:create',
+  ProjectsUpdate: 'projects:update',
+  ProjectsRemove: 'projects:remove',
+  ProjectsDetail: 'projects:detail',
+  MilestonesCreate: 'milestones:create',
+  MilestonesUpdate: 'milestones:update',
+  MilestonesRemove: 'milestones:remove',
+  TasksCreate: 'tasks:create',
+  TasksUpdate: 'tasks:update',
+  TasksRemove: 'tasks:remove',
+  TasksListManual: 'tasks:listManual'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]
