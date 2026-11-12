@@ -88,6 +88,15 @@ let selectedFile
 const opened = []
 const problems = []
 let semanticServer
+function runPackageWorker(input) {
+  return new Promise((resolve,reject)=>{
+    const worker=new(require('node:worker_threads').Worker)(path.resolve(__dirname,'../out/main/learning-package-worker.js'),{workerData:input,resourceLimits:{maxOldGenerationSizeMb:512}})
+    let finished=false
+    const finish=(error,result)=>{if(finished)return;finished=true;clearTimeout(timer);void worker.terminate();if(error)reject(error);else resolve(result)}
+    const timer=setTimeout(()=>finish(Error('文档包工作线程超过十五秒')),15000)
+    worker.on('message',message=>finish(message.type==='error'?Error(message.error):null,message.result));worker.on('error',error=>finish(error));worker.on('exit',code=>{if(!finished)finish(Error('文档包线程提前退出 '+code))})
+  })
+}
 app.on('before-quit',()=>{semanticServer?.closeAllConnections();semanticServer?.close()})
 class HiddenWindow extends electron.BrowserWindow {
   constructor(options) { super({ ...options, webPreferences: { ...options.webPreferences, backgroundThrottling: false, offscreen: true } }) }
@@ -143,6 +152,10 @@ app.on('browser-window-created', (_event, win) => {
     }
     try {
       if (resumeIndex >= 0) {
+        const savedPackage=JSON.parse(fs.readFileSync(path.join(root,'portable-worker-test.json'),'utf8')),packageStage=fs.mkdtempSync(path.join(root,'package-restart-'))
+        const resumedPackage=await runPackageWorker({action:'read',file:savedPackage.file,directory:packageStage})
+        assert.equal(resumedPackage.sha256,savedPackage.sha256);assert.deepEqual(resumedPackage.manifest.state,savedPackage.state)
+        assert.equal(resumedPackage.files.length,3)
         const savedCrop=JSON.parse(fs.readFileSync(path.join(root,'learning-crop-test.json'),'utf8'))
         const resumedCrop=await call('learning','get',{version_id:savedCrop.version})
         assert.deepEqual(resumedCrop.assets.map(a=>({sha256:a.sha256,locator:a.locator_json})),savedCrop.assets)
@@ -647,6 +660,23 @@ app.on('browser-window-created', (_event, win) => {
       const imageOnlyDoc=await call('learning','prepare',imageOnly.current_version_id)
       assert.equal((await call('learning','assetsPrepare',imageOnlyDoc.version_id)).assets.length,2)
       console.log('FIGURE_TEST_OK actual DOCX/PPTX extraction, cancellation, same-image locations, attachment serving, captions/history/removal, image-only input, slide order, 1024 layout and restart checkpoint')
+      // 固定修订编解码的实际 Electron 工作线程验收；尚不代表应用已提供导入入口。
+      const packageDoc=await call('learning','get',{version_id:figureDoc.version_id}),packageDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'),{readonly:true,fileMustExist:true})
+      const packageVersion=packageDb.prepare('SELECT * FROM material_versions WHERE id=?').get(packageDoc.version_id),packageAssetRows=packageDb.prepare('SELECT * FROM learning_assets WHERE document_id=? ORDER BY created_at,rowid').all(packageDoc.id)
+      packageDb.close()
+      const originalPackageFile=path.join(root,packageVersion.file_path),packageFiles=[['source/original.docx',originalPackageFile]],packageAssetMeta=packageDoc.assets.map(asset=>{
+        const file=path.join(root,packageAssetRows.find(row=>row.id===asset.id).file_path),entry=`assets/${asset.id}.${asset.mime_type==='image/png'?'png':'jpg'}`;packageFiles.push([entry,file]);return {...asset,path:entry,byte_length:fs.statSync(file).size}
+      })
+      const packageManifest={format:'learning-assistant/document',schema_version:'0.2',document:{id:packageDoc.id,version_id:packageDoc.version_id,revision_id:packageDoc.revision_id,title:'受力图讲义',kind:'handout',created_at:packageDoc.created_at,subject_name:'数学分析'},original:{format:'docx',file_name:packageVersion.file_name,derivation:'native',path:'source/original.docx',sha256:packageVersion.fingerprint,byte_length:fs.statSync(originalPackageFile).size},conversion:null,sources:packageDoc.sources,state:packageDoc.state,assets:packageAssetMeta,asset_extraction:packageDoc.asset_extraction,ocr_pages:[],concepts:[],evidence:[]}
+      const packageOutput=path.join(root,'受力图讲义.ladoc'),packageDigest=await runPackageWorker({action:'write',manifest:packageManifest,files:packageFiles,output:packageOutput}),packageStage=fs.mkdtempSync(path.join(root,'package-read-'))
+      const packageRead=await runPackageWorker({action:'read',file:packageOutput,directory:packageStage})
+      assert.equal(packageRead.sha256,packageDigest.sha256);assert.deepEqual(packageRead.manifest,packageManifest)
+      for(const item of packageRead.files)assert.deepEqual(fs.readFileSync(item.file),fs.readFileSync(new Map(packageFiles).get(item.path)))
+      const badPackage=structuredClone(packageManifest),badPackageOutput=path.join(root,'校验失败不发布.ladoc');badPackage.original.sha256='0'.repeat(64)
+      await assert.rejects(runPackageWorker({action:'write',manifest:badPackage,files:packageFiles,output:badPackageOutput}),/散列|字节/);assert.equal(fs.existsSync(badPackageOutput),false)
+      assert.deepEqual((await call('learning','get',{version_id:packageDoc.version_id})).state,packageDoc.state)
+      fs.writeFileSync(path.join(root,'portable-worker-test.json'),JSON.stringify({file:packageOutput,sha256:packageDigest.sha256,state:packageDoc.state}))
+      console.log('PACKAGE_WORKER_TEST_OK real Electron worker ZIP write/read, original and image byte checks, unchanged live revision and restart checkpoint')
       const cropMaterial=await importFile(pdf('PDF选区教材.pdf',true),input);await wait(cropMaterial.id)
       const cropInitial=await call('learning','prepare',cropMaterial.current_version_id),cropInput={version_id:cropInitial.version_id,page:1,rect:[0.1,0.2,0.4,0.3]}
       const cropCancelled=await win.webContents.executeJavaScript(`Promise.all([window.api.learning.assetsCrop(${JSON.stringify(cropInput)}),window.api.learning.assetsCancel(${JSON.stringify(cropInitial.version_id)})])`)

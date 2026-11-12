@@ -10,6 +10,7 @@ out-tmp/
 # 日志与本地文件
 *.log
 .DS_Store
+*.ladoc
 
 # 环境与密钥（不应入库）
 .env

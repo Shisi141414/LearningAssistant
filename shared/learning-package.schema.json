@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LearningAssistant portable document 0.2",
+  "description": "A fixed learning revision in a ZIP. Semantic, source coverage, hash and binary validation are additionally required.",
+  "type": "object", "additionalProperties": false,
+  "required": ["format", "schema_version", "document", "original", "conversion", "sources", "state", "assets", "asset_extraction", "ocr_pages", "concepts", "evidence"],
+  "properties": {
+    "format": {"const": "learning-assistant/document"}, "schema_version": {"const": "0.2"},
+    "document": {"type":"object","additionalProperties":false,"required":["id","version_id","revision_id","title","kind","created_at","subject_name"],"properties":{
+      "id":{"$ref":"#/$defs/id"},"version_id":{"$ref":"#/$defs/id"},"revision_id":{"$ref":"#/$defs/id"},"title":{"type":"string","minLength":1,"maxLength":500,"pattern":"^[^\\u0000]*$"},"kind":{"enum":["textbook","handout","slides","supplement"]},"created_at":{"$ref":"#/$defs/time"},"subject_name":{"type":["string","null"],"maxLength":500}
+    }},
+    "original":{"type":"object","additionalProperties":false,"required":["format","file_name","derivation","path","sha256","byte_length"],"properties":{
+      "format":{"enum":["pdf","docx","pptx","doc","ppt"]},"file_name":{"type":"string","minLength":1,"maxLength":500},"derivation":{"enum":["native","ocr","correction"]},"path":{"type":"string","pattern":"^source/original\\.(pdf|docx|pptx|doc|ppt)$"},"sha256":{"$ref":"#/$defs/hash"},"byte_length":{"type":"integer","minimum":1,"maximum":52428800}
+    }},
+    "conversion":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["format","engine","created_at","path","sha256","byte_length"],"properties":{
+      "format":{"enum":["docx","pptx"]},"engine":{"type":"string","minLength":1,"maxLength":1000},"created_at":{"$ref":"#/$defs/time"},"path":{"type":"string","pattern":"^source/converted\\.(docx|pptx)$"},"sha256":{"$ref":"#/$defs/hash"},"byte_length":{"type":"integer","minimum":1,"maximum":52428800}
+    }}]},
+    "sources":{"type":"array","minItems":1,"maxItems":1000,"items":{"type":"object","additionalProperties":false,"required":["id","ordinal","raw_text","heading","locator_json","extraction"],"properties":{
+      "id":{"$ref":"#/$defs/id"},"ordinal":{"type":"integer","minimum":0,"maximum":999},"raw_text":{"type":"string","maxLength":2000000},"heading":{"type":"string","maxLength":10000},"locator_json":{"type":"string","minLength":2,"maxLength":2000},"extraction":{"enum":["native","ocr","manual"]}
+    }}},
+    "state":{"type":"object","additionalProperties":false,"required":["entries","relations"],"properties":{
+      "entries":{"type":"array","minItems":1,"maxItems":5000,"items":{"$ref":"#/$defs/entry"}},
+      "relations":{"type":"array","maxItems":5000,"items":{"type":"object","additionalProperties":false,"required":["from","to","type","review_status"],"properties":{"from":{"$ref":"#/$defs/id"},"to":{"$ref":"#/$defs/id"},"type":{"enum":["proves","solves"]},"review_status":{"$ref":"#/$defs/review"}}}}
+    }},
+    "assets":{"type":"array","maxItems":100,"items":{"type":"object","additionalProperties":false,"required":["id","mime_type","sha256","width","height","locator_json","alt_text","path","byte_length"],"properties":{
+      "id":{"$ref":"#/$defs/id"},"mime_type":{"enum":["image/png","image/jpeg"]},"sha256":{"$ref":"#/$defs/hash"},"width":{"type":"integer","minimum":1,"maximum":16000000},"height":{"type":"integer","minimum":1,"maximum":16000000},"locator_json":{"type":"string","minLength":2,"maxLength":2000},"alt_text":{"type":"string","maxLength":1000},"path":{"type":"string","pattern":"^assets/[A-Za-z0-9_-]{1,128}\\.(png|jpg)$"},"byte_length":{"type":"integer","minimum":1,"maximum":8388608}
+    }}},
+    "asset_extraction":{"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["engine","warnings","created_at"],"properties":{"engine":{"type":"string","minLength":1,"maxLength":1000},"warnings":{"type":"array","maxItems":300,"items":{"type":"string","maxLength":1000}},"created_at":{"$ref":"#/$defs/time"}}}]},
+    "ocr_pages":{"type":"array","maxItems":1000,"items":{"type":"object","additionalProperties":false,"required":["page","raw_text","corrected_text","confidence","width","height","lines_json","model_json"],"properties":{
+      "page":{"type":"integer","minimum":1,"maximum":3000},"raw_text":{"type":"string","maxLength":100000},"corrected_text":{"type":["string","null"],"maxLength":100000},"confidence":{"type":"number","minimum":0,"maximum":100},"width":{"type":"integer","minimum":1,"maximum":8192},"height":{"type":"integer","minimum":1,"maximum":8192},"lines_json":{"type":"string","maxLength":2000000},"model_json":{"type":"string","maxLength":20000}
+    }}},
+    "concepts":{"type":"array","maxItems":2000,"items":{"type":"object","additionalProperties":false,"required":["id","name","summary","aliases"],"properties":{"id":{"$ref":"#/$defs/id"},"name":{"type":"string","minLength":1,"maxLength":120},"summary":{"type":"string","maxLength":200000},"aliases":{"type":"array","maxItems":20,"uniqueItems":true,"items":{"type":"string","minLength":1,"maxLength":120}}}}},
+    "evidence":{"type":"array","maxItems":5000,"items":{"type":"object","additionalProperties":false,"required":["concept_id","entry_id","role","memo","quote_sha256"],"properties":{"concept_id":{"$ref":"#/$defs/id"},"entry_id":{"$ref":"#/$defs/id"},"role":{"enum":["source","definition","proof","example","counterexample","application"]},"memo":{"type":"string","maxLength":2000},"quote_sha256":{"$ref":"#/$defs/hash"}}}}
+  },
+  "$defs": {
+    "id":{"type":"string","pattern":"^[A-Za-z0-9_-]{1,128}$"}, "hash":{"type":"string","pattern":"^[a-f0-9]{64}$"}, "time":{"type":"integer","minimum":0,"maximum":9007199254740991}, "review":{"enum":["unreviewed","confirmed"]},
+    "range":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer","minimum":0,"maximum":2000000}},
+    "entry":{"type":"object","additionalProperties":false,"required":["id","type","title","sources","analysis"],"properties":{
+      "id":{"$ref":"#/$defs/id"},"type":{"enum":["section","narrative","definition","theorem","proposition","lemma","corollary","proof","example","exercise","solution","figure","table","equation","note"]},"title":{"type":"string","maxLength":500},"parent_id":{"anyOf":[{"type":"null"},{"$ref":"#/$defs/id"}]},
+      "sources":{"type":"array","minItems":1,"maxItems":1000,"items":{"type":"object","additionalProperties":false,"required":["source_id"],"properties":{"source_id":{"$ref":"#/$defs/id"},"text_range":{"$ref":"#/$defs/range"}}}},
+      "analysis":{"oneOf":[{"type":"object","additionalProperties":false,"required":["method","review_status"],"properties":{"method":{"enum":["extracted","manual"]},"review_status":{"$ref":"#/$defs/review"}}},{"type":"object","additionalProperties":false,"required":["method","model","review_status"],"properties":{"method":{"const":"ai"},"model":{"type":"string","minLength":1,"maxLength":1000},"review_status":{"$ref":"#/$defs/review"}}}]},
+      "formulas":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["range","latex","display"],"properties":{"range":{"$ref":"#/$defs/range"},"latex":{"type":"string","minLength":1,"maxLength":2000},"display":{"type":"boolean"}}}},
+      "figures":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["asset_id","caption"],"properties":{"asset_id":{"$ref":"#/$defs/id"},"caption":{"type":"string","maxLength":1000}}}}
+    }}
+  }
+}
