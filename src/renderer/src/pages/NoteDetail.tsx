@@ -27,7 +27,7 @@ export function NoteDetail() {
   const [note, setNote] = useState<NoteWithSegments | null>(null)
   const [view, setView] = useState<ViewMode>(params.get('view') === 'raw' ? 'raw' : 'organized')
   const [title, setTitle] = useState('')
-  const [uniform, setUniform] = useState(false)
+  const [uniform, setUniform] = useState(params.get('view') === 'uniform')
 
   const reload = useCallback(async () => {
     if (!noteId) return
@@ -41,9 +41,9 @@ export function NoteDetail() {
   }, [noteId, showToast])
 
   useEffect(() => {
-    setUniform(false)
+    setUniform(params.get('view') === 'uniform')
     void reload()
-  }, [reload])
+  }, [reload, params])
 
   useEffect(() => {
     if (linkedSegment && note) document.getElementById(`note-segment-${linkedSegment}`)?.scrollIntoView({ block: 'center' })

@@ -15,7 +15,7 @@ export function NotePackageExport({ source, disabled, onBusy }: { source: NotePa
   }
   return <div className="learning-note-package">
     <div className="toolbar"><button disabled={disabled || busy} onClick={() => void save()}>导出笔记文档包</button>{busy && <button onClick={() => void window.api.notes.packageExportCancel(source.note_id).then(result => { if (!result.ok) setError(result.error) })}>取消笔记导出</button>}</div>
-    <p className="muted">.ladoc 保存所选修订全部条目、原始口述、整理稿和教材位置；标注及知识证据为本次导出时的记录。包内含原始内容，分享前请核对。当前版本仅支持导出，导入入口将在下一批接通。</p>
+    <p className="muted">.ladoc 保存所选修订全部条目、原始口述、整理稿和教材位置；标注及知识证据为本次导出时的记录。包内含原始内容，分享前请核对。可在“笔记”页导入独立副本。</p>
     {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
   </div>
 }

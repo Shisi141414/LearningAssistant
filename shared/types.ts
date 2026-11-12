@@ -163,6 +163,7 @@ export interface Note {
 }
 
 export interface NoteSegment {
+  learning_heading?: string
   material_ref?: MaterialAnchor | null
   revision?: number
   organized_by?: 'initial' | 'ai' | 'user'
@@ -496,6 +497,8 @@ export interface NoteLearningDocument {
   id: ID; note_id: ID; revision_id: ID; current_revision_id: ID; created_at: number
   title: string; subject_id: ID | null; sources: LearningSource[]; state: LearningState
   origins: Record<ID, NoteLearningOrigin>; history: { id: ID; created_at: number }[]
+  /** 导入包的外部教材快照。只展示出处，绝不按这些身份跳转本机教材。 */
+  external_materials?: Record<ID, MaterialAnchor>
   pending_sync?: { fingerprint: string; summary: NoteLearningSyncSummary }
 }
 export interface NoteLearningSyncSummary {

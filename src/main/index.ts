@@ -19,6 +19,7 @@ import { stopLearningAssets } from './services/learning-assets'
 import { stopLearningPackageExports } from './services/learning-package-export'
 import { stopLearningPdfs } from './services/learning-pdf'
 import { stopLearningPackageImports } from './services/learning-package-import'
+import { stopNotePackageImports } from './services/note-package-import'
 import { recoverLearningPackageImports } from './services/learning-package-import-store'
 
 declareMaterialProtocol()
@@ -98,6 +99,7 @@ app.on('before-quit', () => {
   stopLearningPackageExports()
   stopLearningPdfs()
   stopLearningPackageImports()
+  stopNotePackageImports()
   stopLearningSuggestions()
   stopNoteSuggestions()
   stopKnowledgeSuggestions()

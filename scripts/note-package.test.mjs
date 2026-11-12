@@ -70,7 +70,7 @@ test('仅保留提及或证据关联的概念，原始口述别名也能携带�
   await writeDocumentArchive(selected, new Map(), file, noteArchiveContract)
   const decoded = await readDocumentArchive(file, await dir(), noteArchiveContract)
   assert.deepEqual(decoded.manifest, selected); assert.deepEqual(decoded.files, [])
-  await assert.rejects(readLearningPackage(file, await dir()), /格式|字段/)
+  await assert.rejects(readLearningPackage(file, await dir()), /笔记文档包.*笔记页/)
 })
 test('笔记复用 ZIP 校验，拒绝路径穿越/多余附件/损坏 CRC，失败不破坏已有文件', async () => {
   const { input } = await fixture(), manifest = notePackageSnapshot(input), root = await dir(), file = join(root, '包.ladoc')

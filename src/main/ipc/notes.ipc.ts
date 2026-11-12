@@ -10,6 +10,8 @@ import { getDb } from '../services/db'
 import { ipcMain, handleResult } from './helpers'
 import { dialog } from 'electron'
 import { exportNotePackage, cancelNotePackageExport } from '../services/note-package-export'
+import { previewNotePackage, confirmNotePackage, cancelNotePackageImport } from '../services/note-package-import'
+import { notePackageReceipt } from '../services/note-package-receipts'
 import { nanoid } from 'nanoid'
 import { addSegment } from '../services/segments'
 import { attachMaterialRefs } from '../services/classroom-materials'
@@ -57,6 +59,18 @@ function touchNote(db: ReturnType<typeof getDb>, noteId: ID): void {
 }
 
 export function registerNotesIpc(): void {
+  ipcMain.handle(IPC.NotesPackagePreview, (event) => handleResult(async () => {
+    const chosen = await dialog.showOpenDialog({ title: '导入笔记文档包并预览', properties: ['openFile'], filters: [{ name: '笔记文档包', extensions: ['ladoc'] }] })
+    if (chosen.canceled || !chosen.filePaths[0]) return null
+    if (event.sender.isDestroyed()) throw new Error('导入窗口已关闭')
+    const cancel = () => { void cancelNotePackageImport() }
+    event.sender.once('destroyed', cancel)
+    try { return await previewNotePackage(chosen.filePaths[0]) }
+    finally { event.sender.removeListener('destroyed', cancel) }
+  }))
+  ipcMain.handle(IPC.NotesPackageImport, (_e, input) => handleResult(() => confirmNotePackage(input)))
+  ipcMain.handle(IPC.NotesPackageImportCancel, () => handleResult(cancelNotePackageImport))
+  ipcMain.handle(IPC.NotesPackageReceipt, (_e, id) => handleResult(() => notePackageReceipt(id)))
   ipcMain.handle(IPC.NotesPackageExportCancel, (_e, id) => handleResult(() => cancelNotePackageExport(id)))
   ipcMain.handle(IPC.NotesPackageExport, (event, input) => handleResult(async () => {
     const doc = getNoteLearning(input)

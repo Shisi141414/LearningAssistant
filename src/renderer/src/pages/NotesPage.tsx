@@ -2,8 +2,9 @@
  * pages/NotesPage.tsx —— 笔记列表（按当前学科过滤）
  */
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { Note } from '@shared/types'
+import { NotePackageImport } from '../components/NotePackageImport'
 import { useAppStore } from '../stores/app'
 
 const SOURCE_LABEL: Record<Note['source'], string> = {
@@ -13,6 +14,7 @@ const SOURCE_LABEL: Record<Note['source'], string> = {
 }
 
 export function NotesPage() {
+  const navigate = useNavigate()
   const currentSubjectId = useAppStore((s) => s.currentSubjectId)
   const subjects = useAppStore((s) => s.subjects)
   const showToast = useAppStore((s) => s.showToast)
@@ -52,6 +54,7 @@ export function NotesPage() {
   return (
     <div className="page">
       <h1>笔记</h1>
+      <NotePackageImport subjectId={currentSubjectId || ''} onImported={async result => { await reload(); navigate(`/notes/${result.note_id}?view=uniform`) }} />
       <div className="toolbar">
         <button className="primary" onClick={() => setCreating(true)}>
           + 新建笔记

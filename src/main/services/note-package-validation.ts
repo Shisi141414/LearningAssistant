@@ -11,6 +11,7 @@ const validate = new Ajv2020({ strict: true }).addSchema(materialSchema, 'materi
 const sha = (value: string) => createHash('sha256').update(value).digest('hex')
 function unique(values: string[], label: string): void { if (new Set(values).size !== values.length) throw new Error(`${label}编号重复`) }
 export function validateNotePackage(value: unknown): asserts value is NotePackage {
+  if (value && typeof value === 'object' && 'format' in value && value.format === 'learning-assistant/document') throw new Error('这是教材文档包，请到材料库导入学习文档包')
   if (!validate(value)) throw new Error(`笔记文档包字段无效：${validate.errors?.[0]?.instancePath || '/'} ${validate.errors?.[0]?.message || ''}`)
   const doc = value
   if (!doc.document.title.trim() || doc.exported_at < doc.document.created_at) throw new Error('笔记标题或导出时间无效')

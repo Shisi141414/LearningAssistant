@@ -18,3 +18,7 @@ export interface NotePackage {
 }
 export interface NotePackageExportInput { note_id: string; revision_id: string }
 export interface NotePackageExportResult extends LearningPackageExportResult { sources: number; entries: number; annotations: number; evidence: number; unmatched_annotations: number; unmatched_evidence: number }
+export interface NotePackagePreview { ticket: string; title: string; subject_name: string | null; sources: number; entries: number; annotations: number; concepts: number; evidence: number; unmatched_annotations: number; unmatched_evidence: number; external_materials: number; sha256: string }
+export interface NotePackageImportResult { note_id: string; revision_id: string; created: boolean; concepts_created: number; concepts_reused: number; concept_conflicts: number; include_concepts: boolean }
+/** 完整原包留在主进程；界面仅获得可审阅的历史记录，不暴露可导航的外部身份。 */
+export interface NotePackageReceipt { title: string; revision_id: string; sha256: string; include_concepts: boolean; annotations: NotePackage['annotations']; evidence: (NotePackage['evidence'][number] & { concept_name: string })[] }

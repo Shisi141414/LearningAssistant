@@ -8,7 +8,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
 import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
-import type { NotePackageExportInput, NotePackageExportResult } from '@shared/note-package'
+import type { NotePackageExportInput, NotePackageExportResult, NotePackagePreview, NotePackageImportResult, NotePackageReceipt } from '@shared/note-package'
 import type {
   LearningDocument, LearningChange, LearningPdfCrop, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
@@ -114,6 +114,10 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.ModelsRemove, id)
   },
   notes: {
+    packagePreview: () => invoke<NotePackagePreview | null>(IPC.NotesPackagePreview),
+    packageImport: (input: LearningPackageImportInput) => invoke<NotePackageImportResult>(IPC.NotesPackageImport, input),
+    packageImportCancel: () => invoke<boolean>(IPC.NotesPackageImportCancel),
+    packageReceipt: (noteId: ID) => invoke<NotePackageReceipt | null>(IPC.NotesPackageReceipt, noteId),
     packageExport: (input: NotePackageExportInput) => invoke<NotePackageExportResult | null>(IPC.NotesPackageExport, input),
     packageExportCancel: (noteId: ID) => invoke<boolean>(IPC.NotesPackageExportCancel, noteId),
     learningGet: (input: { note_id: ID; revision_id?: ID }) => invoke<NoteLearningDocument>(IPC.NotesLearningGet, input),

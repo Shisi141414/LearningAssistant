@@ -1,5 +1,6 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { NoteImportReceipt } from './NoteImportReceipt'
 import type { LearningEntry, LearningOperation, NoteLearningDocument, NoteLearningSyncPreview, MaterialAnchor } from '@shared/types'
 import { entryText, learningTypes } from '@shared/learning-document'
 import { MarkdownSegment } from './MarkdownSegment'
@@ -79,6 +80,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
   }
   return <section className={`learning-reader${classroomNavigation ? ' learning-reader-embedded' : ''}`} data-tools-open={toolsOpen} aria-label="笔记统一格式">
     <p className="learning-intro muted">整理稿与教材共用条目格式，可整理类型、章节、证明归属及公式。展开来源可核对原始转写和教材位置；修改正文请切回段落视图。新来源涉及人工结构时先核对同步预览。</p>
+    {document?.external_materials && <NoteImportReceipt key={noteId} noteId={noteId} />}
     <div className="toolbar learning-toolbar">
       <button disabled={loading || busy || !!editing || !!preview} onClick={() => { setRevision(''); setRefresh(value => value + 1) }}>读取最新笔记</button>
       <select aria-label="笔记修订" disabled={loading || busy || !!editing || !!preview} value={revision} onChange={event => setRevision(event.target.value)}>
@@ -118,6 +120,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
             {origin.organized_by === 'ai' && <p className="muted">整理来源：{origin.model ?? '旧记录未保存模型'}</p>}
             <div className="learning-entry-text">{origin.raw_text || '（原文为空）'}</div>
             {origin.material_ref && (classroomNavigation ? <button className="classroom-source" onClick={() => classroomNavigation.material(origin.material_ref!)}>{origin.material_ref.material_title} · {materialLocation(origin.material_ref)} · 查看来源</button> : <Link to={materialHref(origin.material_ref.material_id, origin.material_ref)}>{origin.material_ref.material_title} · {materialLocation(origin.material_ref)}</Link>)}
+            {document.external_materials?.[sourceId] && <p className="muted">未关联的外部教材：{document.external_materials[sourceId].material_title} · {materialLocation(document.external_materials[sourceId])}（仅保留出处）</p>}
             <p>{classroomNavigation ? <button onClick={() => classroomNavigation.original(origin.segment_id)}>打开当前原文段落（可能已修改或删除）</button> : <Link onClick={onOpenOriginal} to={`/notes/${noteId}?segment=${encodeURIComponent(origin.segment_id)}&view=raw`}>打开当前原文段落（可能已修改或删除）</Link>}</p>
             </div> })}
           </details>

@@ -547,5 +547,25 @@ CREATE TABLE note_learning_suggestions (
 );
 CREATE INDEX idx_note_learning_suggestions ON note_learning_suggestions(document_id, created_at);
 `
+  },
+  {
+    version: 19,
+    name: 'note_package_import_receipts',
+    sql: `
+ALTER TABLE note_segments ADD COLUMN learning_heading TEXT NOT NULL DEFAULT '';
+-- 只在完整事务成功后登记；原包与稳定映射保留，不跟随用户段落删除而丢失出处。
+CREATE TABLE note_package_imports (
+  id TEXT PRIMARY KEY,
+  package_sha256 TEXT NOT NULL,
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  note_id TEXT UNIQUE REFERENCES notes(id) ON DELETE SET NULL,
+  document_id TEXT NOT NULL REFERENCES note_learning_documents(id) ON DELETE RESTRICT,
+  include_concepts INTEGER NOT NULL CHECK(include_concepts IN (0,1)),
+  manifest_json TEXT NOT NULL,
+  mapping_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(package_sha256, subject_id)
+);
+`
   }
 ]

@@ -23,6 +23,7 @@ export function packageLocator(json: string, kind: MaterialLocator['kind']): Mat
 }
 /** Schema 通过后仍需验证覆盖、引用与来源一致性；不修改输入，也不修补坏数据。 */
 export function validateLearningPackage(value: unknown): asserts value is LearningPackage {
+  if (value && typeof value === 'object' && 'format' in value && value.format === 'learning-assistant/note') throw new Error('这是笔记文档包，请到笔记页导入笔记文档包')
   if (!validate(value)) throw new Error(`学习文档包格式不支持或字段无效：${validate.errors?.[0]?.instancePath || '/'} ${validate.errors?.[0]?.message || ''}`)
   const doc = value
   if (!doc.document.title.trim() || /[/\\:\0]/.test(doc.original.file_name)) throw new Error('包内标题或原件文件名无效')

@@ -30,7 +30,9 @@ export function notePackageSnapshot(input: NotePackageExportInput): NotePackage 
     const evidenceIds = new Set(evidence.map(item => item.concept_id))
     const concepts = listConcepts().filter(concept => !doc.subject_id || !concept.subject_id || concept.subject_id === doc.subject_id || evidenceIds.has(concept.id)).map(({ id, name, summary, aliases }) => ({ id, name, summary: summary ?? '', aliases }))
     const subject = doc.subject_id ? db.prepare('SELECT name FROM subjects WHERE id=?').get(doc.subject_id) as { name: string } | undefined : undefined
-    return { format: 'learning-assistant/note', schema_version: '0.1', document: { id: doc.id, note_id: doc.note_id, revision_id: doc.revision_id, title: doc.title, created_at: doc.created_at, subject_name: subject?.name ?? null }, exported_at: Date.now(), sources: doc.sources, state: doc.state, origins: doc.origins, assets: [], annotations, concepts, evidence }
+    // 外部锚点只进入交换包；运行时来源仍不具备本机教材导航身份。
+    const origins = Object.fromEntries(Object.entries(doc.origins).map(([id, origin]) => [id, { ...origin, material_ref: origin.material_ref ?? doc.external_materials?.[id] ?? null }]))
+    return { format: 'learning-assistant/note', schema_version: '0.1', document: { id: doc.id, note_id: doc.note_id, revision_id: doc.revision_id, title: doc.title, created_at: doc.created_at, subject_name: subject?.name ?? null }, exported_at: Date.now(), sources: doc.sources, state: doc.state, origins, assets: [], annotations, concepts, evidence }
   })()
 }
 export async function exportNotePackage(input: NotePackageExportInput, output: string): Promise<NotePackageExportResult> {

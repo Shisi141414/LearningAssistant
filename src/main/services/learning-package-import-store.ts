@@ -57,7 +57,7 @@ export async function recoverLearningPackageImports(): Promise<void> {
 function conceptSignature(concept: Pick<Concept, 'name' | 'summary' | 'aliases'>): string {
   return JSON.stringify([conceptKey(concept.name), concept.summary ?? '', concept.aliases.map(conceptKey).sort()])
 }
-function insertConcepts(manifest: LearningPackage, subject: string) {
+export function insertConcepts(manifest: Pick<LearningPackage, 'concepts'>, subject: string) {
   const db = getDb(), existing = listConcepts(), applicable = existing.filter(concept => !concept.subject_id || concept.subject_id === subject)
   const bySignature = new Map<string, Concept[]>(), names = new Set(applicable.flatMap(concept => [concept.name, ...concept.aliases].map(conceptKey)))
   for (const concept of applicable) { const key = conceptSignature(concept); if (!bySignature.has(key)) bySignature.set(key, []); bySignature.get(key)!.push(concept) }

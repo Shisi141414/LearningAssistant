@@ -6,6 +6,7 @@ import { reconcileNoteLearning } from '@shared/note-learning-sync'
 import { changeLearningState, validateLearningState } from '@shared/learning-document'
 import { getDb } from './db'
 import { attachMaterialRefs, segmentMaterialRef } from './classroom-materials'
+import { externalNoteMaterials } from './note-package-receipts'
 
 type DocumentRow = { id: string; note_id: string; created_at: number }
 type RevisionRow = { id: string; document_id: string; title: string; subject_id: string | null; block_ids_json: string; state_json: string | null; created_at: number }
@@ -80,8 +81,10 @@ function saveRevision(live: LiveNote, state?: LearningState): RevisionRow {
 }
 function readRevision(document: DocumentRow, selected: RevisionRow, latest: RevisionRow, pending?: NoteLearningDocument['pending_sync']): NoteLearningDocument {
   const blocks = loadBlocks(document.id, JSON.parse(selected.block_ids_json) as string[])
+  const snapshot = content(blocks, selected.state_json ? JSON.parse(selected.state_json) as LearningState : undefined)
+  const external = externalNoteMaterials(document.id, snapshot.sources, snapshot.origins)
   return { id: document.id, note_id: document.note_id, revision_id: selected.id, current_revision_id: latest.id, title: selected.title, subject_id: selected.subject_id, created_at: selected.created_at,
-    ...content(blocks, selected.state_json ? JSON.parse(selected.state_json) as LearningState : undefined),
+    ...snapshot, ...(external ? { external_materials: external } : {}),
     history: getDb().prepare('SELECT id,created_at FROM note_learning_revisions WHERE document_id=? ORDER BY rowid DESC').all(document.id) as { id: string; created_at: number }[], ...(pending ? { pending_sync: pending } : {}) }
 }
 /** 自动接入安全变化；人工范围发生变化时保留当前修订，等待具体预览确认。 */
