@@ -1,19 +1,24 @@
 @echo off
-rem 一次性脚本：在桌面创建「学习助手」快捷方式（指向 启动学习助手.bat，
-rem 图标取 Electron 运行时；M5 打包期换成正式应用图标）。
-chcp 65001 >nul
-title 创建桌面快捷方式
+rem One-time: creates a desktop shortcut for the app.
+rem IMPORTANT: keep this file ASCII-only. cmd.exe parses batch content with the
+rem console codepage and non-ASCII inside command arguments is unreliable
+rem (v1 failed exactly because of Chinese in the powershell -Command string).
+rem All Chinese text lives in scripts/make-shortcut.ps1 (UTF-8 with BOM).
+title Create desktop shortcut
 cd /d "%~dp0"
-if not exist "启动学习助手.bat" (
-  echo [错误] 未找到 启动学习助手.bat，请在本目录运行。
+if not exist "scripts\make-shortcut.ps1" (
+  echo [Error] scripts\make-shortcut.ps1 not found.
   pause
   exit /b 1
 )
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\学习助手.lnk'); $lnk.TargetPath = '%~dp0启动学习助手.bat'; $lnk.WorkingDirectory = '%~dp0'; $lnk.IconLocation = '%~dp0node_modules\electron\dist\electron.exe,0'; $lnk.Save()" >nul
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\make-shortcut.ps1"
 if errorlevel 1 (
-  echo [错误] 快捷方式创建失败。可手动右键 启动学习助手.bat 发送到桌面快捷方式。
+  echo.
+  echo [Error] Shortcut creation failed. Manual fallback:
+  echo   This folder is now open in Explorer - right-click the launcher .bat
+  echo   and choose: Send to - Desktop (create shortcut)
+  explorer "%~dp0"
   pause
   exit /b 1
 )
-echo 已在桌面创建「学习助手」快捷方式，双击即可启动。
-pause
+timeout /t 5 >nul

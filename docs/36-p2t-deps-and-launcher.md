@@ -30,6 +30,8 @@
 - `创建桌面快捷方式.bat`（一次性）：PowerShell WScript.Shell 在桌面建 .lnk（图标暂用 electron.exe，M5 换正式图标）
 - 两个脚本均无 goto/label（LF 行尾下 cmd 解析安全；.gitattributes 已有 `*.bat eol=crlf`，checkout 后自动 CRLF）
 
+**v2 修订（同日）**：v1 快捷方式脚本实测失败——根因是 cmd 按控制台代码页解析批处理，`chcp 65001` 对已缓冲的行不保证生效，bat 里 `powershell -Command "...中文路径..."` 的中文参数被按 GBK 误读成乱码传给 PowerShell（启动器没坏是因为它的中文只在 echo 里，乱码不影响执行；快捷方式的中文在命令参数里，错了即崩）。v2 原则：**bat 内容纯 ASCII**（英文提示+失败时开资源管理器引导手动操作），中文全部移入 `scripts/make-shortcut.ps1` 并以 **UTF-8 with BOM** 保存（Windows PowerShell 5.1 对无 BOM 的 UTF-8 按 ANSI 读取，BOM 是硬要求）；桌面路径用 `GetFolderPath('Desktop')`（正确处理 OneDrive 重定向）。
+
 设计说明：控制台窗口在构建阶段保留（进度可见、失败可截图），启动后即退出；不选「快捷方式直指 electron.exe」是因为会跳过构建、跑旧代码。
 
 ## 验证与验收
