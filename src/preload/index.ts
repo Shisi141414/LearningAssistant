@@ -12,7 +12,7 @@ import type {
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
   Material, MaterialDetail, MaterialInput, MaterialBlock, MaterialAnchor, MaterialLocateInput, MaterialNoteRef, ClassroomPosition, OcrInput, OcrCorrectionInput, OcrPage, OcrModelsStatus,
   ApiResult, Subject, SubjectInput, Provider, ProviderInput, ProviderTestResult,
-  ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, NoteLearningDocument, Annotation, AnnotationKind,
+  ModelInfo, ModelInput, Note, NoteWithSegments, NoteSegment, NoteLearningDocument, NoteLearningChange, NoteLearningSyncPreview, Annotation, AnnotationKind,
   SegmentType, ChatSession, ChatMessage, ChatSendInput, Inspiration,
   InspirationInput, LlmChunkEvent, LlmDoneEvent, LlmErrorEvent, ID,
   Activity, ActivityInput, ActivityKind,
@@ -110,7 +110,10 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.ModelsRemove, id)
   },
   notes: {
-    learningGet: (input: { note_id: ID; revision_id?: ID }) => invoke<NoteLearningDocument | null>(IPC.NotesLearningGet, input),
+    learningGet: (input: { note_id: ID; revision_id?: ID }) => invoke<NoteLearningDocument>(IPC.NotesLearningGet, input),
+    learningChange: (input: NoteLearningChange) => invoke<NoteLearningDocument>(IPC.NotesLearningChange, input),
+    learningPreview: (id: ID) => invoke<NoteLearningSyncPreview>(IPC.NotesLearningPreview, id),
+    learningSync: (input: { note_id: ID; expected_revision_id: ID; fingerprint: string }) => invoke<NoteLearningDocument>(IPC.NotesLearningSync, input),
     list: (filter?: { subject_id?: ID | null; activity_id?: ID | null }) => invoke<Note[]>(IPC.NotesList, filter),
     get: (id: ID) => invoke<NoteWithSegments>(IPC.NotesGet, id),
     create: (input: { title: string; subject_id?: ID | null; activity_id?: ID | null; source?: Note['source'] }) => invoke<Note>(IPC.NotesCreate, input),

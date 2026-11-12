@@ -519,5 +519,13 @@ CREATE TABLE note_learning_revisions (
 );
 CREATE INDEX idx_note_learning_history ON note_learning_revisions(document_id, created_at);
 `
+  },
+  {
+    version: 17,
+    name: 'note_learning_semantic_revisions',
+    sql: `
+-- NULL 兼容迁移 16：按既有段落快照重建初始条目，无须改写旧快照。
+ALTER TABLE note_learning_revisions ADD COLUMN state_json TEXT;
+`
   }
 ]

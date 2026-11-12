@@ -1,4 +1,9 @@
 .learning-reader { margin-top: 20px; }
+.learning-sync-notice, .learning-sync-preview { padding: 14px; border: 1px solid var(--border); border-left: 3px solid var(--accent); margin: 16px 0; background: var(--bg-panel); }
+.learning-sync-preview > details { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.learning-sync-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.learning-sync-comparison > div { min-width: 0; }
+@media (max-width: 1100px) { .learning-sync-comparison { grid-template-columns: minmax(0, 1fr); } }
 .learning-intro { padding: 12px 0; line-height: 1.8; }
 .learning-toolbar input { flex: 1; min-width: 160px; }
 .learning-entry { --entry-color: #6b7280; padding: 20px 0 20px 18px; margin: 18px 0; border-left: 3px solid var(--entry-color); border-bottom: 1px solid var(--border); scroll-margin-top: 20px; }

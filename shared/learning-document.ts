@@ -1,4 +1,4 @@
-import type { LearningChange, LearningEntry, LearningEntryType, LearningSource, LearningSourceRef, LearningState } from './types'
+import type { LearningOperation, LearningEntry, LearningEntryType, LearningSource, LearningSourceRef, LearningState } from './types'
 import { validateLearningFormulas, formulaPreview } from './learning-formulas'
 
 export const learningTypes: Record<LearningEntryType, string> = { section: '章节', narrative: '叙述', definition: '定义', theorem: '定理', proposition: '命题', lemma: '引理', corollary: '推论', proof: '证明', example: '例题', exercise: '习题', solution: '解答', figure: '配图说明', table: '表格文字', equation: '公式文字', note: '注意' }
@@ -95,7 +95,7 @@ export function validateLearningState(state: LearningState, sourceList: Learning
 export function initialLearningState(sources: LearningSource[], newId: () => string): LearningState {
   return { entries: sources.map(source => ({ id: newId(), type: 'narrative', title: '', sources: [{ source_id: source.id }], analysis: { method: 'extracted', review_status: 'unreviewed' } })), relations: [] }
 }
-export function changeLearningState(previous: LearningState, sourceList: LearningSource[], change: LearningChange, newId: () => string): LearningState {
+export function changeLearningState(previous: LearningState, sourceList: LearningSource[], change: LearningOperation & { entry_id: string }, newId: () => string): LearningState {
   const state = structuredClone(previous), index = state.entries.findIndex(e => e.id === change.entry_id)
   if (index < 0) throw new Error('条目不存在于当前修订')
   const entry = state.entries[index], sources = new Map(sourceList.map(s => [s.id, s]))

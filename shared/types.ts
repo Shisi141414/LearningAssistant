@@ -496,8 +496,17 @@ export interface NoteLearningDocument {
   id: ID; note_id: ID; revision_id: ID; current_revision_id: ID; created_at: number
   title: string; subject_id: ID | null; sources: LearningSource[]; state: LearningState
   origins: Record<ID, NoteLearningOrigin>; history: { id: ID; created_at: number }[]
+  pending_sync?: { fingerprint: string; summary: NoteLearningSyncSummary }
 }
-export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_id: ID } & (
+export interface NoteLearningSyncSummary {
+  added_segments: number; changed_segments: number; removed_segments: number
+  affected_entry_ids: ID[]; retained_entries: number; recreated_entries: number; removed_relations: number; removed_formulas: number; reparented_entries: number; requires_review: boolean
+}
+export interface NoteLearningSyncPreview {
+  base_revision_id: ID; fingerprint: string; summary: NoteLearningSyncSummary
+  sources: LearningSource[]; state: LearningState; origins: Record<ID, NoteLearningOrigin>
+}
+export type LearningOperation = (
   { action: 'edit'; type: LearningEntryType; title: string } |
   { action: 'split'; position: number } |
   { action: 'merge' } |
@@ -508,6 +517,8 @@ export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_i
   { action: 'figure-remove'; asset_id: ID } |
   { action: 'relate'; target_id: ID | null }
 )
+export type LearningChange = { version_id: ID; expected_revision_id: ID; entry_id: ID } & LearningOperation
+export type NoteLearningChange = { note_id: ID; expected_revision_id: ID; entry_id: ID } & Exclude<LearningOperation, { action: 'figure' | 'figure-remove' }>
 export interface LearningSuggestInput { version_id: ID; expected_revision_id: ID; entry_ids: ID[]; model_db_id: ID }
 export type LearningSuggestionStatus = 'running' | 'ready' | 'failed' | 'cancelled' | 'applied' | 'dismissed'
 export interface LearningProposal { entries: LearningEntry[]; relations: LearningRelation[] }

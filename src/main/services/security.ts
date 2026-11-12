@@ -47,9 +47,25 @@ const evidenceSource: Check = value => [
 ].some(check => check(value))
 const conceptInput = { subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) }
 const evidenceInput = { source: evidenceSource, expected_note_text: optional(text(40_000)), role: choice(...Object.keys(evidenceRoles)), memo: text(2000) }
+const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Check => value => {
+  const base = { [owner]: id, expected_revision_id: id, entry_id: id }
+  return [
+    record({ ...base, action: choice('edit'), type: choice(...Object.keys(learningTypes)), title: text(500) }),
+    record({ ...base, action: choice('split'), position: v => number(v) && (v as number) <= 2_000_000 }),
+    record({ ...base, action: choice('merge') }),
+    record({ ...base, action: choice('outline'), end_entry_id: id, parent_id: nullable(id) }),
+    record({ ...base, action: choice('formula'), formula: record({ range: learningRange, latex: text(2000, true), display: bool }) }),
+    record({ ...base, action: choice('formula-remove'), range: learningRange }),
+    ...(figures ? [record({ ...base, action: choice('figure'), figure: record({ asset_id: id, caption: text(1000) }) }), record({ ...base, action: choice('figure-remove'), asset_id: id })] : []),
+    record({ ...base, action: choice('relate'), target_id: nullable(id) })
+  ].some(check => check(value))
+}
 
 const rules: Partial<Record<string, Check[]>> = {
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
+  [IPC.NotesLearningChange]: [learningChange('note_id', false)],
+  [IPC.NotesLearningPreview]: [id],
+  [IPC.NotesLearningSync]: [record({ note_id: id, expected_revision_id: id, fingerprint: v => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v) })],
   [IPC.KnowledgeSuggestStart]: [record({ source: evidenceSource, expected_note_text: optional(text(12_000)), model_db_id: id })],
   [IPC.KnowledgeSuggestList]: [evidenceSource],
   [IPC.KnowledgeSuggestGet]: [id],
@@ -71,20 +87,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.LearningAssetsPrepare]: [id],
   [IPC.LearningAssetsCancel]: [id],
   [IPC.LearningAssetsCrop]: [record({ version_id: id, page: v => number(v) && (v as number) >= 1 && (v as number) <= 100_000, rect: validLearningCropRect })],
-  [IPC.LearningChange]: [(value) => {
-    const base = { version_id: id, expected_revision_id: id, entry_id: id }
-    return [
-      record({ ...base, action: choice('edit'), type: choice(...Object.keys(learningTypes)), title: text(500) }),
-      record({ ...base, action: choice('split'), position: (v) => number(v) && (v as number) <= 2_000_000 }),
-      record({ ...base, action: choice('merge') }),
-      record({ ...base, action: choice('outline'), end_entry_id: id, parent_id: nullable(id) }),
-      record({ ...base, action: choice('formula'), formula: record({ range: learningRange, latex: text(2000, true), display: bool }) }),
-      record({ ...base, action: choice('formula-remove'), range: learningRange }),
-      record({ ...base, action: choice('figure'), figure: record({ asset_id: id, caption: text(1000) }) }),
-      record({ ...base, action: choice('figure-remove'), asset_id: id }),
-      record({ ...base, action: choice('relate'), target_id: nullable(id) })
-    ].some(check => check(value))
-  }],
+  [IPC.LearningChange]: [learningChange('version_id', true)],
   [IPC.MaterialsOcrModels]: [],
   [IPC.MaterialsOcrPrepare]: [],
   [IPC.MaterialsOcrStart]: [record({ version_id: id, from_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000, to_page: (v) => number(v) && (v as number) >= 1 && (v as number) <= 3000 })],

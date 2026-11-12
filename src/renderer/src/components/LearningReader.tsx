@@ -1,12 +1,13 @@
+import { LearningEntryEditor } from './LearningEntryEditor'
 import { useEffect, useMemo, useState } from 'react'
-import type { LearningChange, LearningDocument, LearningEntry, LearningEntryType, LearningSource, MaterialLocator } from '@shared/types'
-import { entryText, learningTypes, relationAllowed, learningAncestors, availableLearningParents } from '@shared/learning-document'
+import type { LearningChange, LearningDocument, LearningEntry, LearningSource, MaterialLocator } from '@shared/types'
+import { entryText, learningTypes } from '@shared/learning-document'
 import { MarkdownSegment } from './MarkdownSegment'
 import { PdfPage } from './PdfPage'
 import './learning-reader.css'
 import { LearningSuggestions } from './LearningSuggestions'
 import { KnowledgeEvidence } from './KnowledgeEvidence'
-import { LearningFormulaContent, LearningFormulaEditor } from './LearningFormulaContent'
+import { LearningFormulaContent } from './LearningFormulaContent'
 import { LearningAssetPanel, LearningEntryFigures, LearningFigureEditor, learningAssetLocation } from './LearningFigures'
 
 function sourceLabel(source: LearningSource): string {
@@ -123,29 +124,6 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   </section>
 }
 function EntryEditor({ entry, text, document, first, busy, onChange }: { entry: LearningEntry; text: string; document: LearningDocument; first: boolean; busy: boolean; onChange: (input: LearningChange) => Promise<void> }) {
-  const [type, setType] = useState(entry.type), [title, setTitle] = useState(entry.title)
-  const [position, setPosition] = useState<number | null>(null)
-  const [selection, setSelection] = useState<[number, number] | null>(null)
-  const [target, setTarget] = useState(document.state.relations.find(r => r.from === entry.id)?.to ?? '')
-  const [parent, setParent] = useState(entry.parent_id ?? ''), [endId, setEndId] = useState(entry.id)
-  const index = document.state.entries.findIndex(item => item.id === entry.id)
-  const parents = availableLearningParents(document.state.entries, index)
   const base = { version_id: document.version_id, expected_revision_id: document.current_revision_id, entry_id: entry.id }
-  const targets = document.state.entries.filter(e => e.id !== entry.id && relationAllowed(entry.type, e.type))
-  const readPosition = (input: HTMLTextAreaElement): void => { setPosition(input.selectionStart === input.selectionEnd ? input.selectionStart : null); setSelection(input.selectionStart < input.selectionEnd ? [input.selectionStart, input.selectionEnd] : null) }
-  return <div className="learning-editor">
-    <div className="toolbar"><label>类型 <select aria-label="条目语义类型" value={type} disabled={busy} onChange={e => setType(e.target.value as LearningEntryType)}>{Object.entries(learningTypes).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-      <input aria-label="学习条目标题" maxLength={500} placeholder="条目标题（可留空）" value={title} disabled={busy} onChange={e => setTitle(e.target.value)} />
-      <button className="primary" disabled={busy} onClick={() => void onChange({ ...base, action: 'edit', type, title })}>保存类型与标题</button></div>
-    <label>在来源文字中放置光标，确定拆分点<textarea aria-label="选择学习条目拆分位置" readOnly value={text} onSelect={e => readPosition(e.currentTarget)} onMouseUp={e => readPosition(e.currentTarget)} onKeyUp={e => readPosition(e.currentTarget)} /></label>
-    <div className="toolbar"><button disabled={busy || position === null || position <= 0 || position >= text.length} onClick={() => void onChange({ ...base, action: 'split', position: position! })}>在光标处拆分</button><button disabled={busy || first} onClick={() => void onChange({ ...base, action: 'merge' })}>合并到上一条</button></div>
-    <p className="muted">合并保留前一条的类型和标题；涉及证明/解答关联时，请先解除关联。每次保存生成新修订，来源正文保持不变。</p>
-    <LearningFormulaEditor text={text} formulas={entry.formulas} selection={selection} busy={busy} base={base} onChange={onChange} />
-    <LearningFigureEditor document={document} figures={entry.figures} busy={busy} base={base} onChange={onChange} />
-    <div className="learning-outline-editor"><h4>章节归属</h4><p className="muted">从本条起选择连续范围。已有子章节保留，所选章节须包含完整子树；本操作不改变正文或语义确认状态。</p>
-      <label>父章节<select aria-label="学习条目父章节" value={parent} disabled={busy} onChange={event => setParent(event.target.value)}><option value="">顶层 / 未分章</option>{parents.map(section => <option key={section.id} value={section.id}>{'　'.repeat(learningAncestors(section.id, document.state.entries).length)}{section.title || `章节 · 第 ${document.state.entries.indexOf(section) + 1} 条`}</option>)}</select></label>
-      <label>范围结束于<select aria-label="章节归属结束条目" value={endId} disabled={busy} onChange={event => setEndId(event.target.value)}>{document.state.entries.slice(index).map((item, offset) => <option key={item.id} value={item.id}>第 {index + offset + 1} 条 · {item.title || learningTypes[item.type]}</option>)}</select></label>
-      <button disabled={busy} onClick={() => void onChange({ ...base, action: 'outline', parent_id: parent || null, end_entry_id: endId })}>保存章节归属</button></div>
-    {['proof', 'solution'].includes(entry.type) && <div className="toolbar"><label>{entry.type === 'proof' ? '证明对象' : '解答对象'} <select aria-label="学习条目关联目标" value={target} disabled={busy} onChange={e => setTarget(e.target.value)}><option value="">未指定 / 解除关联</option>{targets.map(e => <option key={e.id} value={e.id}>{learningTypes[e.type]} · {e.title || `第 ${document.state.entries.indexOf(e) + 1} 条`}</option>)}</select></label><button disabled={busy} onClick={() => void onChange({ ...base, action: 'relate', target_id: target || null })}>保存关联</button></div>}
-  </div>
+  return <LearningEntryEditor entry={entry} text={text} state={document.state} first={first} busy={busy} onOperation={operation => onChange({ ...base, ...operation })} figures={<LearningFigureEditor document={document} figures={entry.figures} busy={busy} base={base} onChange={onChange} />} />
 }

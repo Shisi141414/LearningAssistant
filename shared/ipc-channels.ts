@@ -12,6 +12,9 @@
 
 export const IPC = {
   NotesLearningGet: 'notes:learningGet',
+  NotesLearningChange: 'notes:learningChange',
+  NotesLearningPreview: 'notes:learningPreview',
+  NotesLearningSync: 'notes:learningSync',
   EvidenceAdd: 'evidence:add',
   EvidenceCreateConcept: 'evidence:createConcept',
   EvidenceList: 'evidence:list',
