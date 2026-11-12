@@ -15,6 +15,7 @@ import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
 import { recoverKnowledgeSuggestions, stopKnowledgeSuggestions } from './services/knowledge-suggestions'
 import { stopLearningAssets } from './services/learning-assets'
+import { stopLearningPackageExports } from './services/learning-package-export'
 
 declareMaterialProtocol()
 
@@ -88,6 +89,7 @@ app.on('before-quit', () => {
   stopMaterialJobs()
   stopLearningPreparation()
   stopLearningAssets()
+  stopLearningPackageExports()
   stopLearningSuggestions()
   stopKnowledgeSuggestions()
   closeDb()

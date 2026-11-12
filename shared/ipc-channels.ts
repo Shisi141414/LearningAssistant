@@ -26,6 +26,8 @@ export const IPC = {
   MaterialsConverterAuto: 'materials:converterAuto',
   MaterialsOpenConverted: 'materials:openConverted',
   LearningGet: 'learning:get',
+  LearningPackageExport: 'learning:packageExport',
+  LearningPackageExportCancel: 'learning:packageExportCancel',
   LearningPrepare: 'learning:prepare',
   LearningChange: 'learning:change',
   LearningAssetsPrepare: 'learning:assetsPrepare',

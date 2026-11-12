@@ -6,6 +6,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
+import type { LearningPackageExportInput, LearningPackageExportResult } from '@shared/learning-package'
 import type {
   LearningDocument, LearningChange, LearningPdfCrop, LearningSuggestInput, LearningSuggestion, LearningSuggestionDetail, OfficeConverterStatus, Concept, Evidence, EvidenceInput, EvidenceListInput, EvidencePage, ConceptFromEvidenceInput,
   KnowledgeSuggestInput, KnowledgeSuggestion, KnowledgeSuggestionDetail, KnowledgeAdoptInput, EvidenceSource,
@@ -38,6 +39,8 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.EvidenceRemove, id)
   },
   learning: {
+    packageExport: (input: LearningPackageExportInput) => invoke<LearningPackageExportResult | null>(IPC.LearningPackageExport, input),
+    packageExportCancel: (versionId: ID) => invoke<boolean>(IPC.LearningPackageExportCancel, versionId),
     suggestStart: (input: LearningSuggestInput) => invoke<LearningSuggestion>(IPC.LearningSuggestStart, input),
     suggestList: (versionId: ID) => invoke<LearningSuggestion[]>(IPC.LearningSuggestList, versionId),
     suggestGet: (id: ID) => invoke<LearningSuggestionDetail>(IPC.LearningSuggestGet, id),

@@ -16,6 +16,7 @@ function sourceLabel(source: LearningSource): string {
 export function LearningReader({ materialId, versionId, subjectId, initialRevisionId = '', targetEntryId = '', archived = false }: { materialId: string; versionId: string; subjectId: string | null; initialRevisionId?: string; targetEntryId?: string; archived?: boolean }) {
   const [document, setDocument] = useState<LearningDocument | null>(null)
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false)
+  const [exporting, setExporting] = useState(false), [exportMessage, setExportMessage] = useState('')
   const [error, setError] = useState(''), [query, setQuery] = useState(''), [type, setType] = useState('')
   const [offset, setOffset] = useState(0), [editing, setEditing] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ label: string; locator: MaterialLocator } | null>(null)
@@ -69,9 +70,20 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
     try { const result = await window.api.learning.change(input); if (result.ok) { setDocument(result.data); setEditing(null) } else setError(result.error) }
     finally { setBusy(false) }
   }
+  const exportPackage = async (): Promise<void> => {
+    if (!document) return
+    setBusy(true); setExporting(true); setError(''); setExportMessage('')
+    try {
+      const result = await window.api.learning.packageExport({ version_id: versionId, revision_id: document.revision_id })
+      if (!result.ok) setError(result.error)
+      else if (result.data) setExportMessage(`已保存 ${result.data.file_name}（${(result.data.byte_length / 1024 / 1024).toFixed(2)} MiB），含所选修订、原件、附件及相关已确认概念。`)
+      else setExportMessage('已取消保存。')
+    } finally { setBusy(false); setExporting(false) }
+  }
   if (loading) return <p role="status">正在读取学习文档…</p>
   return <section className="learning-reader" aria-label="学习文档">
     {error && <p className="material-error" role="alert">{error}</p>}
+    {exportMessage && <p role="status">{exportMessage}</p>}
     {!document ? initialRevisionId ? <p>无法打开指定学习修订。<button disabled={busy} onClick={() => void revision()}>读取当前修订</button></p> : <div className="learning-intro"><h3>先保留来源，再整理语义</h3><p>从原件建立连续的来源文字，再把同页内容拆为定义、定理、证明等条目。原有课堂引用会保留。</p><p className="muted">扫描 PDF 请先识别需要的页面；本步不会自动 OCR，也不会自动判断内容类型。</p><button className="primary" disabled={busy || archived} onClick={() => void prepare()}>{busy ? '正在建立来源文字…' : '建立学习文档'}</button></div> : <>
       <div className="toolbar learning-toolbar">
         <label>修订 <select aria-label="学习文档修订" disabled={busy} value={document.revision_id} onChange={e => void revision(e.target.value)}>{document.history.map((item, i) => <option key={item.id} value={item.id}>修订 {document.history.length - i}{item.id === document.current_revision_id ? '（当前）' : ''} · {new Date(item.created_at).toLocaleTimeString()}</option>)}</select></label>
@@ -79,6 +91,8 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
         <select aria-label="学习章节筛选" value={chapter} onChange={event => { setChapter(event.target.value); setOffset(0) }}><option value="">全部章节</option><option value="root">未分章正文</option>{sections.map(row => <option key={row.entry.id} value={row.entry.id}>{'　'.repeat(row.path.length)}{row.entry.title || `章节 · 第 ${row.index + 1} 条`}</option>)}</select>
         <input aria-label="搜索学习条目" value={query} placeholder="搜索标题或正文…" onChange={e => { setQuery(e.target.value); setOffset(0) }} />
         <button disabled={busy} onClick={() => void revision()}>刷新当前修订</button>
+        <button disabled={busy || !!editing} onClick={() => void exportPackage()}>导出所选修订</button>
+        {exporting && <><span role="status">正在保存所选修订与原件…</span><button onClick={() => void window.api.learning.packageExportCancel(versionId).then(result => { if (!result.ok) setError(result.error) })}>取消导出</button></>}
       </div>
       <p className="muted">{filtered.length} 个条目 · {document.state.entries.filter(e => e.analysis.review_status === 'unreviewed').length} 个待整理{!current && ' · 历史修订只读'}</p>
       <LearningAssetPanel key={document.id} document={document} editable={!!current && !archived} busy={busy} onBusy={setBusy} onUpdated={setDocument} onError={setError} />

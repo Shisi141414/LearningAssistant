@@ -84,7 +84,7 @@ function pdf(name = '教材.pdf', illustrated = false) {
 }
 const pdfFile = pdf()
 const broken = path.join(source, '损坏.docx'); fs.writeFileSync(broken, 'not a document')
-let selectedFile
+let selectedFile, saveFile
 const opened = []
 const problems = []
 let semanticServer
@@ -112,7 +112,7 @@ function captureRendered(win) {
 }
 const Module = require('node:module'), originalLoad = Module._load
 Module._load = function (request, parent, isMain) {
-  if (request === 'electron') return { ...electron, BrowserWindow: HiddenWindow, dialog: { ...electron.dialog, showOpenDialog: async () => ({ canceled: !selectedFile, filePaths: selectedFile ? [selectedFile] : [] }) }, shell: { ...electron.shell, openPath: async file => { opened.push(file); return '' } } }
+  if (request === 'electron') return { ...electron, BrowserWindow: HiddenWindow, dialog: { ...electron.dialog, showOpenDialog: async () => ({ canceled: !selectedFile, filePaths: selectedFile ? [selectedFile] : [] }), showSaveDialog: async () => ({ canceled: !saveFile, filePath: saveFile }) }, shell: { ...electron.shell, openPath: async file => { opened.push(file); return '' } } }
   return originalLoad.call(this, request, parent, isMain)
 }
 const deadline = setTimeout(() => { console.error('MATERIAL_TEST_TIMEOUT'); app.exit(2) }, 90_000)
@@ -156,6 +156,9 @@ app.on('browser-window-created', (_event, win) => {
         const resumedPackage=await runPackageWorker({action:'read',file:savedPackage.file,directory:packageStage})
         assert.equal(resumedPackage.sha256,savedPackage.sha256);assert.deepEqual(resumedPackage.manifest.state,savedPackage.state)
         assert.equal(resumedPackage.files.length,3)
+        const savedExport=JSON.parse(fs.readFileSync(path.join(root,'portable-export-test.json'),'utf8'))
+        const resumedExport=await runPackageWorker({action:'read',file:savedExport.file,directory:fs.mkdtempSync(path.join(root,'export-restart-'))})
+        assert.equal(resumedExport.manifest.document.revision_id,savedExport.revision);assert.deepEqual(resumedExport.manifest.state,savedExport.state)
         const savedCrop=JSON.parse(fs.readFileSync(path.join(root,'learning-crop-test.json'),'utf8'))
         const resumedCrop=await call('learning','get',{version_id:savedCrop.version})
         assert.deepEqual(resumedCrop.assets.map(a=>({sha256:a.sha256,locator:a.locator_json})),savedCrop.assets)
@@ -677,6 +680,44 @@ app.on('browser-window-created', (_event, win) => {
       assert.deepEqual((await call('learning','get',{version_id:packageDoc.version_id})).state,packageDoc.state)
       fs.writeFileSync(path.join(root,'portable-worker-test.json'),JSON.stringify({file:packageOutput,sha256:packageDigest.sha256,state:packageDoc.state}))
       console.log('PACKAGE_WORKER_TEST_OK real Electron worker ZIP write/read, original and image byte checks, unchanged live revision and restart checkpoint')
+      const exportDirectory=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'learning-export-ui-'))
+      const exportInput={version_id:packageDoc.version_id,revision_id:packageDoc.revision_id}
+      for(const invalid of [{...exportInput,output:'C:/任意路径.ladoc'},{version_id:packageDoc.version_id}]) assert.equal((await win.webContents.executeJavaScript(`window.api.learning.packageExport(${JSON.stringify(invalid)})`)).ok,false,'导出不接受路径或可漂移的当前修订')
+      saveFile=undefined;assert.equal(await call('learning','packageExport',exportInput),null,'取消系统保存框不写文件')
+      saveFile=path.join(root,'禁止覆盖应用数据.ladoc')
+      const protectedExport=await win.webContents.executeJavaScript(`window.api.learning.packageExport(${JSON.stringify(exportInput)})`)
+      assert.equal(protectedExport.ok,false);assert.match(protectedExport.error,/数据目录/);assert.equal(fs.existsSync(saveFile),false)
+      fs.mkdirSync(path.join(root,'..仍在数据目录'));saveFile=path.join(root,'..仍在数据目录','保护.ladoc')
+      assert.equal((await win.webContents.executeJavaScript(`window.api.learning.packageExport(${JSON.stringify(exportInput)})`)).ok,false)
+      const matchedConcept=await call('concepts','save',{subject_id:input.subject_id,name:'受力分析',summary:'打包时只携带相关概念',aliases:['物体受力示意']})
+      const unrelatedConcept=await call('concepts','save',{subject_id:input.subject_id,name:'不相关的拓扑条目',summary:'不应泄露到材料包',aliases:[]})
+      await call('evidence','add',{concept_id:matchedConcept.id,source:{kind:'learning',material_id:figureMaterial.id,version_id:packageDoc.version_id,revision_id:packageDoc.revision_id,entry_id:figureEntry.id},role:'application',memo:'文档包固定修订证据'})
+      saveFile=path.join(exportDirectory,'用户选择的中文讲义.ladoc');fs.writeFileSync(saveFile,'已有文件只在成功后替换')
+      await win.webContents.executeJavaScript(`location.hash='/library?material=${figureMaterial.id}&version=${packageDoc.version_id}'`)
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'导出学习入口');await click('学习文档')
+      await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='导出所选修订')`,'导出按钮')
+      await click('导出所选修订');await waitUi(`document.querySelector('.learning-reader')?.textContent.includes('已保存 用户选择的中文讲义.ladoc')`,'导出保存成功提示')
+      const exported=await runPackageWorker({action:'read',file:saveFile,directory:fs.mkdtempSync(path.join(root,'export-service-read-'))})
+      assert.equal(exported.manifest.document.revision_id,packageDoc.revision_id);assert.deepEqual(exported.manifest.state,packageDoc.state)
+      assert.ok(exported.manifest.concepts.some(row=>row.id===matchedConcept.id));assert.ok(!exported.manifest.concepts.some(row=>row.id===unrelatedConcept.id))
+      assert.equal(exported.manifest.evidence.find(row=>row.concept_id===matchedConcept.id).entry_id,figureEntry.id)
+      assert.deepEqual(fs.readFileSync(exported.files.find(row=>row.path===exported.manifest.original.path).file),fs.readFileSync(originalPackageFile))
+      assert.equal(fs.readdirSync(exportDirectory).filter(name=>name.startsWith('.ladoc-export-')).length,0,'成功后不留临时目录')
+      const goodExport=fs.readFileSync(saveFile)
+      const exportDb=new(require('better-sqlite3'))(path.join(root,'learning-assistant.db'))
+      exportDb.prepare('UPDATE material_versions SET fingerprint=? WHERE id=?').run('0'.repeat(64),packageDoc.version_id)
+      const failedExport=await win.webContents.executeJavaScript(`window.api.learning.packageExport(${JSON.stringify(exportInput)})`)
+      exportDb.prepare('UPDATE material_versions SET fingerprint=? WHERE id=?').run(packageVersion.fingerprint,packageDoc.version_id);exportDb.close()
+      assert.equal(failedExport.ok,false);assert.deepEqual(fs.readFileSync(saveFile),goodExport,'校验失败保留已有目标')
+      const cancelledExport=await win.webContents.executeJavaScript(`(async()=>{const pending=window.api.learning.packageExport(${JSON.stringify(exportInput)});await new Promise(r=>setTimeout(r,20));const cancelled=await window.api.learning.packageExportCancel(${JSON.stringify(packageDoc.version_id)});return [cancelled,await pending]})()`)
+      assert.equal(cancelledExport[0].data,true);assert.equal(cancelledExport[1].ok,false);assert.deepEqual(fs.readFileSync(saveFile),goodExport)
+      assert.equal(fs.readdirSync(exportDirectory).filter(name=>name.startsWith('.ladoc-export-')).length,0,'失败取消后不留临时目录')
+      saveFile=path.join(exportDirectory,'历史修订.ladoc');await call('learning','packageExport',{version_id:packageDoc.version_id,revision_id:figureDoc.revision_id})
+      const historicalExport=await runPackageWorker({action:'read',file:saveFile,directory:fs.mkdtempSync(path.join(root,'historical-export-read-'))})
+      assert.deepEqual(historicalExport.manifest.state,figureDoc.state);assert.equal(historicalExport.manifest.evidence.length,0)
+      assert.deepEqual((await call('learning','get',{version_id:packageDoc.version_id})).state,packageDoc.state)
+      fs.writeFileSync(path.join(root,'portable-export-test.json'),JSON.stringify({file:saveFile,revision:figureDoc.revision_id,state:figureDoc.state}))
+      console.log('PACKAGE_EXPORT_TEST_OK actual UI save, concept and fixed evidence selection, historical export, cancelled dialog/job, atomic replacement and protected data paths')
       const cropMaterial=await importFile(pdf('PDF选区教材.pdf',true),input);await wait(cropMaterial.id)
       const cropInitial=await call('learning','prepare',cropMaterial.current_version_id),cropInput={version_id:cropInitial.version_id,page:1,rect:[0.1,0.2,0.4,0.3]}
       const cropCancelled=await win.webContents.executeJavaScript(`Promise.all([window.api.learning.assetsCrop(${JSON.stringify(cropInput)}),window.api.learning.assetsCancel(${JSON.stringify(cropInitial.version_id)})])`)
@@ -724,6 +765,9 @@ app.on('browser-window-created', (_event, win) => {
       fs.writeFileSync(path.join(root,'learning-crop-test.json'),JSON.stringify({material:cropMaterial.id,version:cropInitial.version_id,caption:cropCaption,firstRevision:cropInitial.revision_id,assets:cropCurrent.assets.map(a=>({sha256:a.sha256,locator:a.locator_json}))}))
       win.setSize(1360,860)
       console.log('PDF_CROP_TEST_OK real pointer and percent selections, cancellation, page bounds, duplicate reuse, image display, history, 1024 width and restart checkpoint')
+      saveFile=path.join(exportDirectory,'PDF选区讲义.ladoc');await call('learning','packageExport',{version_id:cropCurrent.version_id,revision_id:cropCurrent.revision_id})
+      const pdfExport=await runPackageWorker({action:'read',file:saveFile,directory:fs.mkdtempSync(path.join(root,'pdf-export-read-'))})
+      assert.deepEqual(pdfExport.manifest.state,cropCurrent.state);assert.deepEqual(pdfExport.manifest.assets.map(row=>row.locator_json),cropCurrent.assets.map(row=>row.locator_json))
       // 本地模拟模型走真实网络、preload、候选审核与采纳界面；不调用任何云模型。
       let semanticMode='valid', semanticRequests=0,knowledgeMode='valid',knowledgeRequests=0
       semanticServer=require('node:http').createServer(async(req,res)=>{

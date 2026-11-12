@@ -1,6 +1,8 @@
 import type { LearningAsset, LearningAssetExtraction, LearningSource, LearningState, MaterialFormat, MaterialKind, OcrPage, EvidenceRole } from './types'
 
 export interface LearningPackageFile { path: string; sha256: string; byte_length: number }
+export interface LearningPackageExportInput { version_id: string; revision_id: string }
+export interface LearningPackageExportResult { file_name: string; sha256: string; byte_length: number; revision_id: string }
 /** 标准 ZIP 中 document.json 的公开固定修订快照；不是整个应用数据库备份。 */
 export interface LearningPackage {
   format: 'learning-assistant/document'

@@ -12,6 +12,7 @@ import { readLearningPackage, writeLearningPackage } from '../src/main/services/
 import { validateLearningPackage } from '../src/main/services/learning-package-validation.ts'
 import { learningPackageFiles } from '../shared/learning-package.ts'
 import { entryText } from '../shared/learning-document.ts'
+import { relatedPackageConcepts } from '../shared/learning-package-concepts.ts'
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
 const root = await mkdtemp(join(tmpdir(), 'learning-package-test-'))
@@ -41,6 +42,19 @@ function fixture() {
   }
   return { manifest, binaries: new Map([['source/original.pdf', original], ['assets/image1.png', png]]) }
 }
+test('portable concept selection preserves aliases, ambiguity and evidence without unrelated dictionary entries', () => {
+  const { manifest } = fixture(), original = structuredClone(manifest)
+  manifest.concepts.push(
+    { id: 'momentum', name: '动量原理', aliases: ['动量定理'], summary: '' },
+    { id: 'ambiguous', name: '动量定理', aliases: [], summary: '另一个同名条目，不能悄悄消歧' },
+    { id: 'evidenceOnly', name: '不出现在正文中的证据概念', aliases: [], summary: '' },
+    { id: 'unrelated', name: '无关概念不得携带', aliases: [], summary: '' }
+  )
+  manifest.evidence.push({ ...manifest.evidence[0], concept_id: 'evidenceOnly' })
+  const before = structuredClone(manifest), selected = relatedPackageConcepts(manifest)
+  assert.deepEqual(selected.concepts.map(row => row.id), ['newton', 'momentum', 'ambiguous', 'evidenceOnly'])
+  assert.deepEqual(manifest, before); assert.deepEqual(selected.state, original.state); validateLearningPackage(selected)
+})
 async function filesFor(f) {
   const base = await directory(), files = new Map()
   for (const [name, bytes] of f.binaries) { const file = join(base, `source-${files.size}.bin`); await writeFile(file, bytes); files.set(name, file) }

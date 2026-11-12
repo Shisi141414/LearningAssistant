@@ -61,6 +61,8 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.EvidenceRemove]: [id],
   [IPC.LearningSuggestStart]: [record({ version_id: id, expected_revision_id: id, entry_ids: (v) => Array.isArray(v) && v.length > 0 && v.length <= 20 && v.every(id), model_db_id: id })],
   [IPC.LearningGet]: [record({ version_id: id, revision_id: optional(id) })],
+  [IPC.LearningPackageExport]: [record({ version_id: id, revision_id: id })],
+  [IPC.LearningPackageExportCancel]: [id],
   [IPC.LearningPrepare]: [id],
   [IPC.LearningAssetsPrepare]: [id],
   [IPC.LearningAssetsCancel]: [id],
