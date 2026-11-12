@@ -125,6 +125,8 @@ export const IPC = {
   ClassroomFeedAudio: 'classroom:feedAudio', // 单向 send（高频音频块）
   AsrStatus: 'asr:status',
   AsrPickDir: 'asr:pickDir',
+  MaterialsPpocrStatus: 'materials:ppocrStatus',
+  MaterialsPpocrPrepare: 'materials:ppocrPrepare',
 
   /* 配置与存储 */
   ConfigGet: 'config:get',

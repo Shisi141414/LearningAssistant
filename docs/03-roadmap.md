@@ -140,3 +140,7 @@ GeoGebra 风格数学符号面板接入课堂/对话/快捷栏/灵感输入（�
 ## 中断恢复与交付复核（2026-11-12）
 
 [恢复记录](32-resumed-validation.md)补齐笔记包导入与协作增量的 Windows 验收，修复项目列表、任务归属/阻塞约束、日程勾选、课堂输入标签及符号面板越界。项目与日程仍为首批，未将版本化文档、自动排程或可靠常驻提醒标为完成。下一批 OCR 替换先做开源兼容性与真实样例对照，不直接依据调研中的效果数字替换。
+
+## OCR 引擎替换记录（2026-11-12）
+
+PP-OCR（ppu-paddle-ocr，onnxruntime-node）成为默认 OCR 引擎并按语言路由模型（zh-en→v6-tiny 统一、ja/ko/latin→专用），tesseract 降为备选引擎；模型下载/校验/worker 离线模式与 tesseract 语言包一致，见 [引擎记录](33-ppocr-engine.md)。中文乱码问题的根治待 Windows 真机对比验收；公式识别（Pix2Text sidecar）下一批。

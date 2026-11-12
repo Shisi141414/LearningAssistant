@@ -41,13 +41,15 @@
     "officeparser": "^8.7.1",
     "openai": "^7.54.0",
     "pdfjs-dist": "^6.5.438",
+    "ppu-paddle-ocr": "^6.7.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5",
     "tesseract.js": "^7.0.0",
     "yauzl": "3.4.0",
     "yazl": "3.3.1",
-    "zustand": "^5.1.0"
+    "zustand": "^5.1.0",
+    "onnxruntime-node": "^1.23.2"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",
@@ -67,7 +69,9 @@
     "vite": "^8.3.7"
   },
   "overrides": {
-    "tesseract.js": { "wasm-feature-detect": "1.8.0" }
+    "tesseract.js": {
+      "wasm-feature-detect": "1.8.0"
+    }
   },
   "allowScripts": {
     "electron@45.2.3": true,

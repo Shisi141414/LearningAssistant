@@ -6,6 +6,7 @@ import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materia
 import { locateMaterial, materialAnchor, materialNoteRefs } from '../services/classroom-materials'
 import { correctOcrPage, materialOcrPage } from '../services/material-derivations'
 import { ocrModelsStatus, prepareOcrModels } from '../services/ocr-models'
+import { ppocrStatus, preparePpocrModel } from '../services/ppocr-models'
 import { configureOfficeConverter, convertedMaterialFile, officeConverterStatus } from '../services/office-conversions'
 
 export function registerMaterialsIpc(): void {
@@ -22,6 +23,8 @@ export function registerMaterialsIpc(): void {
   }))
   ipcMain.handle(IPC.MaterialsOcrModels, () => handleResult(ocrModelsStatus))
   ipcMain.handle(IPC.MaterialsOcrPrepare, () => handleResult(prepareOcrModels))
+  ipcMain.handle(IPC.MaterialsPpocrStatus, () => handleResult(() => ppocrStatus()))
+  ipcMain.handle(IPC.MaterialsPpocrPrepare, (_e, preset: string) => handleResult(() => preparePpocrModel(preset)))
   ipcMain.handle(IPC.MaterialsOcrStart, (_e, input) => handleResult(() => startMaterialOcr(input)))
   ipcMain.handle(IPC.MaterialsOcrPage, (_e, input) => handleResult(() => materialOcrPage(input)))
   ipcMain.handle(IPC.MaterialsOcrCorrect, (_e, input) => handleResult(() => correctOcrPage(input)))

@@ -14,6 +14,9 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   const mounted = useRef(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const [models, setModels] = useState<OcrModelsStatus | null>(null)
+  const [ppocr, setPpocr] = useState<{ presets: Array<{ key: string; label: string; ready: boolean }> } | null>(null)
+  const [engine, setEngine] = useState<'ppocr' | 'tesseract'>('ppocr')
+  const [language, setLanguage] = useState('zh-en')
   const [from, setFrom] = useState(1), [to, setTo] = useState(1)
   const [page, setPage] = useState(1)
   const [source, setSource] = useState<OcrPage | null>(null)
@@ -24,6 +27,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   useEffect(() => {
     let alive = true
     void window.api.materials.ocrModels().then(result => { if (!alive) return; if (result.ok) setModels(result.data); else setError(result.error) })
+    void window.api.materials.ppocrStatus().then(result => { if (!alive) return; if (result.ok) setPpocr(result.data) })
     return () => { alive = false }
   }, [])
   useEffect(() => {
@@ -39,14 +43,26 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
     })
     return () => { alive = false }
   }, [version.id, page])
+  const ppocrPreset = language === 'ja' ? 'v5-ja' : language === 'ko' ? 'v5-ko' : language === 'latin' ? 'v5-latin' : 'v6-tiny'
+  const ppocrReady = ppocr?.presets.find(p => p.key === ppocrPreset)?.ready ?? false
+  const engineReady = engine === 'ppocr' ? ppocrReady : !!models?.ready
   const prepare = async (): Promise<void> => {
     setBusy(true); setError('')
-    try { const result = await window.api.materials.ocrPrepare(); if (result.ok) setModels(result.data); else setError(result.error) }
-    finally { setBusy(false) }
+    try {
+      if (engine === 'ppocr') {
+        const result = await window.api.materials.ppocrPrepare(ppocrPreset)
+        if (!mounted.current) return
+        if (result.ok) setPpocr(result.data); else setError(result.error)
+      } else {
+        const result = await window.api.materials.ocrPrepare()
+        if (!mounted.current) return
+        if (result.ok) setModels(result.data); else setError(result.error)
+      }
+    } finally { setBusy(false) }
   }
   const run = async (): Promise<void> => {
     setBusy(true); setError('')
-    try { const result = await window.api.materials.ocrStart({ version_id: version.id, from_page: from, to_page: to }); if (!mounted.current) return; if (result.ok) await onVersion(result.data); else setError(result.error) }
+    try { const result = await window.api.materials.ocrStart({ version_id: version.id, from_page: from, to_page: to, engine, language }); if (!mounted.current) return; if (result.ok) await onVersion(result.data); else setError(result.error) }
     finally { setBusy(false) }
   }
   const save = async (): Promise<void> => {
@@ -58,13 +74,29 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   return <div className="ocr-editor">
     <p className="muted">保留原件和旧版引用；识别或校正后生成新版本。请对照原页核对公式、表格与阅读顺序。</p>
     <div className="toolbar">
-      <span role="status">{models ? models.ready ? '中英文语言包已就绪' : '尚未准备语言包' : '正在检查语言包…'}</span>
-      {models && !models.ready && <button disabled={busy} onClick={() => void prepare()}>{busy ? '正在准备…' : '下载中英文语言包（约 6 MiB）'}</button>}
+      <label>引擎
+        <select value={engine} onChange={e => setEngine(e.target.value as 'ppocr' | 'tesseract')} aria-label="OCR 引擎">
+          <option value="ppocr">PP-OCR（推荐，中文准确率显著更高）</option>
+          <option value="tesseract">Tesseract（备选）</option>
+        </select>
+      </label>
+      {engine === 'ppocr' && (
+        <label>语言
+          <select value={language} onChange={e => setLanguage(e.target.value)} aria-label="OCR 语言">
+            <option value="zh-en">中文/中英混排（v6 统一模型）</option>
+            <option value="ja">日文</option>
+            <option value="ko">韩文</option>
+            <option value="latin">拉丁语系（法德西俄等）</option>
+          </select>
+        </label>
+      )}
+      <span role="status">{engineReady ? (engine === 'ppocr' ? '模型已就绪' : '中英文语言包已就绪') : busy ? '正在准备…' : '模型未就绪'}</span>
+      {!engineReady && !busy && <button disabled={busy} onClick={() => void prepare()}>{engine === 'ppocr' ? '下载 PP-OCR 模型（首次约 30–60 MiB）' : '下载中英文语言包（约 6 MiB）'}</button>}
     </div>
     <div className="toolbar ocr-range">
       <label>从第 <input aria-label="OCR 起始页" type="number" min={1} max={3000} value={from} onChange={e => setFrom(Number(e.target.value))} /> 页</label>
       <label>至第 <input aria-label="OCR 结束页" type="number" min={from} max={Math.min(3000, from + 19)} value={to} onChange={e => setTo(Number(e.target.value))} /> 页</label>
-      <button className="primary" disabled={busy || dirty || !models?.ready || !validRange} onClick={() => void run()}>识别为新版本</button>
+      <button className="primary" disabled={busy || dirty || !engineReady || !validRange} onClick={() => void run()}>识别为新版本</button>
       <span className="muted">使用 PDF 实际页序号</span>
     </div>
     {error && <p role="alert" className="material-error">{error}</p>}

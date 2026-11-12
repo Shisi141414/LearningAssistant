@@ -10,6 +10,7 @@ import { getDb, dbFilePath } from './db'
 import { beginWork, withWork } from './work'
 import { completeOcrVersion, derivedParent, insertDerived, validateOcrRange } from './material-derivations'
 import { OCR_MODEL_COMMIT, OCR_MODELS, ocrModelDirectory, ocrModelsStatus } from './ocr-models'
+import { ppocrModelPaths, presetForLanguage } from './ppocr-models'
 import { managedMaterialFile } from './material-files'
 import { ensureMaterialConversion, materialParseInput } from './office-conversions'
 
@@ -162,16 +163,27 @@ async function pump(): Promise<void> {
       if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
     }
     const ocr = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
+    const require = createRequire(__filename)
+    let ppocrPaths: import('./material-ocr').PpocrModelPaths | undefined
     if (ocr) {
       validateOcrRange(ocr)
-      if (!(await ocrModelsStatus()).ready) throw new Error('OCR 语言包缺失或校验失败，请重新准备')
+      if (ocr.engine === 'tesseract') {
+        if (!(await ocrModelsStatus()).ready) throw new Error('OCR 语言包缺失或校验失败，请重新准备')
+      } else {
+        // PP-OCR：按语言路由预设，主进程解析本地模型路径（worker 不联网、不做路径决策）
+        const preset = presetForLanguage(ocr.language)
+        ppocrPaths = { ...(await ppocrModelPaths(preset)), preset, engineVersion: require('ppu-paddle-ocr/package.json').version }
+      }
       // await 期间取消、退出或归档后，不得重新启动已失效的任务。
       if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
     }
     // 只把 realpath 校验后的托管文件交给解析线程。
-    const require = createRequire(__filename)
-    const modelJson = ocr ? JSON.stringify({ engine: 'tesseract.js', engineVersion: require('tesseract.js/package.json').version, coreVersion: require('tesseract.js-core/package.json').version, languages: ['chi_sim', 'eng'], source: 'tessdata_fast', commit: OCR_MODEL_COMMIT, files: OCR_MODELS }) : undefined
-    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr ? ocrModelDirectory() : undefined, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
+    const modelJson = ocr
+      ? (ocr.engine === 'tesseract'
+          ? JSON.stringify({ engine: 'tesseract.js', engineVersion: require('tesseract.js/package.json').version, coreVersion: require('tesseract.js-core/package.json').version, languages: ['chi_sim', 'eng'], source: 'tessdata_fast', commit: OCR_MODEL_COMMIT, files: OCR_MODELS })
+          : JSON.stringify({ engine: 'ppu-paddle-ocr', engineVersion: ppocrPaths?.engineVersion, preset: ppocrPaths?.preset, language: ocr.language ?? 'zh-en', source: 'ppu-paddle-ocr-models' }))
+      : undefined
+    worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr && ocr.engine === 'tesseract' ? ocrModelDirectory() : undefined, ppocr: ppocrPaths, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
   } catch (error) {
     if (!stopping) getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ? AND status = 'parsing'").run(String(error), next.id)
     converting = undefined; starting = undefined; release(); queueMicrotask(() => void pump()); return
