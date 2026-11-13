@@ -47,7 +47,7 @@ const evidenceSource: Check = value => [
 ].some(check => check(value))
 const conceptInput = { subject_id: nullable(id), name: text(120, true), summary: text(4000), aliases: (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every(text(120, true)) }
 const evidenceInput = { source: evidenceSource, expected_note_text: optional(text(40_000)), role: choice(...Object.keys(evidenceRoles)), memo: text(2000) }
-const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Check => value => {
+const learningChange = (owner: 'note_id' | 'version_id' | 'id', figures: boolean): Check => value => {
   const base = { [owner]: id, expected_revision_id: id, entry_id: id }
   return [
     record({ ...base, action: choice('edit'), type: choice(...Object.keys(learningTypes)), title: text(500) }),
@@ -62,6 +62,14 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ProjectDocumentsList]: [record({ project_id: id, trash: optional(bool) })],
+  [IPC.ProjectDocumentsGet]: [record({ id, revision_id: optional(id) })],
+  [IPC.ProjectDocumentsSave]: [record({ project_id: id, id: optional(id), expected_revision_id: optional(id), title, kind: choice('requirements','plan','report','other'), body: optional(text(200_000,true)), concept_ids: v => Array.isArray(v) && v.length <= 32 && v.every(id) })],
+  [IPC.ProjectDocumentsChange]: [learningChange('id',false)],
+  [IPC.ProjectDocumentsRevisionRestore]: [record({ id, expected_revision_id: id, revision_id: id })],
+  [IPC.ProjectDocumentsTrash]: [record({ id, expected_revision_id: id })],
+  [IPC.ProjectDocumentsRestore]: [record({ id, expected_revision_id: id })],
+  [IPC.ProjectDocumentsImport]: [record({ project_id: id, material_id: id, version_id: id, revision_id: id, kind: choice('requirements','plan','report','other') })],
   [IPC.ConceptsGraph]: [],
   [IPC.ConceptsRelationSave]: [record({ from_id: id, to_id: id, relation: choice('prerequisite','extends','related'), memo: text(2000), expected_revision: optional(id) })],
   [IPC.ConceptsRelationRemove]: [record({ from_id: id, to_id: id, expected_revision: id })],
@@ -78,7 +86,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.CalendarImport]: [id, optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) }))],
   [IPC.CalendarDiscard]: [],
   [IPC.CalendarExport]: [],
-  [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id }), record({ kind: choice('exercise'), exercise_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
+  [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id }), record({ kind: choice('exercise'), exercise_id: id, revision_id: id }), record({ kind: choice('project_document'), document_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
   [IPC.LearningPdfCancel]: [],
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
   [IPC.NotesLearningChange]: [learningChange('note_id', false)],

@@ -83,3 +83,5 @@
 - [03-roadmap.md](03-roadmap.md) —— 分期开发路线图
 - [04-product-expansion.md](04-product-expansion.md) —— 项目、日程、备忘、教材课堂联动的完整规格
 - [05-health-check-2026-11-11.md](05-health-check-2026-11-11.md) —— 当前实现、验证结果与问题清单（codex）
+
+项目资料管理已接入版本化要求、计划书与报告，支持既有材料导入、知识应用回链和 PDF，具体能力与剩余边界见 [项目文档记录](42-project-documents.md)。

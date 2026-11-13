@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router-dom'
 import type { ProjectDetail, Task, TaskKnowledgeRef, Concept } from '@shared/types'
+import { ProjectDocuments } from '../components/ProjectDocuments'
 import { useAppStore } from '../stores/app'
 
 const TASK_GROUPS: Array<{ status: Task['status']; label: string }> = [
@@ -156,6 +157,8 @@ export function ProjectDetail() {
           <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{detail.goal}</div>
         </div>
       )}
+
+      <ProjectDocuments key={detail.id} projectId={detail.id} />
 
       {/* 里程碑 */}
       <div className="card" style={{ marginBottom: 14 }}>

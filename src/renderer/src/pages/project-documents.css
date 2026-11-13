@@ -1,0 +1,122 @@
+.project-documents {
+  margin: 22px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.project-documents h2 {
+  font-size: 18px;
+}
+.project-documents .toolbar {
+  flex-wrap: wrap;
+}
+.project-documents > input {
+  width: min(100%, 420px);
+  margin: 14px 0 4px;
+}
+.project-document-list > a {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+}
+.project-document-list strong {
+  overflow-wrap: anywhere;
+}
+.project-document-list span,
+.project-document-list small {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.project-document-import {
+  border-left: 3px solid #b8ccd7;
+  padding: 0 14px;
+  margin: 16px 0;
+  max-width: 900px;
+}
+.project-document-import select {
+  max-width: 420px;
+}
+.project-document-page {
+  max-width: 1200px;
+  width: 100%;
+}
+.project-document-actions {
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+.project-document-history {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.project-document-editor {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  max-width: 900px;
+}
+.project-document-editor > label {
+  display: grid;
+  gap: 7px;
+}
+.project-document-editor .toolbar {
+  flex-wrap: wrap;
+}
+.project-document-editor input[type='checkbox'] {
+  width: auto;
+}
+.project-document-editor .math-input-surface {
+  font-family: SimSun, '宋体', serif;
+}
+.project-document-concepts {
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.project-document-origin {
+  line-height: 1.8;
+  background: #f0f6fa;
+  padding: 12px 16px;
+  border-left: 3px solid #b1c7d5;
+}
+.project-document-paper {
+  max-width: 960px;
+  margin: 24px 0;
+  font-family: SimSun, '宋体', serif;
+  line-height: 1.9;
+}
+.project-document-paper .learning-entry {
+  margin: 18px 0;
+  padding: 18px;
+}
+.project-document-paper .learning-entry-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-family: inherit;
+}
+.project-document-paper .learning-entry-header > span {
+  font-size: 12px;
+  color: #64738a;
+}
+.project-document-paper .learning-entry-header > strong {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1100px) {
+  .project-document-list > a {
+    grid-template-columns: 90px minmax(0, 1fr);
+  }
+  .project-document-list small {
+    grid-column: 2;
+  }
+  .project-document-import select {
+    max-width: 100%;
+  }
+}

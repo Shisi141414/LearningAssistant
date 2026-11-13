@@ -38,7 +38,7 @@ export interface ConceptRelationRemove {
   expected_revision: string
 }
 export interface ConceptUsage {
-  kind: 'exercise' | 'task'
+  kind: 'exercise' | 'task' | 'project_document'
   id: string
   title: string
   status: string

@@ -671,5 +671,31 @@ CREATE TABLE concept_graph_positions (
   y REAL NOT NULL
 );
 `
+  },
+  {
+    version: 24,
+    name: 'versioned_project_documents',
+    sql: `
+CREATE TABLE project_documents (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('requirements','plan','report','other')),
+  head_revision_id TEXT NOT NULL,
+  source_key TEXT,
+  deleted_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX idx_project_document_source ON project_documents(project_id,source_key) WHERE source_key IS NOT NULL;
+CREATE INDEX idx_project_documents_project ON project_documents(project_id,deleted_at,updated_at);
+CREATE TABLE project_document_revisions (
+  id TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES project_documents(id) ON DELETE CASCADE,
+  snapshot_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_project_document_history ON project_document_revisions(document_id);
+`
   }
 ]

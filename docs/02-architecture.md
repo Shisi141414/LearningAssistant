@@ -339,3 +339,7 @@ R2 已按此原则实施，验证记录见 [R2 报告](08-classroom-material-lin
 ## M3 习题内置格式（2026-11-13 · codex）
 
 习题复用 LearningSource / LearningState：题面为 exercise，思路与答案为 solution，错因为 note，以 solves 关联题面。字段角色、作答状态、题型、来源与复习知识 ID 写入不可变 exercise_revisions 快照；exercises 的旧列作为兼容和检索索引，迁移只追加 22。教材转入固定材料/版本/修订/条目，并保留原题、解答、来源和配图元数据。保存与回收操作检查预期修订，事务同时发布修订和索引，详见 [习题库记录](40-exercise-library.md)。
+
+## 项目文档已实现补充
+
+迁移 24 追加项目文档及完整修订快照，沿用 LearningSource/LearningState/公式与配图结构。项目外键限定归属，材料导入保留固定修订来源，独立修订用于陈旧编辑拒绝和历史恢复；PDF 接入已有受隔离打印流程。细节见 [项目文档记录](42-project-documents.md)。

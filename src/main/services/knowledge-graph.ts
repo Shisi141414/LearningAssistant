@@ -106,7 +106,11 @@ export function conceptUsage(input: { concept_id: string; offset?: number }): Co
     FROM exercises e WHERE e.deleted_at IS NULL AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(e.review_concepts_json) THEN e.review_concepts_json ELSE '[]' END) WHERE value=@concept)
     UNION ALL
     SELECT 'task',t.id,t.title,t.status,COALESCE((SELECT json_extract(value,'$.why') FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept LIMIT 1),''),p.id,p.title
-    FROM tasks t LEFT JOIN projects p ON p.id=t.project_id WHERE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept)`
+    FROM tasks t LEFT JOIN projects p ON p.id=t.project_id WHERE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept)
+    UNION ALL
+    SELECT 'project_document',d.id,d.title,'document','项目资料中关联的知识',p.id,p.title
+    FROM project_documents d JOIN projects p ON p.id=d.project_id JOIN project_document_revisions r ON r.id=d.head_revision_id
+    WHERE d.deleted_at IS NULL AND EXISTS (SELECT 1 FROM json_each(r.snapshot_json,'$.concept_ids') WHERE value=@concept)`
   return db.transaction(() => {
     const args = { concept: input.concept_id },
       items = db

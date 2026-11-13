@@ -11,6 +11,8 @@ import { beginWork } from './work'
 import { nanoid } from 'nanoid'
 import { learningAssetResponse } from './learning-assets'
 import { getExercise } from './exercises'
+import { getProjectDocument } from './project-documents'
+import { projectDocumentKinds } from '@shared/project-documents'
 import { exerciseStatuses } from '@shared/exercises'
 
 let stopping = false
@@ -27,6 +29,13 @@ export function learningPdfSnapshot(input: LearningPdfInput): LearningPdfDocumen
       const history = data.history.find(row => row.id === source.revision_id)!
       document = { landscape: input.landscape, include_original_text: input.include_original_text, title: material.title, subject_name: material.subject_name, source_name: material.file_name, revision_id: source.revision_id, revision_number: data.history.length - data.history.findIndex(row => row.id === source.revision_id), saved_at: history.created_at,
         sources: data.sources, state: data.state, assets: data.assets ?? [], origins: {} }
+    } else if (source.kind === 'project_document') {
+      const data = getProjectDocument({ id:source.document_id,revision_id:source.revision_id }),snapshot = data.snapshot
+      const project = db.prepare('SELECT title FROM projects WHERE id=?').get(data.project_id) as { title:string }
+      document = { landscape:input.landscape,include_original_text:input.include_original_text,title:snapshot.title,subject_name:null,
+        source_name:[project.title,projectDocumentKinds[snapshot.kind],snapshot.origin ? `来源：${snapshot.origin.title}` : '项目手写文档'].join(' · '),
+        revision_id:data.revision_id,revision_number:data.history.length-data.history.findIndex(item=>item.id===data.revision_id),saved_at:data.history.find(item=>item.id===data.revision_id)!.created_at,
+        sources:snapshot.sources,state:snapshot.state,assets:snapshot.assets,origins:{} }
     } else if (source.kind === 'exercise') {
       const data = getExercise({ id: source.exercise_id, revision_id: source.revision_id }), snapshot = data.snapshot
       const subject = snapshot.subject_id ? db.prepare('SELECT name FROM subjects WHERE id=?').get(snapshot.subject_id) as { name: string } | undefined : undefined

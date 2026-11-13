@@ -41,21 +41,32 @@ export function ConceptUsage({ conceptId }: { conceptId: string }) {
           <article key={`${item.kind}:${item.id}`}>
             <Link
               to={
-                item.kind === 'exercise'
-                  ? `/exercises/${item.id}`
-                  : item.project_id
-                    ? `/projects/${item.project_id}?task=${encodeURIComponent(item.id)}`
-                    : `/review?task=${encodeURIComponent(item.id)}`
+                item.kind === 'project_document'
+                  ? `/projects/${item.project_id}/documents/${item.id}`
+                  : item.kind === 'exercise'
+                    ? `/exercises/${item.id}`
+                    : item.project_id
+                      ? `/projects/${item.project_id}?task=${encodeURIComponent(item.id)}`
+                      : `/review?task=${encodeURIComponent(item.id)}`
               }
             >
-              {item.kind === 'exercise' ? '习题' : '任务'}：{item.title}
+              {item.kind === 'exercise'
+                ? '习题'
+                : item.kind === 'project_document'
+                  ? '项目文档'
+                  : '任务'}
+              ：{item.title}
             </Link>
             <p className="muted">
               {item.kind === 'exercise'
                 ? (exerciseStatuses[item.status as keyof typeof exerciseStatuses] ?? item.status)
-                : ({ open: '待办', doing: '进行中', blocked: '阻塞', done: '已完成' }[
-                    item.status
-                  ] ?? item.status)}
+                : ({
+                    open: '待办',
+                    doing: '进行中',
+                    blocked: '阻塞',
+                    done: '已完成',
+                    document: '文档'
+                  }[item.status] ?? item.status)}
               {item.project_title ? ` · ${item.project_title}` : ''}
             </p>
             {item.why && <p>用途：{item.why}</p>}

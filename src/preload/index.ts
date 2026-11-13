@@ -4,6 +4,7 @@
  * 渲染进程只能通过 window.api.* 与主进程通信（contextIsolation 开启），
  * ipcRenderer 本体、Node API 一律不暴露。
  */
+import type { ProjectDocumentDetail, ProjectDocumentSummary, ProjectDocumentSave, ProjectDocumentChange, ProjectDocumentAction, ProjectDocumentKind } from '@shared/project-documents'
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
@@ -216,6 +217,16 @@ const api = {
     list: () => invoke<Inspiration[]>(IPC.InspirationsList),
     add: (input: InspirationInput) => invoke<Inspiration>(IPC.InspirationsAdd, input),
     remove: (id: ID) => invoke<boolean>(IPC.InspirationsRemove, id)
+  },
+  projectDocuments: {
+    list: (input: { project_id: string; trash?: boolean }) => invoke<ProjectDocumentSummary[]>(IPC.ProjectDocumentsList,input),
+    get: (input: { id: string; revision_id?: string }) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsGet,input),
+    save: (input: ProjectDocumentSave) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsSave,input),
+    change: (input: ProjectDocumentChange) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsChange,input),
+    revisionRestore: (input: ProjectDocumentAction & { revision_id: string }) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsRevisionRestore,input),
+    trash: (input: ProjectDocumentAction) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsTrash,input),
+    restore: (input: ProjectDocumentAction) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsRestore,input),
+    import: (input: { project_id: string; material_id: string; version_id: string; revision_id: string; kind: ProjectDocumentKind }) => invoke<ProjectDocumentDetail>(IPC.ProjectDocumentsImport,input)
   },
   projects: {
     list: (subjectId?: ID | null) => invoke<Project[]>(IPC.ProjectsList, subjectId),
