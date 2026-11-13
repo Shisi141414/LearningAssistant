@@ -11,6 +11,7 @@
  */
 
 export const IPC = {
+  PlanningMove: 'planning:moveBlock',
   ContinuousGet: 'planning:continuous',
   ContinuousSave: 'planning:continuousSave',
   ContinuousCheck: 'planning:continuousCheck',

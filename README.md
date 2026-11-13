@@ -114,3 +114,5 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 
 ---
 规划与初始实现：claude（2026-11）
+
+日程后续能力见[学习时间块手动调整与当前时间跟随](docs/48-manual-blocks-and-current-time.md)：调整先检查再确认，手工位置锁定；今天的日/周视图优先显示红线之后的时间。

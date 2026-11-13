@@ -90,3 +90,11 @@
 .continuous-history { border-top: 1px solid var(--border); padding: 12px 0; overflow-wrap: anywhere; }
 .continuous-history summary { cursor: pointer; }
 .continuous-schedule [role='alert'] { color: var(--danger, #b91c1c); }
+.schedule-block-dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel); color: var(--text); padding: 22px; }
+.schedule-block-dialog::backdrop { background: rgb(30 41 59 / 30%); }
+.schedule-block-dialog fieldset { border: 0; padding: 0; min-width: 0; }
+.schedule-block-dialog label { display: flex; flex-direction: column; gap: 6px; }
+.schedule-block-dialog .block-move-ignore { flex-direction: row; align-items: center; }
+.block-move-ignore input { width: auto; }
+.block-move-report { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 10px; overflow-wrap: anywhere; }
+.schedule-block-dialog [role='alert'] { color: var(--danger, #b91c1c); }

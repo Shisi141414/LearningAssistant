@@ -2,6 +2,9 @@ import { TaskResources } from '../components/TaskResources'
 import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
 import { ReminderCenter, TaskReminderEditor } from '../components/Reminders'
 import { ContinuousSchedule } from '../components/ContinuousSchedule'
+import { ScheduleBlockEditor } from '../components/ScheduleBlockEditor'
+import { useCalendarFollow } from '../components/useCalendarFollow'
+import type { ScheduleBlock } from '@shared/auto-schedule'
 import type { PlanningState } from '@shared/auto-schedule'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -85,7 +88,10 @@ const draftFor = (task?: TaskWithProject, start?: Date, allDay = false): Draft =
 export function SchedulePage() {
   const calendar = useRef<FullCalendar>(null)
   const [dateTitle, setDateTitle] = useState('日期')
+  const [viewType, setViewType] = useState('timeGridWeek')
+  const [dragging, setDragging] = useState(false)
   const [planning, setPlanning] = useState<PlanningState | null>(null)
+  const [blockEdit, setBlockEdit] = useState<{block:ScheduleBlock;proposed?:{start_at:number;end_at:number}} | null>(null)
   const [dateJump, setDateJump] = useState<{ start: string; end: string; original_start: string; original_end: string; week: boolean } | null>(null)
   const [jumpError, setJumpError] = useState('')
   const [params] = useSearchParams()
@@ -121,6 +127,7 @@ export function SchedulePage() {
     const start = info.view.currentStart.getTime(), end = info.view.currentEnd.getTime()
     setDateRange((old) => old?.start === start && old.end === end ? old : { start, end })
     setDateTitle(info.view.title)
+    setViewType(info.view.type)
   }, [])
   const openDateJump = (): void => {
     const api = calendar.current?.getApi()
@@ -188,6 +195,7 @@ export function SchedulePage() {
   }
   const visible = tasks.filter((t) => showDone || t.status !== 'done')
   const startTime = scheduleStartTime(fromSix, dateRange, [...visible,...(planning?.blocks??[]).filter(b=>visible.some(t=>t.id===b.task_id)).map(b=>({planned_at:b.start_at,planned_end_at:b.end_at,all_day:false,due_at:null}))], preferredStart ? Number(preferredStart.slice(0, 2)) * 60 + Number(preferredStart.slice(3)) : 360)
+  const follow = useCalendarFollow(calendar,dateRange,viewType,startTime,dragging || !!blockEdit)
   const events = useMemo(() => {
     const list: EventInput[] = []
     for (const t of tasks.filter((t) => showDone || t.status !== 'done')) {
@@ -210,7 +218,8 @@ export function SchedulePage() {
           allDay: t.all_day
         })
       for (const b of planning?.blocks.filter(b=>b.task_id===t.id) ?? []) list.push({
-        ...appearance,id:`block:${b.id}`,title:`${b.locked?'锁定 · ':''}${t.title}`,start:b.start_at,end:b.end_at,allDay:false
+        ...appearance,id:`block:${b.id}`,title:`${b.locked?'锁定 · ':''}${t.title}`,start:b.start_at,end:b.end_at,allDay:false,
+        startEditable: !b.locked && b.start_at > Date.now() && t.status !== 'done', durationEditable: !b.locked && b.start_at > Date.now() && t.status !== 'done'
       })
       if (t.due_at !== null && t.due_at !== t.planned_at)
         list.push({
@@ -228,6 +237,18 @@ export function SchedulePage() {
       beginDraft(draftFor(task))
       setError('')
     }
+  }
+  const editBlock = (id: string, proposed?: {start_at:number;end_at:number}): void => {
+    const block = planning?.blocks.find(b => b.id === id)
+    if (!busy && block && canDiscardDraft()) {
+      setDraft(null)
+      setBlockEdit({block,proposed})
+    }
+  }
+  const stageBlockMove = (info: {event:{id:string;start:Date|null;end:Date|null;allDay:boolean};revert:()=>void}): void => {
+    const {id,start,end,allDay} = info.event
+    info.revert()
+    if (id.startsWith('block:') && start && end && !allDay) editBlock(id.slice(6),{start_at:start.getTime(),end_at:end.getTime()})
   }
   const save = (): void => {
     if (!draft) return
@@ -550,7 +571,7 @@ export function SchedulePage() {
       <ContinuousSchedule tasks={tasks} onRefresh={reload} disabled={busy} />
       <ReminderCenter initiallyOpen={params.get('reminders')==='1'} beforeComplete={canDiscardDraft} onTaskCompleted={()=>{setDraft(null);void reload()}} disabled={busy} />
       <div className={`schedule-layout ${draft ? 'editing' : ''}`}>
-        <section className="schedule-calendar" aria-label="日历">
+        <section className="schedule-calendar" aria-label="日历" onWheel={follow.noteInteraction} onPointerDown={follow.noteInteraction}>
           {dateJump && <form className="schedule-date-jump" aria-label="填写日期跳转" onSubmit={e => {
             e.preventDefault()
             const target = calendarJumpTarget(dateJump)
@@ -574,10 +595,11 @@ export function SchedulePage() {
             initialView="timeGridWeek"
             firstDay={1}
             nowIndicator
+            now={follow.now}
             defaultTimedEventDuration="01:00:00"
-            height={660}
-            slotMinTime={startTime}
-            scrollTime={startTime}
+            height={follow.height}
+            slotMinTime={follow.axisStart}
+            scrollTime={follow.scrollTime}
             datesSet={updateRange}
             customButtons={{ jumpDate: { text: dateTitle, hint: '填写日期并跳转', click: openDateJump } }}
             slotDuration="00:30:00"
@@ -592,6 +614,16 @@ export function SchedulePage() {
               right: 'timeGridDay,timeGridWeek,dayGridMonth'
             }}
             events={events}
+            editable={false}
+            eventResizableFromStart
+            snapDuration="00:05:00"
+            eventAllow={(range,event) => !busy && !blockEdit && !!event?.id.startsWith('block:') && !range.allDay && range.start.getTime() > Date.now()}
+            eventDrop={stageBlockMove}
+            eventResize={stageBlockMove}
+            eventDragStart={() => setDragging(true)}
+            eventDragStop={() => setDragging(false)}
+            eventResizeStart={() => setDragging(true)}
+            eventResizeStop={() => setDragging(false)}
             eventContent={(info) => (
               <div
                 className="schedule-event-content"
@@ -808,7 +840,7 @@ export function SchedulePage() {
             </div>
           </form>
           {selected && planning?.blocks.some(b=>b.task_id===selected.id) && <p className="muted">此任务按下方学习时间块安排。要改为固定日程，请先移除全部时间块并停用自动安排。</p>}
-          {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
+          {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} onEditBlock={editBlock} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           {selected && <TaskReminderEditor key={`reminder:${selected.id}`} taskId={selected.id} onDraftState={reminderDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
           </aside>
@@ -865,6 +897,7 @@ export function SchedulePage() {
           </div>
         ))}
       </section>
+      {blockEdit && <ScheduleBlockEditor block={blockEdit.block} proposed={blockEdit.proposed} title={tasks.find(t => t.id === blockEdit.block.task_id)?.title ?? '已删除任务'} onClose={() => setBlockEdit(null)} onSaved={state => {setPlanning(state);setBlockEdit(null);showToast('学习时间块已调整并锁定');void reload()}}/>}
     </div>
   )
 }

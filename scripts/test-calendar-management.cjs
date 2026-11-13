@@ -208,6 +208,8 @@ app.on('browser-window-created', (_event, win) =>
       assert.equal(hash(source), originalHash)
       await click('全部教材')
       await capture('materials-management.png')
+      // Preference tests use noon; midnight/current-time-follow cases have their own native coverage.
+      await js('window.__CalendarRealDate=Date;window.__calendarNoon=new Date().setHours(12,0,0,0);window.Date=class extends __CalendarRealDate{constructor(...args){super(...(args.length?args:[window.__calendarNoon]))}static now(){return window.__calendarNoon}};true')
       await js("location.hash='/review'")
       await wait("!!document.querySelector('.fc-timeGridWeek-view')")
       const firstSlot=()=>js("document.querySelector('.fc-timegrid-slot[data-time]')?.getAttribute('data-time')")

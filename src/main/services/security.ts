@@ -114,6 +114,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.PlanningSettings]: [record({expected_revision:nullable(id),value:record({timezone:text(128,true),daily_minutes:number,buffer_minutes:number,availability:v=>Array.isArray(v)&&v.length<=28&&v.every(record({weekday:number,start:text(5,true),end:text(5,true)}))})})],
   [IPC.PlanningTask]: [record({task_id:id,expected_revision:nullable(id),enabled:bool,remaining_minutes:number,priority:number,not_before:nullable(number),splittable:bool,min_minutes:number,max_minutes:number,dependencies:v=>Array.isArray(v)&&v.length<=32&&v.every(id)})],
   [IPC.PlanningBlock]: [record({id,expected_revision:id,action:choice('lock','unlock','remove')})],
+  [IPC.PlanningMove]: [record({id,expected_revision:id,start_at:number,end_at:number,confirmation:optional(record({ignore_conflicts:bool,conflict_fingerprint:text(64)}))})],
   [IPC.PlanningPreview]: [record({from:number,to:number})],
   [IPC.PlanningApply]: [id],
   [IPC.PlanningUndo]: [id],

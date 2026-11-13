@@ -239,7 +239,8 @@ if (!process.versions.electron) {
           enabled: true,
           remaining_minutes: 60,
           priority: 1,
-          not_before: null,
+          // This fixture starts tomorrow even when the suite runs before today's availability.
+          not_before: start,
           splittable: true,
           min_minutes: 15,
           max_minutes: 90,

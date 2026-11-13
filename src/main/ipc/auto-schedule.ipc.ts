@@ -3,6 +3,7 @@ import { ipcMain, handleResult } from './helpers'
 import { checkContinuousSchedule, continuousScheduleState, saveContinuousSchedule } from '../services/continuous-schedule'
 import {
   applySchedule,
+  moveScheduleBlock,
   changeScheduleBlock,
   discardSchedulePreview,
   getPlanningState,
@@ -13,6 +14,7 @@ import {
 } from '../services/auto-schedule'
 const owners = new Set<number>()
 export function registerAutoScheduleIpc(): void {
+  ipcMain.handle(IPC.PlanningMove, (_e, input) => handleResult(() => moveScheduleBlock(input)))
   ipcMain.handle(IPC.ContinuousGet, () => handleResult(continuousScheduleState))
   ipcMain.handle(IPC.ContinuousSave, (_e, input) => handleResult(() => saveContinuousSchedule(input)))
   ipcMain.handle(IPC.ContinuousCheck, () => handleResult(() => checkContinuousSchedule(true)))

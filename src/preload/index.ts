@@ -272,6 +272,7 @@ const api = {
     saveSettings: (input: {expected_revision:string|null;value:ScheduleSettings}) => invoke<PlanningState>(IPC.PlanningSettings,input),
     savePlanning: (input: TaskPlanningSave) => invoke<PlanningState>(IPC.PlanningTask,input),
     changeBlock: (input:{id:string;expected_revision:string;action:'lock'|'unlock'|'remove'}) => invoke<PlanningState>(IPC.PlanningBlock,input),
+    moveBlock: (input: import('@shared/schedule-block-move').BlockMoveInput) => invoke<import('@shared/schedule-block-move').BlockMoveResult>(IPC.PlanningMove,input),
     plan: (range:CalendarRange) => invoke<PlanningPreview>(IPC.PlanningPreview,range),
     applyPlan: (token:string) => invoke<PlanningState>(IPC.PlanningApply,token),
     discardPlan: () => invoke<boolean>(IPC.PlanningDiscard),

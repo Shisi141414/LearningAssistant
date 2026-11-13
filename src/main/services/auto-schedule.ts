@@ -19,6 +19,12 @@ import {
 } from '@shared/auto-schedule'
 import { dbFilePath, getDb } from './db'
 import { withWork } from './work'
+import { Temporal } from '@js-temporal/polyfill'
+import { calendarConflicts, occupiedEnd } from './calendar-conflicts'
+import type {
+  BlockMoveInput,
+  BlockMoveResult
+} from '@shared/schedule-block-move'
 
 interface Snapshot {
   state: PlanningState
@@ -46,7 +52,7 @@ export function hasInteractiveScheduleWork(): boolean {
   for (const [owner, preview] of previews) {
     if (preview.expires < Date.now()) previews.delete(owner)
   }
-  return [...workers.keys(), ...previews.keys()].some(owner => owner >= 0)
+  return [...workers.keys(), ...previews.keys()].some((owner) => owner >= 0)
 }
 export function stopScheduleJobs(): void {
   stopping = true
@@ -194,6 +200,205 @@ export function changeScheduleBlock(input: {
     return getPlanningState()
   })()
 }
+/** Inspect first; confirmation is bound to the complete planning snapshot and proposed times. */
+export function moveScheduleBlock(input: BlockMoveInput): BlockMoveResult {
+  assertRunning()
+  const now = Date.now(),
+    duration = input.end_at - input.start_at
+  if (
+    ![input.start_at, input.end_at].every(
+      (n) => Number.isSafeInteger(n) && n >= 0 && n <= 8_640_000_000_000_000
+    ) ||
+    input.start_at < now ||
+    duration < 60000 ||
+    duration > 86400000
+  )
+    throw Error('请输入未来有效起止时间，时长为 1 分钟至 24 小时')
+  return getDb().transaction(() => {
+    const s = snapshot(),
+      b = s.state.blocks.find((b) => b.id === input.id),
+      taskById = new Map(s.tasks.map((t) => [t.id, t]))
+    if (!b) throw Error('时间块已不存在，请关闭后重新选择')
+    assertRevision(b.revision, input.expected_revision)
+    if (b.start_at <= now)
+      throw Error('已开始的学习时间块不能移动，请保留历史安排')
+    const task = taskById.get(b.task_id)!
+    if (task.status === 'done' || task.project_status === 'archived')
+      throw Error('已完成任务或归档项目的时间块不能移动')
+    const conflicts = calendarConflicts(
+      [
+        {
+          key: b.id,
+          title: task.title,
+          start: input.start_at,
+          end: input.end_at
+        }
+      ],
+      [
+        ...s.tasks
+          .filter((t) => t.status !== 'done' && t.planned_at !== null)
+          .map((t) => ({
+            key: t.id,
+            title: t.title,
+            start: t.planned_at!,
+            end: occupiedEnd(t.planned_at!, t.planned_end_at, t.all_day)
+          })),
+        ...s.state.blocks
+          .filter(
+            (other) =>
+              other.id !== b.id &&
+              taskById.get(other.task_id)?.status !== 'done'
+          )
+          .map((other) => ({
+            key: `block:${other.id}`,
+            title: taskById.get(other.task_id)!.title,
+            start: other.start_at,
+            end: other.end_at
+          }))
+      ]
+    )
+    const warnings: string[] = [],
+      p = s.state.planning.find((p) => p.task_id === task.id),
+      settings = s.state.settings.value
+    if (task.due_at !== null && input.end_at > task.due_at)
+      warnings.push('调整后的结束时间晚于任务截止时间；截止时间不会改变。')
+    if (
+      p?.not_before !== null &&
+      p?.not_before !== undefined &&
+      input.start_at < p.not_before
+    )
+      warnings.push('调整后的开始时间早于任务最早开始时间。')
+    const start = Temporal.Instant.fromEpochMilliseconds(
+        input.start_at
+      ).toZonedDateTimeISO(settings.timezone),
+      end = Temporal.Instant.fromEpochMilliseconds(
+        input.end_at
+      ).toZonedDateTimeISO(settings.timezone)
+    const clock = (z: typeof start): string =>
+      `${String(z.hour).padStart(2, '0')}:${String(z.minute).padStart(2, '0')}`
+    if (
+      !start.toPlainDate().equals(end.toPlainDate()) ||
+      !settings.availability.some(
+        (a) =>
+          a.weekday === start.dayOfWeek &&
+          a.start <= clock(start) &&
+          a.end >= clock(end) &&
+          end.second === 0 &&
+          end.millisecond === 0
+      )
+    )
+      warnings.push(
+        `调整后的时间不完全位于可用时段内（${settings.timezone}）。`
+      )
+    for (const dep of p?.dependencies ?? []) {
+      const prerequisite = taskById.get(dep)
+      if (prerequisite?.status === 'done') continue
+      const blocks = s.state.blocks.filter((block) => block.task_id === dep)
+      const ends = [
+        ...blocks.map((block) => block.end_at),
+        ...(prerequisite?.planned_at !== null &&
+        prerequisite?.planned_at !== undefined
+          ? [
+              occupiedEnd(
+                prerequisite.planned_at,
+                prerequisite.planned_end_at,
+                prerequisite.all_day
+              )
+            ]
+          : [])
+      ]
+      if (
+        !ends.length ||
+        Math.max(...ends) + settings.buffer_minutes * 60000 > input.start_at
+      )
+        warnings.push(
+          `前置任务“${prerequisite?.title ?? '已删除任务'}”尚未安排完毕或晚于本次开始时间；安排不等于已完成。`
+        )
+    }
+    for (const successor of s.state.planning.filter((p) =>
+      p.dependencies.includes(task.id)
+    )) {
+      const next = taskById.get(successor.task_id)
+      if (next?.status === 'done') continue
+      if (
+        s.state.blocks.some(
+          (block) =>
+            block.task_id === successor.task_id &&
+            block.start_at < input.end_at + settings.buffer_minutes * 60000 &&
+            block.end_at > now
+        )
+      )
+        warnings.push(
+          `后续任务“${next?.title ?? '已删除任务'}”的现有安排早于本次结束，需检查前置顺序。`
+        )
+    }
+    if (duration !== b.end_at - b.start_at)
+      warnings.push(
+        '时间块时长已改变；任务剩余用时不会自动修改，请按实际进度更新。'
+      )
+    const nearby = s.state.blocks
+      .filter((other) => other.id !== b.id && other.end_at > now)
+      .some(
+        (other) =>
+          other.start_at < input.end_at + settings.buffer_minutes * 60000 &&
+          other.end_at > input.start_at - settings.buffer_minutes * 60000
+      )
+    if (nearby && !conflicts.items.length && settings.buffer_minutes)
+      warnings.push(
+        `与其他学习时间块之间不足 ${settings.buffer_minutes} 分钟缓冲。`
+      )
+    conflicts.fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify([
+          s.fingerprint,
+          input.id,
+          input.expected_revision,
+          input.start_at,
+          input.end_at,
+          conflicts,
+          warnings
+        ])
+      )
+      .digest('hex')
+    const report = { conflicts, warnings }
+    if (!input.confirmation) return { state: null, report }
+    if (input.confirmation.conflict_fingerprint !== conflicts.fingerprint)
+      throw Error('任务、日程或设置已改变，请重新检查调整；输入仍保留')
+    if (conflicts.items.length && !input.confirmation.ignore_conflicts)
+      return { state: null, report }
+    if (input.start_at === b.start_at && input.end_at === b.end_at)
+      return { state: s.state }
+    const moved = {
+      ...b,
+      start_at: input.start_at,
+      end_at: input.end_at,
+      locked: true,
+      revision: nanoid(),
+      reason:
+        '用户手动调整并锁定；' +
+        (warnings.length ? warnings.join(' ') : '已核对时间冲突') +
+        (conflicts.items.length ? '；已确认忽略时间冲突' : '')
+    }
+    getDb()
+      .prepare(
+        'UPDATE schedule_blocks SET start_at=?,end_at=?,locked=1,revision=?,reason=? WHERE id=?'
+      )
+      .run(moved.start_at, moved.end_at, moved.revision, moved.reason, b.id)
+    recordScheduleRun(
+      s.state.blocks,
+      snapshot().fingerprint,
+      [b, moved],
+      {
+        origin: 'manual',
+        reason:
+          '手动调整学习时间块并锁定' +
+          (conflicts.items.length ? '（用户忽略时间冲突）' : '')
+      },
+      { unplaced: [], warnings }
+    )
+    return { state: getPlanningState() }
+  })()
+}
 export async function previewSchedule(
   owner: number,
   range: { from: number; to: number }
@@ -272,9 +477,41 @@ function insertBlock(b: ScheduleBlock): void {
     )
     .run(`local:block:${b.id}`, Date.now())
 }
-export function applySchedule(owner: number, token: string, audit = {
-  origin: 'manual', reason: '用户确认排程预览'
-}): PlanningState {
+function recordScheduleRun(
+  before: ScheduleBlock[],
+  fingerprint: string,
+  changed: ScheduleBlock[],
+  audit: { origin: string; reason: string },
+  outcome: Pick<PlannerResult, 'unplaced' | 'warnings'>
+): void {
+  getDb()
+    .prepare(
+      'INSERT INTO schedule_runs(id,created_at,before_json,after_fingerprint,changed_json,origin,reason,outcome_json) VALUES(?,?,?,?,?,?,?,?)'
+    )
+    .run(
+      nanoid(),
+      Date.now(),
+      JSON.stringify(before),
+      fingerprint,
+      JSON.stringify(changed),
+      audit.origin,
+      audit.reason,
+      JSON.stringify(outcome)
+    )
+  getDb()
+    .prepare(
+      'DELETE FROM schedule_runs WHERE id NOT IN (SELECT id FROM schedule_runs ORDER BY rowid DESC LIMIT 20)'
+    )
+    .run()
+}
+export function applySchedule(
+  owner: number,
+  token: string,
+  audit = {
+    origin: 'manual',
+    reason: '用户确认排程预览'
+  }
+): PlanningState {
   assertRunning()
   const preview = previews.get(owner)
   if (!preview || preview.token !== token || preview.expires < Date.now())
@@ -307,25 +544,13 @@ export function applySchedule(owner: number, token: string, audit = {
     }))
     for (const b of inserted) insertBlock(b)
     const after = snapshot()
-    getDb()
-      .prepare(
-        'INSERT INTO schedule_runs(id,created_at,before_json,after_fingerprint,changed_json,origin,reason,outcome_json) VALUES(?,?,?,?,?,?,?,?)'
-      )
-      .run(
-        nanoid(),
-        Date.now(),
-        JSON.stringify(s.state.blocks),
-        after.fingerprint,
-        JSON.stringify([...deleted, ...inserted]),
-        audit.origin,
-        audit.reason,
-        JSON.stringify({ unplaced: preview.data.unplaced, warnings: preview.data.warnings })
-      )
-    getDb()
-      .prepare(
-        'DELETE FROM schedule_runs WHERE id NOT IN (SELECT id FROM schedule_runs ORDER BY rowid DESC LIMIT 20)'
-      )
-      .run()
+    recordScheduleRun(
+      s.state.blocks,
+      after.fingerprint,
+      [...deleted, ...inserted],
+      audit,
+      { unplaced: preview.data.unplaced, warnings: preview.data.warnings }
+    )
     return getPlanningState()
   })()
   previews.delete(owner)
@@ -359,7 +584,11 @@ export function undoSchedule(id: string): PlanningState {
       .prepare('UPDATE schedule_runs SET undone_at=? WHERE id=?')
       .run(Date.now(), id)
     // Undo is a deliberate change of direction: do not immediately auto-apply it again.
-    getDb().prepare("UPDATE schedule_automation SET enabled=0,revision=CASE WHEN enabled=1 THEN ? ELSE revision END,state='paused',last_stamp='',retry_at=0,error='',outcome_json='{}' WHERE id=1").run(nanoid())
+    getDb()
+      .prepare(
+        "UPDATE schedule_automation SET enabled=0,revision=CASE WHEN enabled=1 THEN ? ELSE revision END,state='paused',last_stamp='',retry_at=0,error='',outcome_json='{}' WHERE id=1"
+      )
+      .run(nanoid())
     return getPlanningState()
   })()
 }

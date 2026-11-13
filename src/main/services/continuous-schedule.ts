@@ -66,12 +66,12 @@ export function continuousScheduleState(): ContinuousState {
     outcome: JSON.parse(r?.outcome_json ?? '{}'),
     history: history.map((h) => {
       const before = new Set(
-          (JSON.parse(h.before_json) as ScheduleBlock[]).map((b) => b.id)
+          (JSON.parse(h.before_json) as ScheduleBlock[]).map((b) => `${b.id}:${b.revision}`)
         ),
         changed = JSON.parse(h.changed_json) as ScheduleBlock[],
         outcome = JSON.parse(h.outcome_json),
-        added = changed.filter((b) => !before.has(b.id)),
-        removed = changed.filter((b) => before.has(b.id))
+        added = changed.filter((b) => !before.has(`${b.id}:${b.revision}`)),
+        removed = changed.filter((b) => before.has(`${b.id}:${b.revision}`))
       return {
         id: h.id,
         created_at: h.created_at,

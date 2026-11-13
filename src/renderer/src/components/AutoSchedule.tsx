@@ -424,6 +424,7 @@ export function TaskPlanningEditor({
   state,
   onChange,
   onDraftState,
+  onEditBlock,
   disabled
 }: {
   taskId: string
@@ -431,6 +432,7 @@ export function TaskPlanningEditor({
   state: PlanningState
   onChange: (state: PlanningState) => void
   onDraftState: (value: { dirty: boolean; busy: boolean }) => void
+  onEditBlock: (id: string) => void
   disabled: boolean
 }) {
   const initial = (): TaskPlanningSave => {
@@ -668,6 +670,7 @@ export function TaskPlanningEditor({
             </strong>
             <p className="muted">{b.reason}</p>
             <div className="toolbar">
+              <button type="button" disabled={dirty || b.start_at <= Date.now()} onClick={() => onEditBlock(b.id)}>调整时间</button>
               <button
                 type="button"
                 onClick={() =>
