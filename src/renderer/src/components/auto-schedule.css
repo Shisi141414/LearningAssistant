@@ -85,3 +85,8 @@
     grid-template-columns: 1fr;
   }
 }
+.continuous-schedule .continuous-check { flex-direction: row; align-items: center; gap: 8px; }
+.continuous-check input[type='checkbox'] { width: auto; }
+.continuous-history { border-top: 1px solid var(--border); padding: 12px 0; overflow-wrap: anywhere; }
+.continuous-history summary { cursor: pointer; }
+.continuous-schedule [role='alert'] { color: var(--danger, #b91c1c); }

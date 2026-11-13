@@ -88,7 +88,7 @@ export function AutoSchedule({
     >
       <summary>自动安排学习时间</summary>
       <p className="muted">
-        先在日程编辑中的“学习安排”里启用任务并填写剩余用时，再生成预览。固定课程、锁定及已开始的时间块会保留。当前由你确认后应用。
+        先在日程编辑中的“学习安排”里启用任务并填写剩余用时，再生成预览。固定课程、锁定及已开始的时间块会保留。此处由你确认后应用；持续自动调整可在下方单独启用。
       </p>
       <fieldset disabled={disabled || busy}>
         <legend>可用时段</legend>
@@ -328,7 +328,7 @@ export function AutoSchedule({
               disabled={dirty}
               onClick={() =>
                 void run(async () => {
-                  if (!window.confirm('撤销最近一次自动排程？')) return
+                  if (!window.confirm('撤销最近一次排程并暂停持续自动调整？')) return
                   accept(
                     check(
                       await window.api.calendar.undoPlan(state.latest_run!.id)

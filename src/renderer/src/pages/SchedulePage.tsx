@@ -1,6 +1,7 @@
 import { TaskResources } from '../components/TaskResources'
 import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
 import { ReminderCenter, TaskReminderEditor } from '../components/Reminders'
+import { ContinuousSchedule } from '../components/ContinuousSchedule'
 import type { PlanningState } from '@shared/auto-schedule'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -546,6 +547,7 @@ export function SchedulePage() {
         )}
       </details>
       {planning && <AutoSchedule state={planning} tasks={tasks} onChange={setPlanning} disabled={busy} />}
+      <ContinuousSchedule tasks={tasks} onRefresh={reload} disabled={busy} />
       <ReminderCenter initiallyOpen={params.get('reminders')==='1'} beforeComplete={canDiscardDraft} onTaskCompleted={()=>{setDraft(null);void reload()}} disabled={busy} />
       <div className={`schedule-layout ${draft ? 'editing' : ''}`}>
         <section className="schedule-calendar" aria-label="日历">

@@ -7,6 +7,7 @@ import { registerAllIpc } from './ipc'
 import { closeDb, getDb } from './services/db'
 import { safeExternal, trustedRenderer } from './services/security'
 import { startReminderRuntime, type ReminderRuntime } from './services/reminder-runtime'
+import { startContinuousScheduleRuntime } from './services/continuous-schedule-runtime'
 import { IPC_EVENTS } from '@shared/ipc-channels'
 import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
@@ -32,6 +33,7 @@ declareMaterialProtocol()
 let stopRecovery: (() => void) | undefined
 let reminderRuntime: ReminderRuntime | undefined
 let quitting = false
+let stopContinuousRuntime: (() => void) | undefined
 
 function createWindow(route?: string): void {
   const win = new BrowserWindow({
@@ -110,6 +112,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+  stopContinuousRuntime = startContinuousScheduleRuntime()
 }).catch((error) => { dialog.showErrorBox('学习助手启动失败', error instanceof Error ? error.message : String(error)); app.quit() })
 
 app.on('window-all-closed', () => {
@@ -119,6 +122,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   quitting = true
   reminderRuntime?.stop()
+  stopContinuousRuntime?.()
   stopRecovery?.()
   stopClassroom()
   stopAllChats()

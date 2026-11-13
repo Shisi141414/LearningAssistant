@@ -42,6 +42,12 @@ export function discardSchedulePreview(owner: number): void {
   workers.get(owner)?.()
   workers.delete(owner)
 }
+export function hasInteractiveScheduleWork(): boolean {
+  for (const [owner, preview] of previews) {
+    if (preview.expires < Date.now()) previews.delete(owner)
+  }
+  return [...workers.keys(), ...previews.keys()].some(owner => owner >= 0)
+}
 export function stopScheduleJobs(): void {
   stopping = true
   for (const owner of workers.keys()) discardSchedulePreview(owner)
@@ -266,7 +272,9 @@ function insertBlock(b: ScheduleBlock): void {
     )
     .run(`local:block:${b.id}`, Date.now())
 }
-export function applySchedule(owner: number, token: string): PlanningState {
+export function applySchedule(owner: number, token: string, audit = {
+  origin: 'manual', reason: '用户确认排程预览'
+}): PlanningState {
   assertRunning()
   const preview = previews.get(owner)
   if (!preview || preview.token !== token || preview.expires < Date.now())
@@ -301,14 +309,17 @@ export function applySchedule(owner: number, token: string): PlanningState {
     const after = snapshot()
     getDb()
       .prepare(
-        'INSERT INTO schedule_runs(id,created_at,before_json,after_fingerprint,changed_json) VALUES(?,?,?,?,?)'
+        'INSERT INTO schedule_runs(id,created_at,before_json,after_fingerprint,changed_json,origin,reason,outcome_json) VALUES(?,?,?,?,?,?,?,?)'
       )
       .run(
         nanoid(),
         Date.now(),
         JSON.stringify(s.state.blocks),
         after.fingerprint,
-        JSON.stringify([...deleted, ...inserted])
+        JSON.stringify([...deleted, ...inserted]),
+        audit.origin,
+        audit.reason,
+        JSON.stringify({ unplaced: preview.data.unplaced, warnings: preview.data.warnings })
       )
     getDb()
       .prepare(
@@ -347,6 +358,8 @@ export function undoSchedule(id: string): PlanningState {
     getDb()
       .prepare('UPDATE schedule_runs SET undone_at=? WHERE id=?')
       .run(Date.now(), id)
+    // Undo is a deliberate change of direction: do not immediately auto-apply it again.
+    getDb().prepare("UPDATE schedule_automation SET enabled=0,revision=CASE WHEN enabled=1 THEN ? ELSE revision END,state='paused',last_stamp='',retry_at=0,error='',outcome_json='{}' WHERE id=1").run(nanoid())
     return getPlanningState()
   })()
 }

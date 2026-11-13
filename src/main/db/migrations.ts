@@ -821,5 +821,39 @@ CREATE TABLE reminder_deliveries (
 );
 CREATE INDEX idx_reminder_outbox ON reminder_deliveries(status,next_at);
 `
+  },
+  {
+    version: 28,
+    name: 'continuous_schedule_control_and_audit',
+    sql: `
+ALTER TABLE schedule_runs ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE schedule_runs ADD COLUMN reason TEXT NOT NULL DEFAULT '用户确认排程预览';
+ALTER TABLE schedule_runs ADD COLUMN outcome_json TEXT NOT NULL DEFAULT '{}';
+CREATE TABLE schedule_automation (
+  id INTEGER PRIMARY KEY CHECK(id=1), revision TEXT NOT NULL,
+  enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+  horizon_days INTEGER NOT NULL CHECK(horizon_days BETWEEN 1 AND 31),
+  state TEXT NOT NULL DEFAULT 'paused', last_stamp TEXT NOT NULL DEFAULT '',
+  checked_at INTEGER, retry_at INTEGER NOT NULL DEFAULT 0,
+  error TEXT NOT NULL DEFAULT '', outcome_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE schedule_change_counter(id INTEGER PRIMARY KEY CHECK(id=1),seq INTEGER NOT NULL);
+INSERT INTO schedule_change_counter VALUES(1,0);
+CREATE TRIGGER schedule_tasks_insert AFTER INSERT ON tasks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_tasks_update AFTER UPDATE ON tasks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_tasks_delete AFTER DELETE ON tasks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_blocks_insert AFTER INSERT ON schedule_blocks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_blocks_update AFTER UPDATE ON schedule_blocks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_blocks_delete AFTER DELETE ON schedule_blocks BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_project_update AFTER UPDATE OF status ON projects BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_options_insert AFTER INSERT ON task_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_options_update AFTER UPDATE ON task_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_options_delete AFTER DELETE ON task_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_deps_insert AFTER INSERT ON task_dependencies BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_deps_delete AFTER DELETE ON task_dependencies BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_settings_insert AFTER INSERT ON schedule_settings BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_settings_update AFTER UPDATE ON schedule_settings BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER schedule_settings_delete AFTER DELETE ON schedule_settings BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+`
   }
 ]

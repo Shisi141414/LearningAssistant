@@ -1,5 +1,6 @@
 import { IPC } from '@shared/ipc-channels'
 import { ipcMain, handleResult } from './helpers'
+import { checkContinuousSchedule, continuousScheduleState, saveContinuousSchedule } from '../services/continuous-schedule'
 import {
   applySchedule,
   changeScheduleBlock,
@@ -12,6 +13,9 @@ import {
 } from '../services/auto-schedule'
 const owners = new Set<number>()
 export function registerAutoScheduleIpc(): void {
+  ipcMain.handle(IPC.ContinuousGet, () => handleResult(continuousScheduleState))
+  ipcMain.handle(IPC.ContinuousSave, (_e, input) => handleResult(() => saveContinuousSchedule(input)))
+  ipcMain.handle(IPC.ContinuousCheck, () => handleResult(() => checkContinuousSchedule(true)))
   ipcMain.handle(IPC.PlanningGet, () => handleResult(getPlanningState))
   ipcMain.handle(IPC.PlanningSettings, (_e, input) =>
     handleResult(() => saveScheduleSettings(input))

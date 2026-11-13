@@ -70,6 +70,9 @@ const taskResourceSource: Check = value => [
 const taskResourceFields = { role:choice('learn','apply','output','question','verify'),concept_id:nullable(id),why:text(4000),verification:text(4000) }
 const taskResourceOffset=optional((value:unknown)=>number(value)&&(value as number)<=10_000_000)
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ContinuousGet]: [],
+  [IPC.ContinuousSave]: [record({revision:nullable(id),enabled:bool,horizon_days:number})],
+  [IPC.ContinuousCheck]: [],
   [IPC.TaskResourcesList]: [record({task_id:id,offset:taskResourceOffset})],
   [IPC.TaskResourcesBacklinks]: [record({source:taskResourceSource,offset:taskResourceOffset})],
   [IPC.TaskResourcesAdd]: [record({task_id:id,source:taskResourceSource,...taskResourceFields})],

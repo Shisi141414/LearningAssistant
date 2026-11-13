@@ -11,6 +11,9 @@
  */
 
 export const IPC = {
+  ContinuousGet: 'planning:continuous',
+  ContinuousSave: 'planning:continuousSave',
+  ContinuousCheck: 'planning:continuousCheck',
   LearningPdfExport: 'learning:pdfExport',
   LearningPdfCancel: 'learning:pdfCancel',
   NotesLearningGet: 'notes:learningGet',

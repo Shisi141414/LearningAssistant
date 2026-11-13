@@ -8,6 +8,7 @@ import type { ProjectDocumentDetail, ProjectDocumentSummary, ProjectDocumentSave
 import type { TaskResourceAdd, TaskResourceEdit, TaskResourceSource, TaskResourcePage, TaskResource } from '@shared/task-resources'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { ReminderAction, ReminderConfiguration, ReminderPage, ReminderSettings, ReminderTaskOptions } from '@shared/reminders'
+import type { ContinuousSettings, ContinuousState } from '@shared/continuous-schedule'
 import type { PlanningState, PlanningPreview, ScheduleSettings, TaskPlanningSave } from '@shared/auto-schedule'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
@@ -264,6 +265,9 @@ const api = {
     listAll: () => invoke<Array<Task & { project_title: string | null; project_subject_id: string | null }>>(IPC.TasksListAll)
   },
   calendar: {
+    continuous: () => invoke<ContinuousState>(IPC.ContinuousGet),
+    saveContinuous: (input:ContinuousSettings) => invoke<ContinuousState>(IPC.ContinuousSave,input),
+    checkContinuous: () => invoke<ContinuousState>(IPC.ContinuousCheck),
     planning: () => invoke<PlanningState>(IPC.PlanningGet),
     saveSettings: (input: {expected_revision:string|null;value:ScheduleSettings}) => invoke<PlanningState>(IPC.PlanningSettings,input),
     savePlanning: (input: TaskPlanningSave) => invoke<PlanningState>(IPC.PlanningTask,input),
