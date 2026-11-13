@@ -47,6 +47,7 @@
   grid-template-columns: minmax(0, 1fr) 310px;
 }
 .schedule-calendar {
+  position: relative;
   background: var(--bg-panel);
   padding: 16px;
   border: 1px solid var(--border);
@@ -64,12 +65,26 @@
   --fc-button-active-border-color: #312e81;
   font-size: 13px;
 }
-.schedule-calendar .fc .fc-toolbar-title {
+.schedule-calendar .fc .fc-button.fc-jumpDate-button {
   font-size: 18px;
   width: 270px;
   text-align: center;
   white-space: nowrap;
+  font-weight: 700;
+  padding: 0;
+  color: var(--text);
+  background: transparent;
+  border-color: transparent;
 }
+.schedule-calendar .fc .fc-jumpDate-button:hover,
+.schedule-calendar .fc .fc-jumpDate-button:active { background: var(--accent-weak); border-color: transparent; color: var(--text); }
+.schedule-date-jump { position: absolute; z-index: 10; left: 16px; top: 57px; max-width: calc(100% - 32px); width: 520px; border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); background: white; padding: 16px; }
+.schedule-date-jump-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.schedule-date-jump label { display: flex; flex-direction: column; gap: 6px; }
+.schedule-date-jump input { width: 135px; }
+.schedule-date-jump p { margin: 10px 0 0; }
+.schedule-date-jump [role='alert'] { color: var(--danger); }
+.schedule-date-jump-fields button { height: 32px; }
 .schedule-calendar .fc .fc-button {
   font-size: 13px;
   padding: 5px 9px;

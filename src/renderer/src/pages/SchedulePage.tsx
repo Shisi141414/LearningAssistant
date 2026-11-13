@@ -11,6 +11,7 @@ import type { CalendarPreview, CalendarConflicts } from '@shared/calendar'
 import { useAppStore } from '../stores/app'
 import { scheduleCategory, scheduleColor } from '@shared/schedule-colors'
 import { scheduleStartTime } from '@shared/schedule-hours'
+import { calendarJumpTarget } from '@shared/calendar-navigation'
 import './schedule.css'
 
 const STATUS: Record<Task['status'], string> = {
@@ -77,6 +78,10 @@ const draftFor = (task?: TaskWithProject, start?: Date, allDay = false): Draft =
 })
 
 export function SchedulePage() {
+  const calendar = useRef<FullCalendar>(null)
+  const [dateTitle, setDateTitle] = useState('日期')
+  const [dateJump, setDateJump] = useState<{ start: string; end: string; original_start: string; original_end: string; week: boolean } | null>(null)
+  const [jumpError, setJumpError] = useState('')
   const [params] = useSearchParams()
   const targetTaskId = params.get('task') ?? ''
   const shownTarget = useRef('')
@@ -102,7 +107,17 @@ export function SchedulePage() {
   const updateRange = useCallback((info: DatesSetArg) => {
     const start = info.view.currentStart.getTime(), end = info.view.currentEnd.getTime()
     setDateRange((old) => old?.start === start && old.end === end ? old : { start, end })
+    setDateTitle(info.view.title)
   }, [])
+  const openDateJump = (): void => {
+    const api = calendar.current?.getApi()
+    if (!api) return
+    const end = new Date(api.view.currentEnd)
+    end.setDate(end.getDate() - 1)
+    const startValue = localDate(api.view.currentStart.getTime()), endValue = localDate(end.getTime())
+    setDateJump({ start: startValue, end: endValue, original_start: startValue, original_end: endValue, week: api.view.type === 'timeGridWeek' })
+    setJumpError('')
+  }
   const [draftConflicts, setDraftConflicts] = useState<CalendarConflicts | null>(null)
   const [ignoreDraftConflicts, setIgnoreDraftConflicts] = useState(false)
   useEffect(() => {
@@ -502,7 +517,24 @@ export function SchedulePage() {
       </details>
       <div className={`schedule-layout ${draft ? 'editing' : ''}`}>
         <section className="schedule-calendar" aria-label="日历">
+          {dateJump && <form className="schedule-date-jump" aria-label="填写日期跳转" onSubmit={e => {
+            e.preventDefault()
+            const target = calendarJumpTarget(dateJump)
+            if (!target) { setJumpError('请输入正确日期'); return }
+            calendar.current?.getApi().gotoDate(target)
+            setDateJump(null); setJumpError('')
+          }}>
+            <div className="schedule-date-jump-fields">
+              <label>{dateJump.week ? '起始日期' : '日期'}<input autoFocus aria-label="跳转起始日期" placeholder="YYYY-MM-DD" maxLength={10} value={dateJump.start} onChange={e => setDateJump({ ...dateJump, start: e.target.value })} /></label>
+              {dateJump.week && <label>结束日期<input aria-label="跳转结束日期" placeholder="YYYY-MM-DD" maxLength={10} value={dateJump.end} onChange={e => setDateJump({ ...dateJump, end: e.target.value })} /></label>}
+              <button type="submit" className="primary">跳转</button>
+              <button type="button" aria-label="关闭日期跳转" onClick={() => setDateJump(null)}>×</button>
+            </div>
+            {dateJump.week && <p className="muted">修改任一日期，跳转至其所在周；两项都修改时使用起始日期。</p>}
+            {jumpError && <p role="alert">{jumpError}</p>}
+          </form>}
           <FullCalendar
+            ref={calendar}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             locale={zhCnLocale}
             initialView="timeGridWeek"
@@ -513,6 +545,7 @@ export function SchedulePage() {
             slotMinTime={startTime}
             scrollTime={startTime}
             datesSet={updateRange}
+            customButtons={{ jumpDate: { text: dateTitle, hint: '填写日期并跳转', click: openDateJump } }}
             slotDuration="00:30:00"
             allDayText="全天"
             dayMaxEvents={3}
@@ -520,7 +553,7 @@ export function SchedulePage() {
             slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
             buttonText={{ today: '今天', day: '日', week: '周', month: '月' }}
             headerToolbar={{
-              left: 'prev title next today',
+              left: 'prev jumpDate next today',
               center: '',
               right: 'timeGridDay,timeGridWeek,dayGridMonth'
             }}
