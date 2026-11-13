@@ -62,6 +62,10 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.CalendarPreview]: [record({ from: number, to: number })],
+  [IPC.CalendarImport]: [id, optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) }))],
+  [IPC.CalendarDiscard]: [],
+  [IPC.CalendarExport]: [],
   [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
   [IPC.LearningPdfCancel]: [],
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
@@ -111,6 +115,9 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.ClassroomCalibrate]: [record({ note_id: id, block_id: nullable(id) })],
   [IPC.MaterialsLocate]: [record({ version_id: id, unit: choice('block', 'page', 'slide'), index: (v) => number(v) && (v as number) >= 1 && (v as number) <= 50_000 })],
   [IPC.MaterialsList]: [optional(id)],
+  [IPC.MaterialsTrash]: [],
+  [IPC.MaterialsRestore]: [id],
+  [IPC.MaterialsUpdate]: [record({ id, title, subject_id: nullable(id), kind: choice('textbook', 'handout', 'slides', 'supplement') })],
   [IPC.MaterialsImport]: [record({ subject_id: id, title: optional(title), kind: choice('textbook', 'handout', 'slides', 'supplement'), material_id: optional(id) })],
   [IPC.MaterialsBlocks]: [record({ version_id: id, query: optional(text(500)), offset: optional((v) => number(v) && (v as number) <= 50_000) })],
   [IPC.SubjectsCreate]: [record(subject)], [IPC.SubjectsUpdate]: [record({ ...patch(subject), id })],
@@ -122,8 +129,8 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.MilestonesCreate]: [record({ project_id: id, title, detail: optional(content), due_at: opt(number) })],
   [IPC.MilestonesUpdate]: [record({ id, title: optional(title), detail: optional(content), due_at: opt(number), status: optional(choice('open', 'done')) })],
   [IPC.MilestonesRemove]: [id],
-  [IPC.TasksCreate]: [record({ kind: optional(choice('project_task', 'manual')), project_id: opt(id), milestone_id: opt(id), title, detail: optional(content), due_at: opt(number), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
-  [IPC.TasksUpdate]: [record({ id, title: optional(title), detail: optional(content), status: optional(choice('open', 'doing', 'blocked', 'done')), blocked_reason: optional(text(2000)), due_at: opt(number), planned_at: opt(number), milestone_id: opt(id), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
+  [IPC.TasksCreate]: [record({ kind: optional(choice('project_task', 'manual')), project_id: opt(id), milestone_id: opt(id), title, planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), detail: optional(content), due_at: opt(number), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
+  [IPC.TasksUpdate]: [record({ id, title: optional(title), detail: optional(content), status: optional(choice('open', 'doing', 'blocked', 'done')), blocked_reason: optional(text(2000)), due_at: opt(number), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), milestone_id: opt(id), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
   [IPC.TasksRemove]: [id], [IPC.TasksListManual]: [], [IPC.TasksListAll]: [],
   [IPC.ProvidersSave]: [record({ id: optional(id), name: title, base_url: (v) => text(2048, true)(v) && safeExternal(v as string) && /^(https?):/.test(v as string), api_format: choice('openai', 'anthropic'), api_key: optional(text(16384)), enabled: optional(bool) })],
   [IPC.ModelsList]: [optional(id)],

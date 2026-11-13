@@ -43,3 +43,7 @@
 .ocr-correction pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; }
 .ocr-correction textarea { width: 100%; min-height: 320px; resize: vertical; margin: 8px 0; line-height: 1.7; font-family: SimSun, serif; }
 @media (max-width: 1050px) { .ocr-compare { grid-template-columns: minmax(0, 1fr); } }
+
+.material-management { margin:12px 0; }
+.material-management summary { cursor:pointer; color:var(--accent); }
+.material-management .toolbar { margin-top:12px; }

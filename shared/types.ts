@@ -354,6 +354,9 @@ export interface Task {
   blocked_reason: string
   due_at: Timestamp | null
   planned_at: Timestamp | null
+  planned_end_at: Timestamp | null
+  all_day: boolean
+  location: string
   knowledge_refs_json: string
   created_at: Timestamp
   updated_at: Timestamp
@@ -367,6 +370,10 @@ export interface TaskInput {
   detail?: string
   due_at?: Timestamp | null
   knowledge_refs?: TaskKnowledgeRef[]
+  planned_at?: Timestamp | null
+  planned_end_at?: Timestamp | null
+  all_day?: boolean
+  location?: string
 }
 
 /** 项目详情：里程碑（含各自任务数）+ 任务（按状态分组由前端做） */
@@ -378,6 +385,7 @@ export interface ProjectDetail extends Project {
 /** 任务附项目名（R5 日程页统一视图用） */
 export interface TaskWithProject extends Task {
   project_title: string | null
+  project_subject_id: string | null
 }
 
 /* ---------- 通用 ---------- */

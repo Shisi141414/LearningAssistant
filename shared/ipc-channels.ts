@@ -70,6 +70,9 @@ export const IPC = {
   MaterialsCancel: 'materials:cancel',
   MaterialsRetry: 'materials:retry',
   MaterialsArchive: 'materials:archive',
+  MaterialsUpdate: 'materials:update',
+  MaterialsTrash: 'materials:trash',
+  MaterialsRestore: 'materials:restore',
   MaterialsOpen: 'materials:open',
   MaterialsAnchor: 'materials:anchor',
   MaterialsLocate: 'materials:locate',
@@ -174,7 +177,11 @@ export const IPC = {
   TasksUpdate: 'tasks:update',
   TasksRemove: 'tasks:remove',
   TasksListManual: 'tasks:listManual',
-  TasksListAll: 'tasks:listAll'
+  TasksListAll: 'tasks:listAll',
+  CalendarPreview: 'calendar:preview',
+  CalendarImport: 'calendar:import',
+  CalendarDiscard: 'calendar:discard',
+  CalendarExport: 'calendar:export'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

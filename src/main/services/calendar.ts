@@ -1,0 +1,252 @@
+import { open, writeFile, rename, unlink } from 'node:fs/promises'
+import { basename, join } from 'node:path'
+import { Worker } from 'node:worker_threads'
+import { calendarConflicts, occupiedEnd } from './calendar-conflicts'
+import { nanoid } from 'nanoid'
+import type {
+  CalendarRange,
+  CalendarPreview,
+  CalendarImportEntry,
+  CalendarImportResult,
+  CalendarExportResult,
+  CalendarImportOptions,
+  CalendarConflicts
+} from '@shared/calendar'
+import { MAX_CALENDAR_BYTES, serializeCalendarIcs, validateCalendarRange } from './calendar-ics'
+import { createTask, updateTask, listAllTasks } from './projects'
+import { dbFilePath, getDb } from './db'
+import { withWork } from './work'
+import { externalExportTarget } from './export-target'
+
+const previews = new Map<
+  number,
+  { token: string; entries: CalendarImportEntry[]; database: string; expires: number }
+>()
+const previewing = new Set<number>()
+const cancelled = new Set<number>()
+const parsers = new Map<number, () => void>()
+let stopping = false
+const checkRunning = (owner?: number): void => {
+  if (stopping || (owner !== undefined && cancelled.has(owner))) throw new Error('课表操作已取消')
+}
+function duplicate(entry: CalendarImportEntry): boolean {
+  const db = getDb()
+  return (
+    !!db
+      .prepare('SELECT import_key FROM calendar_import_receipts WHERE import_key = ?')
+      .get(entry.key) ||
+    !!(entry.local_id && db.prepare('SELECT id FROM tasks WHERE id = ?').get(entry.local_id))
+  )
+}
+function conflictsFor(entries: CalendarImportEntry[]): CalendarConflicts {
+  const fresh = entries
+    .filter((entry) => !duplicate(entry) && !entry.done)
+    .map((entry) => ({
+      key: entry.key,
+      title: entry.title,
+      start: entry.start,
+      end: occupiedEnd(entry.start, entry.end, entry.all_day)
+    }))
+  if (!fresh.length) return calendarConflicts([], [])
+  const from = Math.min(...fresh.map((item) => item.start)),
+    to = Math.max(...fresh.map((item) => item.end))
+  const rows = getDb()
+    .prepare(
+      "SELECT id, title, planned_at, planned_end_at, all_day FROM tasks WHERE status != 'done' AND planned_at < ? AND COALESCE(planned_end_at, planned_at + 172800000) > ? LIMIT 10001"
+    )
+    .all(to, from) as Array<{
+    id: string
+    title: string
+    planned_at: number
+    planned_end_at: number | null
+    all_day: number
+  }>
+  if (rows.length > 10000) throw new Error('该日期范围日程过多，请缩小课表导入日期范围')
+  return calendarConflicts(
+    fresh,
+    rows.map((row) => ({
+      key: row.id,
+      title: row.title,
+      start: row.planned_at,
+      end: occupiedEnd(row.planned_at, row.planned_end_at, !!row.all_day)
+    }))
+  )
+}
+export async function previewCalendar(
+  file: string,
+  range: CalendarRange,
+  owner: number
+): Promise<CalendarPreview> {
+  validateCalendarRange(range)
+  checkRunning()
+  if (previewing.has(owner)) throw new Error('正在读取课表，请稍候')
+  previewing.add(owner)
+  previews.delete(owner)
+  cancelled.delete(owner)
+  try {
+    return await withWork('课表预览', async () => {
+      const handle = await open(file, 'r')
+      let text: string
+      try {
+        const stat = await handle.stat()
+        if (!stat.isFile() || stat.size > MAX_CALENDAR_BYTES)
+          throw new Error('请选择不超过 5 MiB 的 ICS 文件')
+        const bytes = Buffer.alloc(MAX_CALENDAR_BYTES + 1)
+        let size = 0
+        while (size < bytes.length) {
+          const { bytesRead } = await handle.read(bytes, size, bytes.length - size, null)
+          if (!bytesRead) break
+          size += bytesRead
+        }
+        if (size > MAX_CALENDAR_BYTES) throw new Error('课表文件超过 5 MiB')
+        text = new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size))
+      } finally {
+        await handle.close()
+      }
+      checkRunning(owner)
+      const data = await new Promise<{ entries: CalendarImportEntry[]; warnings: string[] }>(
+        (resolve, reject) => {
+          const worker = new Worker(join(__dirname, 'calendar-worker.js'), {
+            workerData: { text, range },
+            resourceLimits: { maxOldGenerationSizeMb: 128 }
+          })
+          let settled = false
+          const finish = (
+            error?: Error,
+            data?: { entries: CalendarImportEntry[]; warnings: string[] }
+          ): void => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            parsers.delete(owner)
+            void worker.terminate()
+            if (error) reject(error)
+            else resolve(data!)
+          }
+          const timer = setTimeout(
+            () => finish(new Error('课表解析超时，请缩小文件或导入日期范围')),
+            15_000
+          )
+          parsers.set(owner, () => finish(new Error('课表操作已取消')))
+          worker.once('message', (result) =>
+            finish(result.ok ? undefined : new Error(result.error), result.data)
+          )
+          worker.once('error', (error) =>
+            finish(error instanceof Error ? error : new Error(String(error)))
+          )
+          worker.once('exit', (code) => {
+            if (!settled) finish(new Error(`课表解析进程退出（${code}）`))
+          })
+        }
+      )
+      checkRunning(owner)
+      const conflicts = conflictsFor(data.entries)
+      const token = nanoid()
+      previews.set(owner, {
+        token,
+        entries: data.entries,
+        database: dbFilePath(),
+        expires: Date.now() + 15 * 60_000
+      })
+      return {
+        token,
+        file_name: basename(file),
+        ...data,
+        duplicates: data.entries.filter(duplicate).length,
+        conflicts
+      }
+    })
+  } finally {
+    previewing.delete(owner)
+    cancelled.delete(owner)
+  }
+}
+export function discardCalendarPreview(owner: number): void {
+  previews.delete(owner)
+  if (previewing.has(owner)) cancelled.add(owner)
+  parsers.get(owner)?.()
+}
+export function stopCalendarJobs(): void {
+  stopping = true
+  previews.clear()
+  for (const cancel of parsers.values()) cancel()
+}
+export function importCalendar(
+  token: string,
+  owner: number,
+  options?: CalendarImportOptions
+): CalendarImportResult {
+  checkRunning()
+  const preview = previews.get(owner)
+  if (
+    !preview ||
+    preview.token !== token ||
+    preview.expires < Date.now() ||
+    preview.database !== dbFilePath()
+  ) {
+    previews.delete(owner)
+    throw new Error('课表预览已失效，请重新选择文件')
+  }
+  const result = getDb().transaction(() => {
+    const conflicts = conflictsFor(preview.entries)
+    if (
+      conflicts.items.length &&
+      (!options?.ignore_conflicts || options.conflict_fingerprint !== conflicts.fingerprint)
+    )
+      return { added: 0, skipped: 0, conflicts }
+    let added = 0,
+      skipped = 0
+    for (const entry of preview.entries) {
+      if (duplicate(entry)) {
+        skipped++
+        continue
+      }
+      const task = createTask({
+        title: entry.title,
+        detail: entry.detail,
+        location: entry.location,
+        planned_at: entry.start,
+        planned_end_at: entry.end > entry.start ? entry.end : null,
+        all_day: entry.all_day,
+        due_at: entry.due_at
+      })
+      if (entry.done) updateTask(task.id, { status: 'done' })
+      getDb()
+        .prepare(
+          'INSERT INTO calendar_import_receipts(import_key, task_id, created_at) VALUES (?,?,?)'
+        )
+        .run(entry.key, task.id, Date.now())
+      added++
+    }
+    return { added, skipped }
+  })()
+  if (!result.conflicts) previews.delete(owner)
+  return result
+}
+export async function exportCalendar(file: string): Promise<CalendarExportResult> {
+  return withWork('日程导出', async () => {
+    checkRunning()
+    const destination = await externalExportTarget(file, '.ics')
+    checkRunning()
+    const keys = getDb()
+      .prepare('SELECT task_id, import_key FROM calendar_import_receipts WHERE task_id IS NOT NULL')
+      .all() as Array<{ task_id: string; import_key: string }>
+    const result = serializeCalendarIcs(
+      listAllTasks(),
+      new Map(keys.map((row) => [row.task_id, row.import_key]))
+    )
+    const temporary = join(destination.directory, `.calendar-${nanoid()}.tmp`)
+    try {
+      await writeFile(temporary, result.text, { encoding: 'utf8', flag: 'wx' })
+      checkRunning()
+      await rename(temporary, destination.target)
+    } finally {
+      await unlink(temporary).catch(() => undefined)
+    }
+    return {
+      file_name: basename(destination.target),
+      exported: result.exported,
+      unscheduled: result.unscheduled
+    }
+  })
+}

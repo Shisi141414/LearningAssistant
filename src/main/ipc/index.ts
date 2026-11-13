@@ -1,6 +1,7 @@
 /**
  * ipc/index.ts —— IPC handler 注册总装
  */
+import { registerCalendarIpc } from './calendar.ipc'
 import { registerSubjectsIpc } from './subjects.ipc'
 import { registerActivitiesIpc } from './activities.ipc'
 import { registerProvidersIpc } from './providers.ipc'
@@ -18,6 +19,7 @@ import { registerKnowledgeSuggestionsIpc } from './knowledge-suggestions.ipc'
 import { registerProjectsIpc } from './projects.ipc'
 
 export function registerAllIpc(): void {
+  registerCalendarIpc()
   registerKnowledgeSuggestionsIpc()
   registerEvidenceIpc()
   registerLearningIpc()

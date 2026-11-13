@@ -92,6 +92,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [笔记文档包契约与固定修订导出](docs/29-portable-notes.md)
 - [中断恢复、笔记导入与项目/日程/数学输入复核](docs/32-resumed-validation.md)
 - [OCR 实际运行复核、公式依赖冲突与修复](docs/37-ocr-runtime-validation.md)
+- [教材管理、日历视图、分类配色与课表冲突检查](docs/38-material-calendar-management.md)
 - [真实 PDF、旧 DOC/PPT 文档包跨目录验收](docs/23-real-portable-materials.md)
 
 ## 开发约定

@@ -34,6 +34,9 @@ interface TaskRow {
   blocked_reason: string
   due_at: number | null
   planned_at: number | null
+  planned_end_at: number | null
+  all_day: number
+  location: string
   knowledge_refs_json: string
   created_at: number
   updated_at: number
@@ -41,7 +44,7 @@ interface TaskRow {
 
 const rowToProject = (r: ProjectRow): Project => ({ ...r })
 const rowToMilestone = (r: MilestoneRow): Milestone => ({ ...r })
-const rowToTask = (r: TaskRow): Task => ({ ...r })
+const rowToTask = (r: TaskRow): Task => ({ ...r, all_day: !!r.all_day })
 
 function touchProject(projectId: ID): void {
   getDb().prepare('UPDATE projects SET updated_at = ? WHERE id = ?').run(Date.now(), projectId)
@@ -191,24 +194,41 @@ function createTaskRow(input: TaskInput): Task {
     kind: input.kind ?? (input.project_id ? 'project_task' : 'manual'),
     project_id: input.project_id ?? null,
     milestone_id: input.milestone_id ?? null,
-    title: input.title,
+    title: input.title.trim(),
     detail: input.detail ?? '',
     status: 'open',
     blocked_reason: '',
     due_at: input.due_at ?? null,
-    planned_at: null,
+    planned_at: input.planned_at ?? null,
+    planned_end_at: input.planned_end_at ?? null,
+    all_day: input.all_day ?? false,
+    location: input.location ?? '',
     knowledge_refs_json: JSON.stringify(refs),
     created_at: now,
     updated_at: now
   }
-  db.prepare('INSERT INTO tasks (id, kind, project_id, milestone_id, title, detail, status, blocked_reason, due_at, planned_at, knowledge_refs_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
-    task.id, task.kind, task.project_id, task.milestone_id, task.title, task.detail, task.status, task.blocked_reason, task.due_at, task.planned_at, task.knowledge_refs_json, task.created_at, task.updated_at
+  validateTaskTime(task)
+  db.prepare('INSERT INTO tasks (id, kind, project_id, milestone_id, title, detail, status, blocked_reason, due_at, planned_at, planned_end_at, all_day, location, knowledge_refs_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+    task.id, task.kind, task.project_id, task.milestone_id, task.title, task.detail, task.status, task.blocked_reason, task.due_at, task.planned_at, task.planned_end_at, Number(task.all_day), task.location, task.knowledge_refs_json, task.created_at, task.updated_at
   )
   if (task.project_id) touchProject(task.project_id)
   return task
 }
 
 export { createTaskRow as createTask }
+
+function validateTaskTime(task: Task): void {
+  if (!task.title.trim() || task.title.trim().length > 500) throw new Error('日程名称应为 1–500 个字符')
+  for (const value of [task.planned_at, task.planned_end_at, task.due_at]) if (value !== null && (!Number.isSafeInteger(value) || value < 0 || value > 8_640_000_000_000_000)) throw new Error('日程时间无效')
+  if (task.planned_end_at !== null && (task.planned_at === null || task.planned_end_at <= task.planned_at)) throw new Error('结束时间必须晚于开始时间')
+  if (task.all_day && task.planned_at === null) throw new Error('全天日程需要开始日期')
+  if (task.all_day) for (const value of [task.planned_at, task.planned_end_at]) {
+    if (value === null) continue
+    const date = new Date(value)
+    if (date.getHours() || date.getMinutes() || date.getSeconds() || date.getMilliseconds()) throw new Error('全天日程请使用本地日期零点作为起止时间')
+  }
+  if (task.location.length > 1000) throw new Error('地点过长')
+}
 
 export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: Task['status']; blocked_reason?: string; planned_at?: Timestamp | null }): Task {
   const db = getDb()
@@ -228,8 +248,10 @@ export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: T
     knowledge_refs_json: JSON.stringify(refs),
     updated_at: Date.now()
   }
-  db.prepare('UPDATE tasks SET title = ?, detail = ?, status = ?, blocked_reason = ?, due_at = ?, planned_at = ?, milestone_id = ?, knowledge_refs_json = ?, updated_at = ? WHERE id = ?').run(
-    next.title, next.detail, next.status, next.blocked_reason, next.due_at, next.planned_at, next.milestone_id, next.knowledge_refs_json, next.updated_at, id
+  next.title = next.title.trim()
+  validateTaskTime(next)
+  db.prepare('UPDATE tasks SET title = ?, detail = ?, status = ?, blocked_reason = ?, due_at = ?, planned_at = ?, planned_end_at = ?, all_day = ?, location = ?, milestone_id = ?, knowledge_refs_json = ?, updated_at = ? WHERE id = ?').run(
+    next.title, next.detail, next.status, next.blocked_reason, next.due_at, next.planned_at, next.planned_end_at, Number(next.all_day), next.location, next.milestone_id, next.knowledge_refs_json, next.updated_at, id
   )
   if (next.project_id) touchProject(next.project_id)
   return next
@@ -248,11 +270,11 @@ export function listManualTasks(): Task[] {
 }
 
 /** 任务附项目名（R5 日程页统一视图用）。类型 TaskWithProject 在 @shared/types。 */
-export function listAllTasks(): Array<Task & { project_title: string | null }> {
+export function listAllTasks(): Array<Task & { project_title: string | null; project_subject_id: string | null }> {
   const rows = getDb().prepare(
-    'SELECT t.*, p.title AS project_title FROM tasks t LEFT JOIN projects p ON p.id = t.project_id ORDER BY COALESCE(t.due_at, t.created_at)'
-  ).all() as Array<TaskRow & { project_title: string | null }>
-  return rows.map((r) => ({ ...rowToTask(r), project_title: r.project_title }))
+    'SELECT t.*, p.title AS project_title, p.subject_id AS project_subject_id FROM tasks t LEFT JOIN projects p ON p.id = t.project_id ORDER BY COALESCE(t.due_at, t.created_at)'
+  ).all() as Array<TaskRow & { project_title: string | null; project_subject_id: string | null }>
+  return rows.map((r) => ({ ...rowToTask(r), project_title: r.project_title, project_subject_id: r.project_subject_id }))
 }
 
 /** 今日（本地时区）到期的未完成任务数——启动提醒用 */

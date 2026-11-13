@@ -6,6 +6,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
+import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions } from '@shared/calendar'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
 import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
 import type { NotePackageExportInput, NotePackageExportResult, NotePackagePreview, NotePackageImportResult, NotePackageReceipt } from '@shared/note-package'
@@ -90,6 +91,9 @@ const api = {
     cancel: (id: ID) => invoke<boolean>(IPC.MaterialsCancel, id),
     retry: (id: ID) => invoke<boolean>(IPC.MaterialsRetry, id),
     archive: (id: ID) => invoke<boolean>(IPC.MaterialsArchive, id),
+    trash: () => invoke<Material[]>(IPC.MaterialsTrash),
+    restore: (id: ID) => invoke<boolean>(IPC.MaterialsRestore, id),
+    update: (id: ID, input: Pick<Material, 'title' | 'subject_id' | 'kind'>) => invoke<Material>(IPC.MaterialsUpdate, { id, ...input }),
     open: (id: ID) => invoke<boolean>(IPC.MaterialsOpen, id)
   },
   subjects: {
@@ -215,7 +219,13 @@ const api = {
     update: (id: ID, patchInput: Partial<TaskInput> & { status?: Task['status']; blocked_reason?: string; planned_at?: number | null }) => invoke<Task>(IPC.TasksUpdate, { id, ...patchInput }),
     remove: (id: ID) => invoke<boolean>(IPC.TasksRemove, id),
     listManual: () => invoke<Task[]>(IPC.TasksListManual),
-    listAll: () => invoke<Array<Task & { project_title: string | null }>>(IPC.TasksListAll)
+    listAll: () => invoke<Array<Task & { project_title: string | null; project_subject_id: string | null }>>(IPC.TasksListAll)
+  },
+  calendar: {
+    preview: (range: CalendarRange) => invoke<CalendarPreview | null>(IPC.CalendarPreview, range),
+    import: (token: string, options?: CalendarImportOptions) => invoke<CalendarImportResult>(IPC.CalendarImport, token, options),
+    discard: () => invoke<boolean>(IPC.CalendarDiscard),
+    export: () => invoke<CalendarExportResult | null>(IPC.CalendarExport)
   },
   /** 流式事件订阅（返回取消订阅函数） */
   onLlmChunk: (cb: (e: LlmChunkEvent) => void) => subscribe(IPC_EVENTS.LlmChunk, cb),

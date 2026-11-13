@@ -14,6 +14,25 @@ const kinds: Record<MaterialKind, string> = { textbook: '教材', handout: '讲�
 const statuses: Record<MaterialVersion['status'], string> = { queued: '等待解析', parsing: '正在解析', ready: '可阅读', failed: '解析失败', cancelled: '已取消' }
 const pending = (v?: MaterialVersion): boolean => v?.status === 'queued' || v?.status === 'parsing'
 
+function MaterialManagement({ material, onSaved }: { material: Material; onSaved: () => Promise<void> }) {
+  const { subjects, showToast } = useAppStore()
+  const [title, setTitle] = useState(material.title), [subject, setSubject] = useState(material.subject_id ?? '')
+  const [kind, setKind] = useState(material.kind), [busy, setBusy] = useState(false)
+  const run = async (request: () => Promise<ApiResult<unknown>>): Promise<void> => {
+    setBusy(true)
+    try { const result = await request(); if (!result.ok) showToast(result.error); else { await onSaved(); showToast('教材信息已更新') } }
+    finally { setBusy(false) }
+  }
+  if (material.archived) return <div className="toolbar" role="status">教材已在回收站，原件和历史引用仍保留。<button disabled={busy} onClick={() => void run(() => window.api.materials.restore(material.id))}>恢复教材</button></div>
+  return <details className="material-management"><summary>管理教材</summary><div className="toolbar">
+    <label>名称 <input aria-label="教材名称" value={title} maxLength={500} onChange={e => setTitle(e.target.value)} /></label>
+    <label>学科 <select aria-label="移动教材到学科" value={subject} onChange={e => setSubject(e.target.value)}><option value="">未分类</option>{subjects.map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
+    <label>类别 <select aria-label="修改教材类别" value={kind} onChange={e => setKind(e.target.value as MaterialKind)}>{Object.entries(kinds).map(([key, value]) => <option value={key} key={key}>{value}</option>)}</select></label>
+    <button disabled={busy || !title.trim()} onClick={() => void run(() => window.api.materials.update(material.id, { title: title.trim(), subject_id: subject || null, kind }))}>保存教材信息</button>
+    <button className="danger" disabled={busy} onClick={() => { if (window.confirm(`将「${material.title}」移入回收站？历史引用和原件会保留，可恢复。`)) void run(() => window.api.materials.archive(material.id)) }}>删除教材</button>
+  </div></details>
+}
+
 export function MaterialLibraryPage() {
   const { subjects, currentSubjectId, showToast } = useAppStore()
   const [params, setParams] = useSearchParams()
@@ -32,6 +51,7 @@ export function MaterialLibraryPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState<'source' | 'learning'>('source')
+  const [trash, setTrash] = useState(false)
   const versionId = requestedVersion || detail?.material.current_version_id || ''
   const selectedVersion = detail?.versions.find(v => v.id === versionId)
 
@@ -53,10 +73,10 @@ export function MaterialLibraryPage() {
     setQuery('')
   }, [linkedOffset, linkedBlock])
   const reload = useCallback(async () => {
-    const result = await window.api.materials.list(currentSubjectId ?? undefined)
-    if (result.ok) setItems(result.data)
+    const result = trash ? await window.api.materials.trash() : await window.api.materials.list(currentSubjectId ?? undefined)
+    if (result.ok) setItems(result.data.filter(item => !currentSubjectId || item.subject_id === currentSubjectId))
     else setError(result.error)
-  }, [currentSubjectId])
+  }, [currentSubjectId, trash])
   useEffect(() => { void reload() }, [reload])
   useEffect(() => {
     setDetail(null); setBlocks([]); setQuery('')
@@ -132,11 +152,12 @@ export function MaterialLibraryPage() {
       setOffset(0); setQuery(''); await reload()
     }} />
     <OfficeConverterPanel />
+    <div className="toolbar"><button aria-pressed={!trash} onClick={() => { setTrash(false); setParams({}) }}>全部教材</button><button aria-pressed={trash} onClick={() => { setTrash(true); setParams({}) }}>回收站</button>{trash && <span className="muted">删除的教材保留原件与历史引用，可在这里恢复。</span>}</div>
     {error && <p role="alert" className="material-error">{error}</p>}
     <div className="material-workspace">
       <aside className="material-shelf" aria-label="材料书架">
         <div className="material-shelf-label">{currentSubjectId ? subjects.find(s => s.id === currentSubjectId)?.name : '全部学科'} · {items.length} 件</div>
-        {!items.length && <div className="empty">还没有学习材料。选择学科后导入第一份。</div>}
+        {!items.length && <div className="empty">{trash ? '回收站为空。' : '还没有学习材料。选择学科后导入第一份。'}</div>}
         {items.map(item => <button className={`material-book ${selectedId === item.id ? 'selected' : ''}`} key={item.id} onClick={() => setParams({ material: item.id })}>
           <span className="material-book-kind">{kinds[item.kind]}</span><strong>{item.title}</strong>
           <span className="muted">{subjects.find(s => s.id === item.subject_id)?.name ?? '未分类'}</span>
@@ -146,6 +167,7 @@ export function MaterialLibraryPage() {
       <section className="material-reader" aria-label="材料阅读区">
         {!detail ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 可配置上方转换工具后导入；扫描 PDF 可按页识别。</p></div> : <>
           <h2>{detail.material.title}</h2>
+          <MaterialManagement key={detail.material.id + ':' + detail.material.archived} material={detail.material} onSaved={async () => { await reload(); const result = await window.api.materials.get(selectedId); if (result.ok) setDetail(result.data) }} />
           <div className="toolbar">
             <select aria-label="材料版本" value={versionId} onChange={e => { setParams({ material: selectedId, version: e.target.value }); setOffset(0); setQuery('') }}>{detail.versions.map((v, index) => <option key={v.id} value={v.id}>版本 {detail.versions.length - index} · {{ original: '原始提取', ocr: 'OCR', correction: '人工校正' }[v.derivation]} · {v.file_name} · {statuses[v.status]}</option>)}</select>
             <button disabled={!versionId} onClick={() => void action(window.api.materials.open(versionId))}>打开原件</button>

@@ -14,7 +14,8 @@
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
     "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
     "test:chunk": "node --experimental-strip-types scripts/smoke-chunk.ts",
-    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs",
+    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs",
+    "test:calendar": "npm run build && node scripts/test-calendar-management.cjs",
     "test:projects": "npm run build && node scripts/test-projects-schedule.cjs",
     "test:note-import": "npm run build && node scripts/test-note-package-import.cjs",
     "test:note-package": "npm run build && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs",
@@ -31,14 +32,22 @@
     "test:ocr": "npm run build && node scripts/test-ocr.cjs"
   },
   "dependencies": {
+    "@fullcalendar/core": "6.1.21",
+    "@fullcalendar/daygrid": "6.1.21",
+    "@fullcalendar/interaction": "6.1.21",
+    "@fullcalendar/react": "6.1.21",
+    "@fullcalendar/timegrid": "6.1.21",
+    "@js-temporal/polyfill": "0.5.1",
     "@napi-rs/canvas": "^1.1.0",
     "ahocorasick": "^1.0.2",
     "ajv": "8.20.0",
     "better-sqlite3": "^13.0.3",
+    "ical.js": "2.2.1",
     "image-size": "2.1.0",
     "katex": "^0.19.1",
     "nanoid": "^6.0.2",
     "officeparser": "^8.7.1",
+    "onnxruntime-node": "1.23.2",
     "openai": "^7.54.0",
     "pdfjs-dist": "^6.5.438",
     "ppu-paddle-ocr": "^6.7.0",
@@ -48,8 +57,7 @@
     "tesseract.js": "^7.0.0",
     "yauzl": "3.4.0",
     "yazl": "3.3.1",
-    "zustand": "^5.1.0",
-    "onnxruntime-node": "^1.23.2"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.1",

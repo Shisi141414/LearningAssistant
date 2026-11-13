@@ -2,7 +2,7 @@ import { dialog, shell } from 'electron'
 import { IPC } from '@shared/ipc-channels'
 import type { MaterialInput } from '@shared/types'
 import { ipcMain, handleResult } from './helpers'
-import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materialBlocks, materialDetail, materialPath, retryMaterial, startMaterialOcr } from '../services/materials'
+import { archiveMaterial, cancelMaterial, importMaterial, listMaterials, materialBlocks, materialDetail, materialPath, retryMaterial, startMaterialOcr, updateMaterial, restoreMaterial } from '../services/materials'
 import { locateMaterial, materialAnchor, materialNoteRefs } from '../services/classroom-materials'
 import { correctOcrPage, materialOcrPage } from '../services/material-derivations'
 import { ocrModelsStatus, prepareOcrModels } from '../services/ocr-models'
@@ -39,6 +39,9 @@ export function registerMaterialsIpc(): void {
   ipcMain.handle(IPC.MaterialsCancel, (_e, id: string) => handleResult(() => cancelMaterial(id)))
   ipcMain.handle(IPC.MaterialsRetry, (_e, id: string) => handleResult(() => retryMaterial(id)))
   ipcMain.handle(IPC.MaterialsArchive, (_e, id: string) => handleResult(() => archiveMaterial(id)))
+  ipcMain.handle(IPC.MaterialsTrash, () => handleResult(() => listMaterials(undefined, true)))
+  ipcMain.handle(IPC.MaterialsRestore, (_e, id: string) => handleResult(() => restoreMaterial(id)))
+  ipcMain.handle(IPC.MaterialsUpdate, (_e, { id, ...input }) => handleResult(() => updateMaterial(id, input)))
   ipcMain.handle(IPC.MaterialsOpen, (_e, id: string) => handleResult(async () => {
     const error = await shell.openPath(await materialPath(id))
     if (error) throw new Error(error)

@@ -29,10 +29,24 @@ function version(id: string): VersionRow {
   if (!row) throw new Error('材料版本不存在')
   return row
 }
-export function listMaterials(subjectId?: string): Material[] {
+export function listMaterials(subjectId?: string, archived = false): Material[] {
   const db = getDb()
-  const rows = db.prepare(`SELECT ${materialFields} FROM materials WHERE archived = 0 ${subjectId ? 'AND subject_id = ?' : ''} ORDER BY created_at DESC, id`).all(...(subjectId ? [subjectId] : [])) as Material[]
+  const rows = db.prepare(`SELECT ${materialFields} FROM materials WHERE archived = ? ${subjectId ? 'AND subject_id = ?' : ''} ORDER BY created_at DESC, id`).all(Number(archived), ...(subjectId ? [subjectId] : [])) as Material[]
   return rows.map(row => ({ ...row, version: row.current_version_id ? db.prepare(`SELECT ${versionFields} FROM material_versions WHERE id = ?`).get(row.current_version_id) as MaterialVersion : undefined }))
+}
+export function updateMaterial(id: string, input: Pick<Material, 'title' | 'subject_id' | 'kind'>): Material {
+  const db = getDb(), current = materialDetail(id).material
+  if (current.archived) throw new Error('请先从回收站恢复教材，再修改信息')
+  const title = input.title.trim()
+  if (!title || title.length > 500) throw new Error('教材名称应为 1–500 个字符')
+  if (input.subject_id && !db.prepare('SELECT id FROM subjects WHERE id = ?').get(input.subject_id)) throw new Error('所属学科不存在')
+  db.prepare('UPDATE materials SET title = ?, subject_id = ?, kind = ? WHERE id = ?').run(title, input.subject_id, input.kind, id)
+  return materialDetail(id).material
+}
+export function restoreMaterial(id: string): boolean {
+  materialDetail(id)
+  getDb().prepare('UPDATE materials SET archived = 0 WHERE id = ?').run(id)
+  return true
 }
 export function materialDetail(id: string): MaterialDetail {
   const db = getDb()
