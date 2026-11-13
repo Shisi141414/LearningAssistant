@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Inspiration } from '@shared/types'
 import { useAppStore } from '../stores/app'
 import { MathInput } from '../components/MathInput'
+import { MarkdownSegment } from '../components/MarkdownSegment'
 
 export function InspirationPage() {
   const currentSubjectId = useAppStore((s) => s.currentSubjectId)
@@ -59,7 +60,7 @@ export function InspirationPage() {
         {items.map((i) => (
           <div key={i.id} className="row-item">
             <div className="grow">
-              <div style={{ whiteSpace: 'pre-wrap' }}>{i.content}</div>
+              <MarkdownSegment text={i.content} subjectId={i.subject_id} />
               <div className="meta">
                 {subjectName(i.subject_id)} · {new Date(i.created_at).toLocaleString('zh-CN')}
               </div>

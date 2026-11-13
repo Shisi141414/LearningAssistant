@@ -1,14 +1,18 @@
-/**
- * components/MathInput.tsx —— GeoGebra 风格数学输入
- *
- * - 输入框 + [∑] 符号面板按钮：分类网格，点击在光标处插入 LaTeX
- *   （模板类插入后光标自动落到第一个 {} 内）
- * - 多行模式带 KaTeX 实时预览（复用 MarkdownSegment 的 $/$$ 渲染）
- * - multiline=false 时渲染单行 input（快捷栏等紧凑场景，无预览浮层占位）
- */
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from 'react'
+/** Plain text and editable, rendered formulas in one input surface. */
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { EditorContent, useEditor } from '@tiptap/react'
+import { Slice } from '@tiptap/pm/model'
+import { closeHistory } from '@tiptap/pm/history'
+import Document from '@tiptap/extension-document'
+import Paragraph from '@tiptap/extension-paragraph'
+import Text from '@tiptap/extension-text'
+import HardBreak from '@tiptap/extension-hard-break'
+import { UndoRedo } from '@tiptap/extensions/undo-redo'
+import { Placeholder } from '@tiptap/extensions/placeholder'
+import { MathfieldElement } from 'mathlive'
 import { MATH_PALETTES } from '@shared/mathPalette'
-import { MarkdownSegment } from './MarkdownSegment'
+import { mathEditorDocument, mathEditorText } from '@shared/math-editor'
+import { VisualMath } from './VisualMath'
 
 export function MathInput({
   value,
@@ -28,14 +32,73 @@ export function MathInput({
   multiline?: boolean
   minHeight?: number
   className?: string
-  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement | HTMLInputElement>) => void
+  onKeyDown?: (e: KeyboardEvent) => void
   autoFocus?: boolean
 }): React.ReactNode {
   const [open, setOpen] = useState(false)
   const [group, setGroup] = useState(MATH_PALETTES[0].key)
   const [placement, setPlacement] = useState({ below: false, height: 300 })
-  const ref = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null)
-  const showPreview = multiline && /\$[^$]+\$/.test(value)
+  const latest = useRef({ onChange, onKeyDown })
+  latest.current = { onChange, onKeyDown }
+  const emitted = useRef(value)
+  const editor = useEditor({
+    extensions: [
+      Document,
+      Paragraph,
+      Text,
+      HardBreak,
+      UndoRedo,
+      Placeholder.configure({ placeholder: placeholder ?? '' }),
+      VisualMath
+    ],
+    content: mathEditorDocument(value),
+    autofocus: autoFocus ? 'end' : false,
+    editorProps: {
+      attributes: {
+        role: 'textbox',
+        'aria-label': label ?? placeholder ?? '数学文本输入',
+        'aria-multiline': String(multiline),
+        class: `math-editor ${className ?? ''}`
+      },
+      handleKeyDown: (_view, event) => {
+        if (event.isComposing || event.keyCode === 229) return false
+        latest.current.onKeyDown?.(event)
+        if (!multiline && event.key === 'Enter') {
+          event.preventDefault()
+          return true
+        }
+        return event.defaultPrevented
+      },
+      handlePaste: (_view, event) => {
+        const formula = event.clipboardData?.getData('application/x-latex')
+        const text = formula ? '$' + formula + '$' : event.clipboardData?.getData('text/plain')
+        event.preventDefault()
+        if (text === undefined || (!formula && !event.clipboardData?.types.includes('text/plain')))
+          return true
+        const parsed = _view.state.schema.nodeFromJSON(
+          mathEditorDocument(multiline ? text : text.replace(/\r?\n/g, ' '))
+        )
+        _view.dispatch(
+          closeHistory(_view.state.tr)
+            .replaceSelection(new Slice(parsed.content, 1, 1))
+            .scrollIntoView()
+        )
+        return true
+      },
+      clipboardTextSerializer: (slice) =>
+        mathEditorText({ type: 'doc', content: slice.content.toJSON() })
+    },
+    onUpdate: ({ editor: updated }) => {
+      emitted.current = mathEditorText(updated.getJSON())
+      latest.current.onChange(emitted.current)
+    }
+  })
+  useEffect(() => {
+    if (editor && value !== emitted.current) {
+      editor.commands.setContent(mathEditorDocument(value), { emitUpdate: false })
+      emitted.current = value
+    }
+  }, [editor, value])
 
   // 点击面板外部关闭
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -44,15 +107,19 @@ export function MathInput({
     const position = (): void => {
       const bounds = wrapRef.current?.getBoundingClientRect()
       if (!bounds) return
-      const above = bounds.top, below = window.innerHeight - bounds.bottom
+      const above = bounds.top,
+        below = window.innerHeight - bounds.bottom
       const down = above < 280 && below > above
       setPlacement({ below: down, height: Math.max(100, (down ? below : above) - 12) })
     }
     position()
     window.addEventListener('resize', position)
     window.addEventListener('scroll', position, true)
-    return () => { window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true) }
-  }, [open, group, showPreview])
+    return () => {
+      window.removeEventListener('resize', position)
+      window.removeEventListener('scroll', position, true)
+    }
+  }, [open, group, value])
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent): void => {
@@ -63,20 +130,36 @@ export function MathInput({
   }, [open])
 
   const insert = (latex: string, brace?: boolean): void => {
-    const ta = ref.current
-    const start = ta?.selectionStart ?? value.length
-    const end = ta?.selectionEnd ?? start
-    const next = value.slice(0, start) + latex + value.slice(end)
-    onChange(next)
+    if (latex.trim() === String.raw`\sqrt` || latex.trim() === String.raw`\mathbf`) {
+      latex = latex.trim() + '{}'
+      brace = true
+    }
+    const focused = document.activeElement
+    if (focused instanceof MathfieldElement && wrapRef.current?.contains(focused)) {
+      focused.insert(latex.replace(/\{\}/g, '{#?}'), {
+        selectionMode: brace ? 'placeholder' : 'after'
+      })
+      return
+    }
+    if (!editor) return
+    const template = brace ? latex.replace(/\{\}/g, '{\\placeholder{}}') : latex.trim()
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: 'visualMath',
+        attrs: { latex: template, display: false, source: null }
+      })
+      .run()
+    const position = editor.state.selection.from - 1
     requestAnimationFrame(() => {
-      if (!ref.current) return
-      let pos = start + latex.length
-      if (brace) {
-        const i = latex.indexOf('{}')
-        if (i >= 0) pos = start + i + 1
+      const dom = editor.view.nodeDOM(position) as HTMLElement | null
+      const field = dom?.querySelector('math-field') as MathfieldElement | null
+      field?.focus()
+      if (brace && field) {
+        field.position = 0
+        field.executeCommand('moveToNextPlaceholder')
       }
-      ref.current.focus()
-      ref.current.setSelectionRange(pos, pos)
     })
   }
 
@@ -85,30 +168,11 @@ export function MathInput({
   return (
     <div className={`math-input-wrap ${multiline ? '' : 'math-input-inline'}`} ref={wrapRef}>
       <div className="math-input-row">
-        {multiline ? (
-          <textarea
-            aria-label={label ?? placeholder}
-            ref={ref as React.RefObject<HTMLTextAreaElement>}
-            value={value}
-            placeholder={placeholder}
-            autoFocus={autoFocus}
-            onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value)}
-            onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLTextAreaElement>}
-            className={className}
-            style={minHeight ? { minHeight } : undefined}
-          />
-        ) : (
-          <input
-            aria-label={label ?? placeholder}
-            ref={ref as React.RefObject<HTMLInputElement>}
-            value={value}
-            placeholder={placeholder}
-            autoFocus={autoFocus}
-            onChange={(e: ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-            onKeyDown={onKeyDown as React.KeyboardEventHandler<HTMLInputElement>}
-            className={className}
-          />
-        )}
+        <EditorContent
+          editor={editor}
+          className="math-editor-container"
+          style={minHeight ? { minHeight } : undefined}
+        />
         <button
           type="button"
           className={`math-toggle${open ? ' active' : ''}`}
@@ -121,7 +185,10 @@ export function MathInput({
       </div>
 
       {open && (
-        <div className={`math-palette${placement.below ? ' math-palette-below' : ''}`} style={{ maxHeight: placement.height, overflowY: 'auto' }}>
+        <div
+          className={`math-palette${placement.below ? ' math-palette-below' : ''}`}
+          style={{ maxHeight: placement.height, overflowY: 'auto' }}
+        >
           <div className="math-palette-tabs">
             {MATH_PALETTES.map((gp) => (
               <button
@@ -148,13 +215,6 @@ export function MathInput({
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      {showPreview && (
-        <div className="math-preview">
-          <span className="math-preview-label">预览</span>
-          <MarkdownSegment text={value} plain />
         </div>
       )}
     </div>

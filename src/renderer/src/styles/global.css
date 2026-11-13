@@ -767,3 +767,18 @@ select:focus {
   color: var(--text-2);
   padding-top: 3px;
 }
+
+
+/* MathLive fields sit inside a ProseMirror text editor; original Markdown stays the storage format. */
+.math-editor-container { flex:1; min-width:0; display:flex; }
+.math-editor { width:100%; min-width:0; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; min-height:44px; max-height:180px; overflow:auto; outline:none; white-space:pre-wrap; overflow-wrap:anywhere; }
+.math-editor:focus, .math-editor:focus-within { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-weak); }
+.math-editor p { margin:0; min-height:1.5em; }
+.math-editor p.is-editor-empty:first-child::before { content:attr(data-placeholder); color:var(--text-2); pointer-events:none; float:left; height:0; }
+.math-input-inline .math-editor { min-height:34px; max-height:96px; padding:5px 9px; }
+.visual-math-node { display:inline-block; max-width:100%; vertical-align:middle; margin:0 2px; }
+.visual-math-node math-field { display:inline-block; max-width:100%; padding:0 3px; border:0; border-radius:4px; background:transparent; font-size:1.12em; color:var(--text); --caret-color:var(--accent); --selection-background-color:#dbeafe; }
+.visual-math-node math-field:focus-within { background:#eef2ff; }
+.visual-math-node math-field::part(virtual-keyboard-toggle), .visual-math-node math-field::part(menu-toggle) { display:none; }
+.visual-math-display { display:block; text-align:center; margin:6px 0; }
+.visual-math-node.ProseMirror-selectednode { outline:2px solid var(--accent); border-radius:4px; }

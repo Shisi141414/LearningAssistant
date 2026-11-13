@@ -147,7 +147,7 @@ app.on('browser-window-created', (_event, win) => {
     }
     const click = async (text, scope = 'document') => win.webContents.executeJavaScript(`Array.from(${scope}.querySelectorAll('button')).find(button => button.textContent.trim() === ${JSON.stringify(text)})?.click()`)
     const enterManual = async text => {
-      await win.webContents.executeJavaScript(`(() => { const input = document.querySelector('.classroom-transcript textarea'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, ${JSON.stringify(text)}); input.dispatchEvent(new Event('input', {bubbles:true})); })()`)
+      await win.webContents.executeJavaScript(`(() => { const input = document.querySelector('[aria-label="课堂手动记录"]'); input.focus(); const range=document.createRange();range.selectNodeContents(input);const selection=getSelection();selection.removeAllRanges();selection.addRange(range);document.dispatchEvent(new Event('selectionchange'));const clipboard=new DataTransfer();clipboard.setData('text/plain',${JSON.stringify(text)});input.dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:clipboard}));return true })()`)
       await click('添加段落', "document.querySelector('.classroom-transcript')")
     }
     const wait = async (id, expected = 'ready') => {
@@ -408,7 +408,7 @@ app.on('browser-window-created', (_event, win) => {
       await call('notes', 'remove', missingNote.id)
       await enterManual('这段未保存成功，必须留在输入框。')
       await waitUi(`document.querySelector('.toast')?.textContent.includes('段落保存失败')`, '失败保存提示')
-      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('.classroom-transcript textarea').value`), '这段未保存成功，必须留在输入框。')
+      assert.equal(await win.webContents.executeJavaScript(`document.querySelector('[aria-label="课堂手动记录"]').textContent`), '这段未保存成功，必须留在输入框。')
       await click('结束课堂')
       assert.deepEqual(problems, [])
       console.log('CLASSROOM_TEST_OK setup, PDF render, calibration, immutable references, bidirectional navigation and safe asset access')
