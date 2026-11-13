@@ -86,11 +86,17 @@ export function SchedulePage() {
   const showToast = useAppStore((s) => s.showToast)
   const [tasks, setTasks] = useState<TaskWithProject[]>([]),
     [draft, setDraft] = useState<Draft | null>(null)
+  const originalDraft = useRef<Draft | null>(null)
+  const beginDraft = (value: Draft): void => { originalDraft.current = value; setDraft(value) }
+  const canDiscardDraft = (): boolean => !draft || JSON.stringify(draft) === JSON.stringify(originalDraft.current) || window.confirm('放弃未保存的日程修改？')
   const [showDone, setShowDone] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
   const [fromSix, setFromSix] = useState(() => {
     try { return localStorage.getItem('schedule.fromSix') !== 'false' } catch { return true }
+  })
+  const [preferredStart, setPreferredStart] = useState(() => {
+    try { const saved = localStorage.getItem('schedule.startTime'); return saved && /^([01]\d|2[0-3]):[0-5]\d$/.test(saved) ? saved : '06:00' } catch { return '06:00' }
   })
   const [dateRange, setDateRange] = useState<{ start: number; end: number } | null>(null)
   const updateRange = useCallback((info: DatesSetArg) => {
@@ -141,7 +147,7 @@ export function SchedulePage() {
     return r.data
   }
   const visible = tasks.filter((t) => showDone || t.status !== 'done')
-  const startTime = scheduleStartTime(fromSix, dateRange, visible)
+  const startTime = scheduleStartTime(fromSix, dateRange, visible, preferredStart ? Number(preferredStart.slice(0, 2)) * 60 + Number(preferredStart.slice(3)) : 360)
   const events = useMemo(() => {
     const list: EventInput[] = []
     for (const t of tasks.filter((t) => showDone || t.status !== 'done')) {
@@ -175,8 +181,8 @@ export function SchedulePage() {
     return list
   }, [tasks, showDone, subjects])
   const edit = (task: TaskWithProject): void => {
-    if (!busy && (!draft || window.confirm('放弃当前未保存的日程修改？'))) {
-      setDraft(draftFor(task))
+    if (!busy && canDiscardDraft()) {
+      beginDraft(draftFor(task))
       setError('')
     }
   }
@@ -251,7 +257,7 @@ export function SchedulePage() {
     const task = tasks.find(item => item.id === targetTaskId)
     if (!task || shownTarget.current === targetTaskId) return
     shownTarget.current = targetTaskId
-    setDraft(draftFor(task))
+    beginDraft(draftFor(task))
     requestAnimationFrame(() => document.querySelector('.schedule-editor')?.scrollIntoView({ block:'start' }))
   },[tasks,targetTaskId])
   return (
@@ -266,7 +272,7 @@ export function SchedulePage() {
             className="primary"
             disabled={busy}
             onClick={() => {
-              if (!draft || window.confirm('放弃当前未保存的修改？')) setDraft(draftFor())
+              if (canDiscardDraft()) beginDraft(draftFor())
             }}
           >
             + 新建日程
@@ -288,17 +294,30 @@ export function SchedulePage() {
         </div>
       </div>
       <div className="toolbar schedule-tools">
-        <label title="有更早或跨午夜的日程时，自动提前显示；取消后从 0:00 开始">
+        <div className="schedule-start-setting" title="有更早或跨午夜的日程时，自动提前显示；取消后从 0:00 开始">
           <input
+            id="schedule-start-enabled"
+            aria-label="使用指定起始时间"
             type="checkbox"
             checked={fromSix}
             onChange={(e) => {
               setFromSix(e.target.checked)
               try { localStorage.setItem('schedule.fromSix', String(e.target.checked)) } catch { /* Session preference still works. */ }
             }}
-          />{' '}
-          从6:00开始
-        </label>
+          />
+          <label htmlFor="schedule-start-enabled">从</label>
+          <input
+            type="time"
+            aria-label="日程起始时间"
+            value={preferredStart}
+            onChange={(e) => {
+              setPreferredStart(e.target.value)
+              if (e.target.value) try { localStorage.setItem('schedule.startTime', e.target.value) } catch { /* Session preference still works. */ }
+            }}
+            onBlur={() => { if (!preferredStart) setPreferredStart('06:00') }}
+          />
+          <span>开始</span>
+        </div>
         <label>
           <input
             type="checkbox"
@@ -542,8 +561,8 @@ export function SchedulePage() {
               if (task) edit(task)
             }}
             dateClick={(info) => {
-              if (!busy && (!draft || window.confirm('放弃当前未保存的修改？')))
-                setDraft(draftFor(undefined, info.date, info.allDay))
+              if (!busy && canDiscardDraft())
+                beginDraft(draftFor(undefined, info.date, info.allDay))
             }}
           />
         </section>
@@ -556,7 +575,10 @@ export function SchedulePage() {
               save()
             }}
           >
-            <h2>{draft.id ? '编辑日程' : '新建日程'}</h2>
+            <div className="schedule-editor-heading">
+              <h2>{draft.id ? '编辑日程' : '新建日程'}</h2>
+              <button type="button" aria-label="关闭日程编辑" title="关闭日程编辑" disabled={busy} onClick={() => { if (canDiscardDraft()) setDraft(null) }}>×</button>
+            </div>
             {selected?.project_id && (
               <p className="muted">
                 来自项目{' '}
@@ -708,15 +730,6 @@ export function SchedulePage() {
                 type="submit"
               >
                 保存日程
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => {
-                  if (window.confirm('放弃未保存的日程修改？')) setDraft(null)
-                }}
-              >
-                取消编辑
               </button>
               {selected && (
                 <button type="button" disabled={busy} onClick={() => remove(selected)}>

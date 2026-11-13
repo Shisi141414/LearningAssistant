@@ -220,7 +220,7 @@ app.on('browser-window-created', (_event, win) =>
       assert.equal(await js("getComputedStyle(document.querySelector('.fc-next-button')).boxShadow"),'none','鼠标点击后不残留按下外观')
       await js("document.querySelector('.fc-today-button').click()")
       assert.equal(await firstSlot(),'06:00:00','默认不显示六点前的空时间轴')
-      const toggleSix=()=>js("[...document.querySelectorAll('.schedule-tools label')].find(l=>l.textContent.includes('从6:00开始')).querySelector('input').click()")
+      const toggleSix=()=>js("document.querySelector('[aria-label=\"使用指定起始时间\"]').click()")
       await toggleSix();await wait("document.querySelector('.fc-timegrid-slot[data-time]')?.getAttribute('data-time')==='00:00:00'")
       await js("location.hash='/notes'");await wait("!document.querySelector('.fc-timeGridWeek-view')")
       await js("location.hash='/review'");await wait("!!document.querySelector('.fc-timeGridWeek-view')")
@@ -237,6 +237,18 @@ app.on('browser-window-created', (_event, win) =>
       await click('删除日程')
       await wait("document.querySelector('.fc-timegrid-slot[data-time]')?.getAttribute('data-time')==='06:00:00'")
       assert.equal((await call('tasks','listAll')).some(t=>t.id===early.id),false)
+      await set('[aria-label="日程起始时间"]','07:15')
+      await wait("document.querySelector('.fc-timegrid-slot[data-time]')?.getAttribute('data-time')==='07:15:00'")
+      await set('[aria-label="日程起始时间"]','06:00')
+      await js("window.discardChecks=0;window.confirm=()=>{window.discardChecks++;return false};true")
+      await click('+ 新建日程');await js("document.querySelector('[aria-label=\"关闭日程编辑\"]').click()")
+      assert.equal(await js("!!document.querySelector('.schedule-editor')"),false,'空白表单直接关闭')
+      assert.equal(await js('window.discardChecks'),0)
+      await click('+ 新建日程');await set('[aria-label="日程名称"]','暂未保存')
+      await js("document.querySelector('[aria-label=\"关闭日程编辑\"]').click()")
+      assert.equal(await js('window.discardChecks'),1)
+      assert.equal(await js("document.querySelector('[aria-label=\"日程名称\"]').value"),'暂未保存','取消放弃保留内容')
+      await js("window.confirm=()=>true;document.querySelector('[aria-label=\"关闭日程编辑\"]').click()")
       await click('+ 新建日程')
       await set('[aria-label="日程名称"]', '实验讨论')
       await set('[aria-label="日程地点"]', '实验室 301')
@@ -248,6 +260,12 @@ app.on('browser-window-created', (_event, win) =>
       await set('[aria-label="日程结束"]', localTime(end))
       await click('保存日程')
       await wait('!!document.querySelector(\'[aria-label="编辑日程：实验讨论"]\')')
+      await js("window.discardChecks=0;window.confirm=()=>{window.discardChecks++;return false};document.querySelector('[aria-label=\"编辑日程：实验讨论\"]').click()")
+      await wait("!!document.querySelector('.schedule-editor')")
+      await js("document.querySelector('[aria-label=\"关闭日程编辑\"]').click()")
+      assert.equal(await js('window.discardChecks'),0,'已有日程未作修改直接关闭')
+      assert.equal(await js("!!document.querySelector('.schedule-editor')"),false)
+      await js("window.confirm=()=>true;true")
       assert.equal(
         await js(
           'document.querySelector(\'[aria-label="编辑日程：实验讨论"] .schedule-event-location\')?.textContent'
@@ -493,6 +511,10 @@ app.on('browser-window-created', (_event, win) =>
       win.setSize(1024, 768)
       await pause(100)
       assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'), true)
+      await js("location.hash='/settings'");await wait("document.querySelector('h1')?.textContent==='设置'")
+      await click('个性化');await wait("!!document.querySelector('.settings-preferences')")
+      assert.equal(await js("(()=>{const r=document.querySelector('.settings-preferences').getBoundingClientRect(),p=document.querySelector('.page').getBoundingClientRect();return Math.abs(r.width-(p.width-48))<2})()"),true,'个性化条目使用页面全宽')
+      await capture('settings-preferences-full-width.png')
       fs.writeFileSync(
         path.join(root, 'calendar-checkpoint.json'),
         JSON.stringify({

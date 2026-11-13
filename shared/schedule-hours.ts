@@ -6,10 +6,12 @@ type TimedTask = Pick<Task, 'planned_at' | 'planned_end_at' | 'all_day' | 'due_a
 export function scheduleStartTime(
   fromSix: boolean,
   range: { start: number; end: number } | null,
-  tasks: TimedTask[]
+  tasks: TimedTask[],
+  preferredMinutes = 360
 ): string {
   if (!fromSix) return '00:00:00'
-  let minutes = 360
+  const preferred = Number.isInteger(preferredMinutes) && preferredMinutes >= 0 && preferredMinutes < 1440 ? preferredMinutes : 360
+  let minutes = preferred
   if (range) for (const task of tasks) {
     const intervals: [number, number][] = []
     if (task.planned_at !== null && !task.all_day) {
@@ -25,6 +27,6 @@ export function scheduleStartTime(
       if (end > nextMidnight.getTime() && nextMidnight.getTime() < range.end) minutes = 0
     }
   }
-  minutes = Math.floor(minutes / 30) * 30
+  if (minutes < preferred) minutes = Math.floor(minutes / 30) * 30
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`
 }

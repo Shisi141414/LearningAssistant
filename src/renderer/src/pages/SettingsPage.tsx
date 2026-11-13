@@ -169,7 +169,7 @@ function PrefsCard() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 720 }}>
+    <div className="card settings-preferences">
       <div className="pref-row">
         <div className="grow">
           <div className="pref-title">进入课堂自动开始录音</div>

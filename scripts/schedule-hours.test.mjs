@@ -16,6 +16,12 @@ test('只看当前日期范围，并保留六点前的日程与截止时刻', ()
   assert.equal(scheduleStartTime(true, range, [task(time(8, 1)), task(time(16, 1))]), '06:00:00')
   assert.equal(scheduleStartTime(true, range, [task(null, null, { due_at: time(10, 2, 10) })]), '02:00:00')
 })
+test('可指定任意分钟起点，更早的日程自动提前，取消后仍显示午夜', () => {
+  assert.equal(scheduleStartTime(true, range, [], 435), '07:15:00')
+  assert.equal(scheduleStartTime(true, range, [task(time(9, 7))], 435), '07:00:00')
+  assert.equal(scheduleStartTime(false, range, [], 435), '00:00:00')
+  assert.equal(scheduleStartTime(true, range, [], 9999), '06:00:00')
+})
 test('跨午夜与视图边界的事件显示午夜，恰好午夜结束不占下一天', () => {
   assert.equal(scheduleStartTime(true, range, [task(time(8, 23), time(9, 7))]), '00:00:00')
   assert.equal(scheduleStartTime(true, range, [task(time(10, 23), time(11, 8))]), '00:00:00')

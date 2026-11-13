@@ -19,6 +19,12 @@
   align-items: center;
   gap: 6px;
 }
+.schedule-start-setting { display: flex; align-items: center; gap: 6px; }
+.schedule-start-setting input[type='time'] { width: 104px; }
+.schedule-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px; }
+.schedule-editor .schedule-editor-heading h2 { margin: 0; }
+.schedule-editor-heading button { padding: 2px 8px; font-size: 24px; line-height: 1; background: transparent; border-color: transparent; color: var(--text-2); }
+.schedule-editor-heading button:hover { background: #f3f4f6; }
 .schedule-key {
   font-size: 13px;
   border-left: 4px solid;
