@@ -23,6 +23,17 @@ export interface MathPaletteGroup {
 const g = (label: string, latex: string): MathSymbol => ({ label, latex: `${latex} ` })
 const tpl = (label: string, latex: string, title: string): MathSymbol => ({ label, latex, brace: true, title })
 
+// One pair per key: Shift changes the symbol without dropping or moving keys.
+// Unicode capitals also cover letters without a traditional TeX command (e.g. Α, Β).
+const greekKeys = [
+  ['α', '\\alpha', 'Α'], ['β', '\\beta', 'Β'], ['γ', '\\gamma', 'Γ'], ['δ', '\\delta', 'Δ'],
+  ['ε', '\\epsilon', 'Ε'], ['ζ', '\\zeta', 'Ζ'], ['η', '\\eta', 'Η'], ['θ', '\\theta', 'Θ'],
+  ['ι', '\\iota', 'Ι'], ['κ', '\\kappa', 'Κ'], ['λ', '\\lambda', 'Λ'], ['μ', '\\mu', 'Μ'],
+  ['ν', '\\nu', 'Ν'], ['ξ', '\\xi', 'Ξ'], ['π', '\\pi', 'Π'], ['ρ', '\\rho', 'Ρ'],
+  ['σ', '\\sigma', 'Σ'], ['τ', '\\tau', 'Τ'], ['υ', '\\upsilon', 'Υ'], ['φ', '\\phi', 'Φ'],
+  ['χ', '\\chi', 'Χ'], ['ψ', '\\psi', 'Ψ'], ['ω', '\\omega', 'Ω'], ['ϕ', '\\varphi', 'Φ']
+]
+
 export const MATH_PALETTES: MathPaletteGroup[] = [
   {
     key: 'ops',
@@ -64,20 +75,12 @@ export const MATH_PALETTES: MathPaletteGroup[] = [
   {
     key: 'greek-lower',
     label: '希腊小写',
-    symbols: [
-      g('α', '\\alpha'), g('β', '\\beta'), g('γ', '\\gamma'), g('δ', '\\delta'), g('ε', '\\epsilon'), g('ζ', '\\zeta'),
-      g('η', '\\eta'), g('θ', '\\theta'), g('ι', '\\iota'), g('κ', '\\kappa'), g('λ', '\\lambda'), g('μ', '\\mu'),
-      g('ν', '\\nu'), g('ξ', '\\xi'), g('π', '\\pi'), g('ρ', '\\rho'), g('σ', '\\sigma'), g('τ', '\\tau'),
-      g('υ', '\\upsilon'), g('φ', '\\phi'), g('χ', '\\chi'), g('ψ', '\\psi'), g('ω', '\\omega'), g('ϕ', '\\varphi')
-    ]
+    symbols: greekKeys.map(([lower, latex]) => g(lower, latex))
   },
   {
     key: 'greek-upper',
     label: '希腊大写',
-    symbols: [
-      g('Γ', '\\Gamma'), g('Δ', '\\Delta'), g('Θ', '\\Theta'), g('Λ', '\\Lambda'), g('Ξ', '\\Xi'),
-      g('Π', '\\Pi'), g('Σ', '\\Sigma'), g('Υ', '\\Upsilon'), g('Φ', '\\Phi'), g('Ψ', '\\Psi'), g('Ω', '\\Omega')
-    ]
+    symbols: greekKeys.map(([, , upper]) => g(upper, upper))
   },
   {
     key: 'misc',

@@ -155,6 +155,23 @@ app.on('browser-window-created',(_event,win)=>{win.webContents.session.webReques
     await paste('.page .math-editor','')
     await click('ABC','.page .math-palette');await js("document.querySelector('.page button[aria-label=\"切换大小写\"]').click()")
     await keyboardButton('Q');await wait("document.querySelector('.page math-field')?.value==='Q'")
+    await click('αβγ','.page .math-palette')
+    const greekLayout=()=>js("[...document.querySelectorAll('.page .math-palette-grid .math-key')].map(b=>{const r=b.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height}})")
+    const upperGreek=[...'ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΠΡΣΤΥΦΧΨΩΦ']
+    assert.deepEqual(await js("[...document.querySelectorAll('.page .math-palette-grid .math-key')].map(b=>b.title)"),upperGreek)
+    const upperLayout=await greekLayout()
+    await capture('math-keyboard-greek-upper.png')
+    for(let i=0;i<upperGreek.length;i++){
+      await paste('.page .math-editor','')
+      await js(`document.querySelectorAll('.page .math-palette-grid .math-key')[${i}].click()`)
+      await wait(`!!document.querySelector('.page math-field')?.getValue('math-ml').includes(${JSON.stringify(upperGreek[i])})`)
+    }
+    await js("document.querySelector('.page button[aria-label=\"切换希腊字母大小写\"]').click()")
+    assert.deepEqual(await greekLayout(),upperLayout,'切换大小写时希腊字母键逐键保持原位')
+    assert.deepEqual(await js("[...document.querySelectorAll('.page .math-palette-grid .math-key')].map(b=>b.title)"),[...'αβγδεζηθικλμνξπρστυφχψωϕ'])
+    await capture('math-keyboard-greek-lower.png')
+    await paste('.page .math-editor','')
+    await keyboardButton('α');await wait("document.querySelector('.page math-field')?.value===String.raw`\\alpha`")
     await paste('.page .math-editor','')
     await click('f(x)','.page .math-palette');await keyboardButton('sin')
     await wait("document.querySelector('.page math-field')?.value.includes('sin')")
