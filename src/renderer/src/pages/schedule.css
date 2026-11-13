@@ -289,3 +289,10 @@
 .schedule-color-help {
   font-size: 13px;
 }
+
+.schedule-editor .schedule-conflicts label {
+  flex-direction: row;
+}
+.schedule-editor .schedule-conflicts input {
+  width: auto;
+}

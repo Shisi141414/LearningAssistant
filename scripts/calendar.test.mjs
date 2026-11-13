@@ -88,8 +88,25 @@ test('日程时间可编辑；反向时间/无起点/无效 IPC 载荷拒绝，�
   assert.equal(edited.project_id, project.id)
   assert.equal(edited.location, '新地点')
   assert.equal((await invoke('calendar:preview', { from: 0, to: NaN })).ok, false)
-  assert.equal((await invoke('tasks:create', {title:'错误全天时间',planned_at:range.from+3600000,all_day:true})).ok,false)
-  assert.equal((await invoke('calendar:import','token',{ignore_conflicts:'yes',conflict_fingerprint:''})).ok,false)
+  assert.equal(
+    (
+      await invoke('tasks:create', {
+        title: '错误全天时间',
+        planned_at: range.from + 3600000,
+        all_day: true
+      })
+    ).ok,
+    false
+  )
+  assert.equal(
+    (
+      await invoke('calendar:import', 'token', {
+        ignore_conflicts: 'yes',
+        conflict_fingerprint: ''
+      })
+    ).ok,
+    false
+  )
 })
 test('ICS 周课表按 IANA 时区展开，跳课/补课/改期/取消、中文与转义保留', () => {
   const source = ics(
@@ -270,4 +287,104 @@ test('日程浅色按学科/项目/课程稳定分配且文字对比度可读', 
     assert.ok((light(color.background) + 0.05) / (light(color.text) + 0.05) >= 4.5)
   }
   assert.equal(colors.size, 8)
+})
+
+test('手工新建和编辑以同一事务检查冲突，拒绝不落盘；确认过期不能绕过；编辑排除自身', async () => {
+  const start = new Date(2027, 2, 1, 8).getTime(),
+    hour = 3600000
+  const anchor = ok(
+    await invoke('tasks:create', {
+      title: '已有课程',
+      planned_at: start,
+      planned_end_at: start + hour
+    })
+  )
+  const task = {
+    title: '手工新建',
+    planned_at: start + hour / 2,
+    planned_end_at: start + 1.5 * hour
+  }
+  const before = listAllTasks().length
+  const first = ok(await invoke('calendar:save', { task }))
+  assert.equal(first.task, null)
+  assert.equal(first.conflicts.items.length, 1)
+  assert.equal(listAllTasks().length, before)
+  const another = ok(
+    await invoke('tasks:create', {
+      title: '确认前新增',
+      planned_at: start + hour / 2,
+      planned_end_at: start + hour
+    })
+  )
+  const stale = ok(
+    await invoke('calendar:save', {
+      task,
+      confirmation: { ignore_conflicts: true, conflict_fingerprint: first.conflicts.fingerprint }
+    })
+  )
+  assert.equal(stale.task, null)
+  assert.equal(stale.conflicts.items.length, 2)
+  assert.equal(listAllTasks().length, before + 1)
+  const created = ok(
+    await invoke('calendar:save', {
+      task,
+      confirmation: { ignore_conflicts: true, conflict_fingerprint: stale.conflicts.fingerprint }
+    })
+  ).task
+  assert.ok(created)
+  assert.equal(listAllTasks().length, before + 2)
+  ok(await invoke('tasks:remove', anchor.id))
+  ok(await invoke('tasks:remove', another.id))
+  const self = ok(
+    await invoke('calendar:save', { id: created.id, task: { ...task, detail: '排除自己' } })
+  )
+  assert.equal(self.task.id, created.id)
+  assert.equal(self.task.detail, '排除自己')
+  ok(
+    await invoke('tasks:create', {
+      title: '改期冲突',
+      planned_at: start + 2 * hour,
+      planned_end_at: start + 3 * hour
+    })
+  )
+  const shifted = { ...task, planned_at: start + 2.5 * hour, planned_end_at: start + 3.5 * hour }
+  const declined = ok(await invoke('calendar:save', { id: created.id, task: shifted }))
+  assert.equal(declined.task, null)
+  assert.equal(listAllTasks().find((t) => t.id === created.id).planned_at, task.planned_at)
+  const accepted = ok(
+    await invoke('calendar:save', {
+      id: created.id,
+      task: shifted,
+      confirmation: { ignore_conflicts: true, conflict_fingerprint: declined.conflicts.fingerprint }
+    })
+  )
+  assert.equal(accepted.task.planned_at, shifted.planned_at)
+  assert.ok(
+    ok(
+      await invoke('calendar:save', {
+        task: {
+          title: '相邻无冲突',
+          planned_at: shifted.planned_end_at,
+          planned_end_at: shifted.planned_end_at + hour
+        }
+      })
+    ).task
+  )
+  assert.equal(
+    (
+      await invoke('calendar:save', {
+        task: { title: '无效', planned_at: start, planned_end_at: start - 1 }
+      })
+    ).ok,
+    false
+  )
+  assert.equal(
+    (
+      await invoke('calendar:save', {
+        task,
+        confirmation: { ignore_conflicts: 'yes', conflict_fingerprint: '' }
+      })
+    ).ok,
+    false
+  )
 })

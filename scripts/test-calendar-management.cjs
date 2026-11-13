@@ -246,6 +246,55 @@ app.on('browser-window-created', (_event, win) =>
       await set('[aria-label="日程说明"]', '携带讲义')
       await click('保存日程')
       await wait('document.querySelector(\'[aria-label="编辑日程：实验讨论（已编辑）"]\')')
+      // Manual creation and editing use the same guarded save path as imports.
+      await click('+ 新建日程')
+      await set('[aria-label="日程名称"]', '手工重合日程')
+      const manualOverlap = new Date(start.getTime() + 30 * 60000),
+        manualOverlapEnd = new Date(end.getTime() + 30 * 60000)
+      await set('[aria-label="日程开始"]', localTime(manualOverlap))
+      await set('[aria-label="日程结束"]', localTime(manualOverlapEnd))
+      await click('保存日程')
+      await wait('!!document.querySelector(\'[aria-label="日程保存时间冲突"]\')')
+      assert.equal((await call('tasks', 'listAll')).length, 1, '冲突未确认时不能创建日程')
+      assert.equal(
+        await js('document.querySelector(\'[aria-label="日程名称"]\').value'),
+        '手工重合日程'
+      )
+      assert.equal(
+        await js(
+          "Array.from(document.querySelector('.schedule-editor').querySelectorAll('button')).find(b=>b.textContent.trim()==='保存日程').disabled"
+        ),
+        true
+      )
+      await capture('calendar-manual-conflicts.png')
+      await js('document.querySelector(\'[aria-label="保存日程时忽略冲突"]\').click()')
+      await click('保存日程')
+      await wait("!document.querySelector('.schedule-editor')")
+      const overlapped = (await call('tasks', 'listAll')).find((t) => t.title === '手工重合日程')
+      assert.ok(overlapped)
+      await wait('!!document.querySelector(\'[aria-label="编辑日程：手工重合日程"]\')')
+      await js('document.querySelector(\'[aria-label="编辑日程：手工重合日程"]\').click()')
+      const shiftedStart = new Date(start.getTime() + 15 * 60000)
+      await set('[aria-label="日程开始"]', localTime(shiftedStart))
+      await click('保存日程')
+      await wait('!!document.querySelector(\'[aria-label="日程保存时间冲突"]\')')
+      assert.equal(
+        (await call('tasks', 'listAll')).find((t) => t.id === overlapped.id).planned_at,
+        manualOverlap.getTime(),
+        '未确认编辑保留原时间'
+      )
+      // Changing the time clears the stale acknowledgement and checks the replacement interval.
+      await set('[aria-label="日程开始"]', localTime(end))
+      await set('[aria-label="日程结束"]', localTime(manualOverlapEnd))
+      await wait('!document.querySelector(\'[aria-label="日程保存时间冲突"]\')')
+      await click('保存日程')
+      await wait("!document.querySelector('.schedule-editor')")
+      assert.equal(
+        (await call('tasks', 'listAll')).find((t) => t.id === overlapped.id).planned_at,
+        end.getTime(),
+        '相邻日程不误报'
+      )
+      await call('tasks', 'remove', overlapped.id)
       await click('日')
       await wait("!!document.querySelector('.fc-timeGridDay-view')")
       await capture('calendar-day.png')

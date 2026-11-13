@@ -62,6 +62,7 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.CalendarSave]: [record({ id: optional(id), task: record({ title, detail: optional(content), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), due_at: opt(number), status: optional(choice('open','doing','blocked','done')), blocked_reason: optional(text(2000)) }), confirmation: optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) })) })],
   [IPC.CalendarPreview]: [record({ from: number, to: number })],
   [IPC.CalendarImport]: [id, optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) }))],
   [IPC.CalendarDiscard]: [],

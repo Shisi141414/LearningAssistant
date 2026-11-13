@@ -178,6 +178,7 @@ export const IPC = {
   TasksRemove: 'tasks:remove',
   TasksListManual: 'tasks:listManual',
   TasksListAll: 'tasks:listAll',
+  CalendarSave: 'calendar:save',
   CalendarPreview: 'calendar:preview',
   CalendarImport: 'calendar:import',
   CalendarDiscard: 'calendar:discard',

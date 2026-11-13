@@ -1,3 +1,5 @@
+import type { Task, TaskInput } from './types'
+
 export interface CalendarRange {
   from: number
   to: number
@@ -52,3 +54,15 @@ export interface CalendarExportResult {
   exported: number
   unscheduled: number
 }
+
+export interface CalendarTaskSaveInput {
+  id?: string
+  task: Pick<
+    TaskInput,
+    'title' | 'detail' | 'planned_at' | 'planned_end_at' | 'all_day' | 'location' | 'due_at'
+  > & { status?: Task['status']; blocked_reason?: string }
+  confirmation?: CalendarImportOptions
+}
+export type CalendarTaskSaveResult =
+  | { task: Task; conflicts?: never }
+  | { task: null; conflicts: CalendarConflicts }

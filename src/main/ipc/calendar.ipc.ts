@@ -1,8 +1,9 @@
 import { dialog } from 'electron'
 import { IPC } from '@shared/ipc-channels'
-import type { CalendarRange, CalendarImportOptions } from '@shared/calendar'
+import type { CalendarRange, CalendarImportOptions, CalendarTaskSaveInput } from '@shared/calendar'
 import { ipcMain, handleResult } from './helpers'
 import {
+  saveCalendarTask,
   previewCalendar,
   importCalendar,
   exportCalendar,
@@ -12,6 +13,9 @@ import {
 const observedWindows = new WeakSet<Electron.WebContents>()
 
 export function registerCalendarIpc(): void {
+  ipcMain.handle(IPC.CalendarSave, (_event, input: CalendarTaskSaveInput) =>
+    handleResult(() => saveCalendarTask(input))
+  )
   ipcMain.handle(IPC.CalendarPreview, (event, range: CalendarRange) =>
     handleResult(async () => {
       if (!observedWindows.has(event.sender)) {

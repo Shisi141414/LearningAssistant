@@ -7,7 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
 import type { EventInput } from '@fullcalendar/core'
 import type { Task, TaskWithProject, TaskInput } from '@shared/types'
-import type { CalendarPreview } from '@shared/calendar'
+import type { CalendarPreview, CalendarConflicts } from '@shared/calendar'
 import { useAppStore } from '../stores/app'
 import { scheduleCategory, scheduleColor } from '@shared/schedule-colors'
 import './schedule.css'
@@ -85,6 +85,12 @@ export function SchedulePage() {
   const [showDone, setShowDone] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [draftConflicts, setDraftConflicts] = useState<CalendarConflicts | null>(null)
+  const [ignoreDraftConflicts, setIgnoreDraftConflicts] = useState(false)
+  useEffect(() => {
+    setDraftConflicts(null)
+    setIgnoreDraftConflicts(false)
+  }, [draft])
   const [preview, setPreview] = useState<CalendarPreview | null>(null)
   const [from, setFrom] = useState(localDate(Date.now())),
     [to, setTo] = useState(
@@ -173,15 +179,24 @@ export function SchedulePage() {
         all_day: draft.allDay,
         due_at: parseTime(draft.due)
       }
-      if (draft.id)
-        check(
-          await window.api.tasks.update(draft.id, {
+      const result = check(
+        await window.api.calendar.save({
+          id: draft.id,
+          task: {
             ...input,
-            status: draft.status,
-            blocked_reason: draft.reason
-          })
-        )
-      else check(await window.api.tasks.create(input))
+            ...(draft.id ? { status: draft.status, blocked_reason: draft.reason } : {})
+          },
+          confirmation: {
+            ignore_conflicts: ignoreDraftConflicts,
+            conflict_fingerprint: draftConflicts?.fingerprint ?? ''
+          }
+        })
+      )
+      if (result.conflicts) {
+        setDraftConflicts(result.conflicts)
+        setIgnoreDraftConflicts(false)
+        return
+      }
       setDraft(null)
       await reload()
       showToast('日程已保存')
@@ -625,8 +640,40 @@ export function SchedulePage() {
                 />
               </label>
             )}
+            {draftConflicts && (
+              <section className="schedule-conflicts" aria-label="日程保存时间冲突" role="alert">
+                <h3>发现时间冲突</h3>
+                <p>当前日程尚未保存。请调整时间，或明确忽略以下冲突。</p>
+                <ul>
+                  {draftConflicts.items.map((conflict, index) => (
+                    <li key={index}>
+                      <strong>{conflict.other.title}</strong>（{displayTime(conflict.other.start)} —{' '}
+                      {displayTime(conflict.other.end)}）与当前安排（
+                      {displayTime(conflict.incoming.start)} — {displayTime(conflict.incoming.end)}
+                      ）重合
+                    </li>
+                  ))}
+                </ul>
+                {draftConflicts.truncated && <p>仅显示前 200 处冲突。</p>}
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label="保存日程时忽略冲突"
+                    checked={ignoreDraftConflicts}
+                    onChange={(e) => setIgnoreDraftConflicts(e.target.checked)}
+                  />
+                  忽略冲突，仍保存日程
+                </label>
+              </section>
+            )}
             <div className="toolbar">
-              <button className="primary" disabled={busy || !draft.title.trim()} type="submit">
+              <button
+                className="primary"
+                disabled={
+                  busy || !draft.title.trim() || (!!draftConflicts && !ignoreDraftConflicts)
+                }
+                type="submit"
+              >
                 保存日程
               </button>
               <button

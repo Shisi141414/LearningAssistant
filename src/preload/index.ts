@@ -6,7 +6,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
-import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions } from '@shared/calendar'
+import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions, CalendarTaskSaveInput, CalendarTaskSaveResult } from '@shared/calendar'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
 import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
 import type { NotePackageExportInput, NotePackageExportResult, NotePackagePreview, NotePackageImportResult, NotePackageReceipt } from '@shared/note-package'
@@ -222,6 +222,7 @@ const api = {
     listAll: () => invoke<Array<Task & { project_title: string | null; project_subject_id: string | null }>>(IPC.TasksListAll)
   },
   calendar: {
+    save: (input: CalendarTaskSaveInput) => invoke<CalendarTaskSaveResult>(IPC.CalendarSave, input),
     preview: (range: CalendarRange) => invoke<CalendarPreview | null>(IPC.CalendarPreview, range),
     import: (token: string, options?: CalendarImportOptions) => invoke<CalendarImportResult>(IPC.CalendarImport, token, options),
     discard: () => invoke<boolean>(IPC.CalendarDiscard),

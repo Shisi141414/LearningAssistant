@@ -10,7 +10,10 @@ import type {
   CalendarImportResult,
   CalendarExportResult,
   CalendarImportOptions,
-  CalendarConflicts
+  CalendarConflicts,
+  CalendarConflictItem,
+  CalendarTaskSaveInput,
+  CalendarTaskSaveResult
 } from '@shared/calendar'
 import { MAX_CALENDAR_BYTES, serializeCalendarIcs, validateCalendarRange } from './calendar-ics'
 import { createTask, updateTask, listAllTasks } from './projects'
@@ -47,14 +50,17 @@ function conflictsFor(entries: CalendarImportEntry[]): CalendarConflicts {
       start: entry.start,
       end: occupiedEnd(entry.start, entry.end, entry.all_day)
     }))
+  return conflictsWithTasks(fresh)
+}
+function conflictsWithTasks(fresh: CalendarConflictItem[], excludedId = ''): CalendarConflicts {
   if (!fresh.length) return calendarConflicts([], [])
   const from = Math.min(...fresh.map((item) => item.start)),
     to = Math.max(...fresh.map((item) => item.end))
   const rows = getDb()
     .prepare(
-      "SELECT id, title, planned_at, planned_end_at, all_day FROM tasks WHERE status != 'done' AND planned_at < ? AND COALESCE(planned_end_at, planned_at + 172800000) > ? LIMIT 10001"
+      "SELECT id, title, planned_at, planned_end_at, all_day FROM tasks WHERE id != ? AND status != 'done' AND planned_at < ? AND COALESCE(planned_end_at, planned_at + 172800000) > ? LIMIT 10001"
     )
-    .all(to, from) as Array<{
+    .all(excludedId, to, from) as Array<{
     id: string
     title: string
     planned_at: number
@@ -71,6 +77,51 @@ function conflictsFor(entries: CalendarImportEntry[]): CalendarConflicts {
       end: occupiedEnd(row.planned_at, row.planned_end_at, !!row.all_day)
     }))
   )
+}
+class TaskTimeConflict extends Error {
+  readonly conflicts: CalendarConflicts
+  constructor(conflicts: CalendarConflicts) {
+    super('日程存在时间冲突')
+    this.conflicts = conflicts
+  }
+}
+
+/** Validate, check and save in one transaction; a declined conflict leaves no task or project timestamp change. */
+export function saveCalendarTask(input: CalendarTaskSaveInput): CalendarTaskSaveResult {
+  checkRunning()
+  try {
+    return getDb().transaction(() => {
+      let task = input.id ? updateTask(input.id, input.task) : createTask(input.task)
+      if (!input.id && input.task.status)
+        task = updateTask(task.id, {
+          status: input.task.status,
+          blocked_reason: input.task.blocked_reason ?? ''
+        })
+      const conflicts = conflictsWithTasks(
+        task.planned_at === null || task.status === 'done'
+          ? []
+          : [
+              {
+                key: 'draft',
+                title: task.title,
+                start: task.planned_at,
+                end: occupiedEnd(task.planned_at, task.planned_end_at, task.all_day)
+              }
+            ],
+        task.id
+      )
+      if (
+        conflicts.items.length &&
+        (!input.confirmation?.ignore_conflicts ||
+          input.confirmation.conflict_fingerprint !== conflicts.fingerprint)
+      )
+        throw new TaskTimeConflict(conflicts)
+      return { task }
+    })()
+  } catch (error) {
+    if (error instanceof TaskTimeConflict) return { task: null, conflicts: error.conflicts }
+    throw error
+  }
 }
 export async function previewCalendar(
   file: string,
