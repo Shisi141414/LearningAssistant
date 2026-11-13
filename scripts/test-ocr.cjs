@@ -21,12 +21,15 @@ if (!process.versions.electron) {
 const electron = require('electron'), { app } = electron
 app.disableHardwareAcceleration()
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+const engine = config.engine || 'tesseract'
 const resumeIndex = process.argv.indexOf('--ocr-resume')
 const root = resumeIndex >= 0 ? process.argv[resumeIndex + 1] : fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'learning-assistant-ocr-'))
 app.setPath('userData', root); app.setPath('sessionData', root)
 const modelDir = path.join(root, 'ocr-models', 'tessdata-fast-87416418')
 fs.mkdirSync(modelDir, { recursive: true })
-if (!config.downloadModels && resumeIndex < 0) for (const name of ['eng.traineddata', 'chi_sim.traineddata']) fs.copyFileSync(path.join(config.modelDirectory, name), path.join(modelDir, name))
+if (resumeIndex < 0 && engine === 'ppocr') {
+  fs.cpSync(config.modelDirectory, path.join(root, 'ocr-models', 'ppocr-v6-tiny'), { recursive: true })
+} else if (!config.downloadModels && resumeIndex < 0) for (const name of ['eng.traineddata', 'chi_sim.traineddata']) fs.copyFileSync(path.join(config.modelDirectory, name), path.join(modelDir, name))
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
 // 三页纯图像 PDF，分别为中英正文、另一页正文及空白页；无任何隐藏文字层。
 function scannedPdf() {
@@ -69,6 +72,7 @@ app.on('browser-window-created', (_event, win) => {
   win.webContents.once('did-finish-load', async () => {
     const js = code => win.webContents.executeJavaScript(code)
     const call = async (group, method, ...args) => {
+      if (group === 'materials' && method === 'ocrStart') args[0] = { ...args[0], engine }
       const result = await js(`window.api[${JSON.stringify(group)}][${JSON.stringify(method)}](...${JSON.stringify(args)})`)
       assert.equal(result.ok, true, result.error); return result.data
     }
@@ -95,11 +99,12 @@ app.on('browser-window-created', (_event, win) => {
       const subject = (await call('subjects', 'list'))[0].id
       const importFile = async file => { selectedFile = file; const m = await call('materials', 'import', { subject_id: subject, kind: 'textbook' }); await ready(m.id, m.current_version_id); return m }
       if (config.downloadModels) assert.equal((await call('materials', 'ocrPrepare')).ready, true)
-      assert.equal((await call('materials', 'ocrModels')).ready, true)
+      if (engine === 'ppocr') assert.equal((await call('materials', 'ppocrStatus')).presets.find(p => p.key === 'v6-tiny').ready, true)
+      else assert.equal((await call('materials', 'ocrModels')).ready, true)
       // 断网下已就绪的语言包准备直接复用；识别同样只允许本地资源。
       const originalFetch = globalThis.fetch
       globalThis.fetch = async () => { throw Error('OCR 验收期间禁止联网') }
-      assert.equal((await call('materials', 'ocrPrepare')).ready, true)
+      if (engine === 'tesseract') assert.equal((await call('materials', 'ocrPrepare')).ready, true)
       const m = await importFile(scannedPdf()), original = m.current_version_id
       const oldBlocks = (await call('materials', 'blocks', { version_id: original })).blocks
       assert.equal(oldBlocks.length, 3)
@@ -110,12 +115,16 @@ app.on('browser-window-created', (_event, win) => {
       await js(`location.hash = '/library?material=${m.id}&version=${original}'`)
       await until(() => js(`!!document.querySelector('.material-ocr summary')`), 'OCR 面板')
       await js(`document.querySelector('.material-ocr').open = true`)
+      await until(() => js(`!!document.querySelector('[aria-label="OCR 引擎"]')`), '引擎选择')
+      await js(`(() => { const s=document.querySelector('[aria-label="OCR 引擎"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(engine)}); s.dispatchEvent(new Event('change',{bubbles:true})); })()`)
       await until(() => js(`Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim()==='识别为新版本' && !b.disabled)`), '语言包就绪')
       await click('识别为新版本')
       let ocr
       await until(async () => { ocr = (await call('materials', 'get', m.id)).versions.find(v => v.derivation === 'ocr'); return !!ocr }, 'OCR 版本创建')
       await ready(m.id, ocr.id)
       const p1 = await call('materials', 'ocrPage', { version_id: ocr.id, page: 1 })
+      assert.equal(JSON.parse(p1.model_json).engine, engine === 'ppocr' ? 'ppu-paddle-ocr' : 'tesseract.js')
+      if (engine === 'ppocr') assert.equal(typeof JSON.parse(p1.model_json).engineVersion, 'string')
       assert.match(p1.raw_text, /thermodynamics/i); assert.ok(JSON.parse(p1.lines_json).length > 0)
       assert.ok((await call('materials', 'blocks', { version_id: ocr.id, query: 'thermodynamics' })).total > 0)
       assert.equal((await call('materials', 'blocks', { version_id: original, query: 'thermodynamics' })).total, 0)

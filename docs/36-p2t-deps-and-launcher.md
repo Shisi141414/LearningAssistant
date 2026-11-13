@@ -40,4 +40,4 @@ typecheck / build 通过。Windows 验收：
 
 1. 双击 `启动学习助手.bat`：先见构建输出，随后应用窗口打开、控制台消失；功能与 dev 模式一致（笔记/课堂/材料数据同库——userData 路径不变）
 2. 双击 `创建桌面快捷方式.bat` 后，桌面出现「学习助手」；以后双击它即可
-3. Pix2Text：按 UI 提示执行 `python -m pip install -U rapidocr -i https://pypi.tuna.tsinghua.edu.cn/simple` 后点「重新检测」，状态应转绿并可识别
+3. Pix2Text：此处原先建议直接升级 rapidocr，现已由 [运行复核](37-ocr-runtime-validation.md) 更正。CnSTD 1.2.8 与 RapidOCR 3.10.0 实测不兼容；应使用独立环境验证兼容依赖，不能以状态转绿代替实际公式识别验收。

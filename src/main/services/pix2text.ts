@@ -26,17 +26,19 @@ export interface Pix2TextStatus {
 }
 
 /** 内嵌 sidecar 脚本（版本随代码演进，落盘到 userData 执行） */
-const SIDECAR_PY = `import base64, io, json, sys
+export const SIDECAR_PY = `import base64, io, json, sys, threading
+from importlib.metadata import version
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from PIL import Image
 
 _model = None
+_recognize_lock = threading.Lock()
 
 def get_model():
     global _model
     if _model is None:
-        from pix2text import Pix2Text
-        _model = Pix2Text()
+        from pix2text import TextFormulaOCR
+        _model = TextFormulaOCR.from_config()
     return _model
 
 def normalize_position(pos):
@@ -51,11 +53,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/ping':
             try:
-                import pix2text
-                version = getattr(pix2text, '__version__', '')
+                package_version = version('pix2text')
             except Exception:
-                version = ''
-            self.send_json({'ok': True, 'version': version})
+                package_version = ''
+            self.send_json({'ok': True, 'version': package_version})
         else:
             self.send_json({'ok': False, 'error': 'not found'}, 404)
 
@@ -64,9 +65,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({'ok': False, 'error': 'not found'}, 404)
         try:
             length = int(self.headers.get('Content-Length', '0'))
+            if length <= 0 or length > 40 * 1024 * 1024:
+                return self.send_json({'ok': False, 'error': 'invalid image request size'}, 413)
             req = json.loads(self.rfile.read(length).decode('utf-8'))
             img = Image.open(io.BytesIO(base64.b64decode(req['image_b64'])))
-            outs = get_model().recognize(img)
+            with _recognize_lock:
+                outs = get_model().recognize(img.convert('RGB'), return_text=False)
+            if not isinstance(outs, list) or any(not isinstance(item, dict) for item in outs):
+                raise TypeError('Pix2Text must return structured blocks')
             blocks = []
             for item in outs:
                 if isinstance(item, dict):
@@ -74,6 +80,7 @@ class Handler(BaseHTTPRequestHandler):
                         'type': str(item.get('type', 'text')),
                         'text': str(item.get('text', '') or ''),
                         'position': normalize_position(item.get('position')),
+                        'score': float(item.get('score', 0)),
                     })
             self.send_json({'ok': True, 'blocks': blocks})
         except Exception as e:
@@ -100,6 +107,17 @@ let sidecar: { child: ChildProcess; port: number; startedAt: number } | null = n
 let lastUsedAt = 0
 const IDLE_SHUTDOWN_MS = 5 * 60_000
 let idleTimer: ReturnType<typeof setInterval> | null = null
+let users = 0
+let pendingChild: ChildProcess | null = null
+let starting: Promise<string> | null = null
+let generation = 0
+
+/** 工作期间持有引用；仅完成后的空闲服务参与五分钟回收。 */
+export function retainPix2TextSidecar(): () => void {
+  users++
+  let released = false
+  return () => { if (!released) { released = true; users--; lastUsedAt = Date.now() } }
+}
 /** 已解析可用的解释器（pythonCandidates 首次命中后缓存，sidecar 复用同一解释器） */
 let resolvedCommand: { cmd: string; base: string[] } | null = null
 
@@ -156,7 +174,7 @@ export async function pix2textStatus(): Promise<Pix2TextStatus> {
     // 背景：pix2text → cnocr(新版) → rapidocr>=3.9.1；rapidocr 旧版没有
     // resolve_model_key，出现"装了 pix2text 但识别即 ImportError"的错位
     // （用户 Python 3.14 上 pip 解析出旧 rapidocr 实测踩中，2026-11）。
-    const pkg = await runPython(['-c', "import importlib.metadata as m\nfor name in ('pix2text','cnocr','rapidocr'):\n    try: print(name + '=' + m.version(name))\n    except Exception: print(name + '=MISSING')"], 20_000)
+    const pkg = await runPython(['-c', "import importlib.metadata as m\nfor name in ('pix2text','cnocr','cnstd','rapidocr'):\n    try: print(name + '=' + m.version(name))\n    except Exception: print(name + '=MISSING')"], 20_000)
     const found: Record<string, string> = {}
     for (const line of pkg.stdout.split('\n')) {
       const match = /^(\w+)=(.+)$/.exec(line.trim())
@@ -165,10 +183,14 @@ export async function pix2textStatus(): Promise<Pix2TextStatus> {
     const p2tOk = !!found.pix2text && found.pix2text !== 'MISSING'
     let issue: string | null = null
     if (p2tOk) {
-      if (!found.cnocr || found.cnocr === 'MISSING' || !found.rapidocr || found.rapidocr === 'MISSING') {
-        issue = 'pix2text 依赖不完整（缺 cnocr 或 rapidocr）。请执行：python -m pip install --force-reinstall pix2text'
-      } else if (versionLt(found.rapidocr, '3.9.1')) {
-        issue = `rapidocr 版本过旧（${found.rapidocr}，需 ≥3.9.1——cnocr 新版依赖其 API，旧版会在识别时报 ImportError）。请执行：python -m pip install -U rapidocr`
+      if (!found.cnocr || found.cnocr === 'MISSING' || !found.cnstd || found.cnstd === 'MISSING' || !found.rapidocr || found.rapidocr === 'MISSING') {
+        issue = 'pix2text 依赖不完整（缺 cnocr、cnstd 或 rapidocr），请在选定的 Python 环境中重新安装 pix2text 并检查依赖'
+      } else if (found.cnstd === '1.2.8' && found.rapidocr === '3.10.0') {
+        // 本机复现：CnSTD 1.2.8 导入 resolve_model_key，而 RapidOCR 3.10 已移除它。
+        // 仅限制已确认的组合，不能把所有新版一律判错或建议无条件升级。
+        issue = `CnSTD 1.2.8 与 rapidocr ${found.rapidocr} 的接口不兼容（缺 resolve_model_key）。请使用独立 Python 环境安装 rapidocr>=3.9.1,<3.10 后重试，或等待上游适配；不要直接升级系统环境`
+      } else if ((found.cnstd === '1.2.8' || found.cnocr === '2.3.3') && versionLt(found.rapidocr, '3.9.1')) {
+        issue = `rapidocr ${found.rapidocr} 与当前 CnSTD/CnOCR 不兼容。请在独立 Python 环境安装 rapidocr>=3.9.1,<3.10 后重试`
       }
     }
     return {
@@ -203,6 +225,12 @@ async function sidecarScriptPath(): Promise<string> {
 
 /** 确保 sidecar 运行（幂等）。返回 base URL；失败给出可操作指引。 */
 export async function ensurePix2TextSidecar(): Promise<string> {
+  starting ??= startPix2TextSidecar().finally(() => { starting = null })
+  return starting
+}
+
+async function startPix2TextSidecar(): Promise<string> {
+  const epoch = generation
   if (sidecar) {
     lastUsedAt = Date.now()
     return `http://127.0.0.1:${sidecar.port}`
@@ -215,29 +243,35 @@ export async function ensurePix2TextSidecar(): Promise<string> {
   return withWork('公式识别服务启动', async () => {
     if (sidecar) { lastUsedAt = Date.now(); return `http://127.0.0.1:${sidecar.port}` }
     const script = await sidecarScriptPath()
+    if (epoch !== generation) throw new Error('公式识别服务启动已取消')
     // pix2textStatus 已解析并缓存可用解释器；兜底 custom/python
     const { cmd, base } = resolvedCommand ?? { cmd: configGet('p2t.pythonPath') ?? 'python', base: [] as string[] }
     const child = spawn(cmd, [...base, script], { windowsHide: true })
+    pendingChild = child
     const port = await new Promise<number>((resolve, reject) => {
       let out = ''
-      const fail = (msg: string): void => { clearTimeout(timer); reject(new Error(msg)) }
+      let settled = false
+      let stderr = ''
+      const fail = (msg: string): void => { if (settled) return; settled = true; clearTimeout(timer); child.kill(); if (pendingChild === child) pendingChild = null; reject(new Error(msg)) }
       const timer = setTimeout(() => fail('sidecar 启动超时'), 30_000)
       child.stdout?.on('data', (d) => {
         out += String(d)
         const m = /"port"\s*:\s*(\d+)/.exec(out)
-        if (m) { clearTimeout(timer); resolve(parseInt(m[1], 10)) }
+        if (m && !settled) { settled = true; clearTimeout(timer); resolve(parseInt(m[1], 10)) }
       })
-      child.stderr?.on('data', (d) => { const s = String(d); if (/Error|Traceback/i.test(s)) fail(`sidecar 启动失败：${s.trim().slice(0, 200)}`) })
+      child.stderr?.on('data', (d) => { stderr = (stderr + String(d)).slice(-2000) })
       child.on('error', (e) => fail(`无法启动 python：${e.message}`))
-      child.on('close', (code) => fail(`sidecar 进程退出（${code}）`))
+      child.on('close', (code) => fail(`sidecar 进程退出（${code}）：${stderr.trim().slice(-500)}`))
     })
+    pendingChild = null
+    if (epoch !== generation || child.exitCode !== null) { child.kill(); throw new Error('公式识别服务启动已取消或退出') }
     sidecar = { child, port, startedAt: Date.now() }
     lastUsedAt = Date.now()
-    child.on('exit', () => { sidecar = null })
+    child.on('exit', () => { if (sidecar?.child === child) sidecar = null })
 
     // 健康检查（仅确认 HTTP 通；模型懒加载在首请求）
     const res = await fetch(`http://127.0.0.1:${port}/ping`, { signal: AbortSignal.timeout(10_000) }).then((r) => r.json() as Promise<{ ok: boolean }>).catch(() => null)
-    if (!res?.ok) {
+    if (!res?.ok || epoch !== generation || sidecar?.child !== child) {
       stopPix2TextSidecar()
       throw new Error('公式识别服务健康检查失败')
     }
@@ -249,12 +283,16 @@ export async function ensurePix2TextSidecar(): Promise<string> {
 function startIdleWatch(): void {
   if (idleTimer) return
   idleTimer = setInterval(() => {
-    if (sidecar && Date.now() - lastUsedAt > IDLE_SHUTDOWN_MS) stopPix2TextSidecar()
+    if (!users && sidecar && Date.now() - lastUsedAt > IDLE_SHUTDOWN_MS) stopPix2TextSidecar()
   }, 60_000)
+  idleTimer.unref()
 }
 
 export function stopPix2TextSidecar(): void {
-  if (!sidecar) return
-  try { sidecar.child.kill() } catch { /* ignore */ }
+  generation++
+  if (idleTimer) clearInterval(idleTimer)
+  idleTimer = null
+  try { pendingChild?.kill(); sidecar?.child.kill() } catch { /* ignore */ }
+  pendingChild = null
   sidecar = null
 }

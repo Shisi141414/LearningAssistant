@@ -6,6 +6,8 @@ rem 注意：本文件保持简单结构（无 goto/label），LF 行尾在 cmd 
 chcp 65001 >nul
 title 学习助手 - 启动器
 cd /d "%~dp0"
+set "ELECTRON_RUN_AS_NODE="
+set "ELECTRON_RENDERER_URL="
 where npm >nul 2>nul
 if errorlevel 1 (
   echo [错误] 未找到 npm 命令。请先安装 Node.js LTS: https://nodejs.org/

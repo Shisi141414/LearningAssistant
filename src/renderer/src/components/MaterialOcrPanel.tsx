@@ -47,7 +47,7 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
   }, [version.id, page])
   const ppocrPreset = language === 'ja' ? 'v5-ja' : language === 'ko' ? 'v5-ko' : language === 'latin' ? 'v5-latin' : 'v6-tiny'
   const ppocrReady = ppocr?.presets.find(p => p.key === ppocrPreset)?.ready ?? false
-  const p2tReady = !!p2t?.python && !!p2t?.pix2text
+  const p2tReady = !!p2t?.python && !!p2t?.pix2text && !p2t.issue
   const engineReady = engine === 'ppocr' ? ppocrReady : engine === 'pix2text' ? p2tReady : !!models?.ready
   const prepare = async (): Promise<void> => {
     setBusy(true); setError('')
@@ -104,11 +104,11 @@ function OcrEditor({ version, onVersion }: { version: MaterialVersion; onVersion
             <option value="zh-en">中文/中英混排（v6 统一模型）</option>
             <option value="ja">日文</option>
             <option value="ko">韩文</option>
-            <option value="latin">拉丁语系（法德西俄等）</option>
+            <option value="latin">拉丁字母（法德西等）</option>
           </select>
         </label>
       )}
-      <span role="status">{engineReady ? (engine === 'ppocr' ? '模型已就绪' : engine === 'pix2text' ? `Pix2Text 已就绪（${p2t?.pythonDetail ?? ''}${p2t?.pix2textVersion ? ' · pix2text ' + p2t.pix2textVersion : ''}）` : '中英文语言包已就绪') : busy ? '正在检测/准备…' : engine === 'pix2text' ? 'Pix2Text 环境未就绪' : '模型未就绪'}</span>
+      <span role="status">{engineReady ? (engine === 'ppocr' ? '模型已就绪' : engine === 'pix2text' ? `Pix2Text 已安装，首次识别时验证运行环境（${p2t?.pythonDetail ?? ''}${p2t?.pix2textVersion ? ' · pix2text ' + p2t.pix2textVersion : ''}）` : '中英文语言包已就绪') : busy ? '正在检测/准备…' : engine === 'pix2text' ? 'Pix2Text 环境未就绪' : '模型未就绪'}</span>
       {!engineReady && !busy && <button disabled={busy} onClick={() => void prepare()}>{engine === 'ppocr' ? '下载 PP-OCR 模型（首次约 30–60 MiB）' : engine === 'pix2text' ? '重新检测' : '下载中英文语言包（约 6 MiB）'}</button>}
     </div>
     {engine === 'pix2text' && !p2tReady && (

@@ -156,3 +156,7 @@ Pix2Text Python sidecar 接入 OCR 管线：第三引擎「文字+公式」（�
 ## Pix2Text 依赖链诊断与双击启动（2026-11-12）
 
 用户实测踩中 rapidocr 版本错位（pix2text→cnocr 新版要求 rapidocr≥3.9.1，旧版无 resolve_model_key 即 ImportError）：pix2textStatus 增加依赖链元数据检查（cnocr/rapidocr 版本与 issue 提示，UI/入口报错直给升级命令）。另交付双击启动：`启动学习助手.bat`（每次构建防陈旧产物+生产模式启动）与 `创建桌面快捷方式.bat`；正式打包（electron-builder）仍留 M5，见 [批次记录](36-p2t-deps-and-launcher.md)。
+
+## OCR 运行复核（2026-11-13，codex）
+
+恢复后确认昨晚 5 个增量已在远端。修复默认引擎启动、模型读取校验、公式结果格式与分数、服务启动/取消/空闲清理及依赖状态提示；PP-OCR 与 Tesseract 均通过工程热力学 PDF 第 26–27 页及重启恢复验收。完整回归 142 项检查、类型检查和构建通过，详见 [运行复核](37-ocr-runtime-validation.md)。纠正无条件升级 RapidOCR 的旧指引：本机 CnSTD 1.2.8 与 RapidOCR 3.10.0 实际冲突，隔离的 3.9.1 依赖已验证能导入，真实公式推理和质量验收仍为下一批。

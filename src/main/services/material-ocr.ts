@@ -40,6 +40,8 @@ export async function recognizeMaterial(
   ppocr?: PpocrModelPaths,
   p2tBaseUrl?: string
 ): Promise<OcrResult> {
+  if (input.engine === 'pix2text' && !p2tBaseUrl) throw new Error('公式识别服务未就绪')
+  if ((!input.engine || input.engine === 'ppocr') && !ppocr) throw new Error('PP-OCR 模型未就绪')
   const require = createRequire(__filename)
   const pdfRoot = dirname(require.resolve('pdfjs-dist/package.json'))
   const assets = (name: string): string => join(pdfRoot, name).replaceAll('\\', '/') + '/'
@@ -88,11 +90,11 @@ export async function recognizeMaterial(
       let confidence = 0
       let lines: OcrLineRecord[] = []
       if (paddle) {
-        const result = await paddle.recognize(png.buffer as ArrayBuffer)
+        const result = await paddle.recognize(new Uint8Array(png).buffer)
         text = result.text
         confidence = result.confidence * 100
         // ppu 行分组：每行若干词项（各带矩形 box）；合并为行记录，包围盒转 tesseract 四点格式
-        lines = result.lines.map((words) => {
+        lines = result.lines.filter(words => words.length > 0).map((words) => {
           const texts = words.map((w) => w.text)
           const minX = Math.min(...words.map((w) => w.box.x))
           const minY = Math.min(...words.map((w) => w.box.y))
@@ -138,6 +140,7 @@ interface P2tBlock {
   type: string
   text: string
   position: [number, number, number, number] | null
+  score?: number
 }
 
 /**
@@ -145,7 +148,7 @@ interface P2tBlock {
  * isolated 公式独立成行（$$...$$）；embedded 与同行文字拼接（$...$）。
  * 首请求含模型下载（约 200 MiB）与加载，超时给足（300s）；后续页 ~数秒。
  */
-async function recognizeByPix2Text(baseUrl: string, png: Buffer): Promise<{ text: string; confidence: number; lines: OcrLineRecord[] }> {
+export async function recognizeByPix2Text(baseUrl: string, png: Buffer): Promise<{ text: string; confidence: number; lines: OcrLineRecord[] }> {
   const response = await fetch(`${baseUrl}/recognize`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -153,7 +156,7 @@ async function recognizeByPix2Text(baseUrl: string, png: Buffer): Promise<{ text
     signal: AbortSignal.timeout(300_000)
   })
   const payload = (await response.json().catch(() => null)) as { ok?: boolean; blocks?: P2tBlock[]; error?: string } | null
-  if (!response.ok || !payload?.ok || !payload.blocks) {
+  if (!response.ok || !payload?.ok || !Array.isArray(payload.blocks)) {
     throw new Error(`Pix2Text 识别失败：${payload?.error ?? `HTTP ${response.status}`}`)
   }
   const blocks = payload.blocks.filter((b) => b.text.trim() || b.type.includes('formula'))
@@ -176,25 +179,26 @@ async function recognizeByPix2Text(baseUrl: string, png: Buffer): Promise<{ text
   }
 
   const lines: OcrLineRecord[] = []
+  const score = (row: P2tBlock[]): number => row.reduce((sum, b) => sum + (typeof b.score === 'number' && Number.isFinite(b.score) ? Math.max(0, Math.min(1, b.score)) : 0), 0) / row.length * 100
   for (const row of rows) {
     row.sort((a, b) => a.x1 - b.x1)
     // 全行为独立公式 → 独立 $$ 行；否则拼接（text 直拼、embedded → $..$）
     if (row.length === 1 && (row[0].type === 'isolated' || row[0].type.includes('isolated'))) {
       const b = row[0]
-      lines.push({ text: `$$${b.text.trim()}$$`, confidence: 90, bbox: toBbox(b) })
+      lines.push({ text: `$$${b.text.trim()}$$`, confidence: score(row), bbox: toBbox(b) })
       continue
     }
     let text = ''
     for (const b of row) {
       if (b.type === 'isolated' || b.type.includes('isolated')) text += ` $$${b.text.trim()}$$ `
-      else if (b.type.includes('formula') || b.type === 'embedded') text += `$${b.text.trim()}$`
+      else if (b.type.includes('formula') || b.type === 'embedded' || b.type === 'embedding') text += `$${b.text.trim()}$`
       else text += (text && !text.endsWith(' ') ? ' ' : '') + b.text.trim()
     }
     const x1 = Math.min(...row.map((b) => b.x1)), y1 = Math.min(...row.map((b) => b.y1))
     const x2 = Math.max(...row.map((b) => b.x2)), y2 = Math.max(...row.map((b) => b.y2))
-    lines.push({ text: text.trim(), confidence: 88, bbox: { x1, y1, x2, y2: y1, x3: x2, y3: y2, x4: x1, y4: y2 } })
+    lines.push({ text: text.trim(), confidence: score(row), bbox: { x1, y1, x2, y2: y1, x3: x2, y3: y2, x4: x1, y4: y2 } })
   }
-  return { text: lines.map((l) => l.text).join('\n'), confidence: 88, lines }
+  return { text: lines.map((l) => l.text).join('\n'), confidence: score(blocks), lines }
 }
 
 function toBbox(b: { x1: number; y1: number; x2: number; y2: number }): OcrLineRecord['bbox'] {

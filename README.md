@@ -91,6 +91,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 - [笔记 AI 结构建议、审核与来源保护](docs/28-note-ai-structure.md)
 - [笔记文档包契约与固定修订导出](docs/29-portable-notes.md)
 - [中断恢复、笔记导入与项目/日程/数学输入复核](docs/32-resumed-validation.md)
+- [OCR 实际运行复核、公式依赖冲突与修复](docs/37-ocr-runtime-validation.md)
 - [真实 PDF、旧 DOC/PPT 文档包跨目录验收](docs/23-real-portable-materials.md)
 
 ## 开发约定

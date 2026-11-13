@@ -10,8 +10,8 @@ import { getDb, dbFilePath } from './db'
 import { beginWork, withWork } from './work'
 import { completeOcrVersion, derivedParent, insertDerived, validateOcrRange } from './material-derivations'
 import { OCR_MODEL_COMMIT, OCR_MODELS, ocrModelDirectory, ocrModelsStatus } from './ocr-models'
-import { ppocrModelPaths, ppocrStatus, presetForLanguage } from './ppocr-models'
-import { ensurePix2TextSidecar, pix2textStatus } from './pix2text'
+import { ppocrEngineVersion, ppocrModelPaths, ppocrStatus, presetForLanguage } from './ppocr-models'
+import { ensurePix2TextSidecar, pix2textStatus, retainPix2TextSidecar, stopPix2TextSidecar } from './pix2text'
 import { managedMaterialFile } from './material-files'
 import { ensureMaterialConversion, materialParseInput } from './office-conversions'
 
@@ -168,6 +168,7 @@ async function pump(): Promise<void> {
   const release = beginWork('材料解析')
   getDb().prepare("UPDATE material_versions SET status = 'parsing', error = NULL, progress = 1 WHERE id = ?").run(next.id)
   let worker: Worker
+  let releaseSidecar: (() => void) | undefined
   const ocr: OcrInput | undefined = next.derivation === 'ocr' ? JSON.parse(next.processing_json) as OcrInput : undefined
   try {
     if (next.format === 'doc' || next.format === 'ppt') {
@@ -185,14 +186,15 @@ async function pump(): Promise<void> {
         if (!(await ocrModelsStatus()).ready) throw new Error('OCR 语言包缺失或校验失败，请重新准备')
       } else if (ocr.engine === 'pix2text') {
         // 公式识别 sidecar：主进程启动并健康检查，worker 只发回环 HTTP
+        releaseSidecar = retainPix2TextSidecar()
         p2tBaseUrl = await ensurePix2TextSidecar()
       } else {
         // PP-OCR：按语言路由预设，主进程解析本地模型路径（worker 不联网、不做路径决策）
         const preset = presetForLanguage(ocr.language)
-        ppocrPaths = { ...(await ppocrModelPaths(preset)), preset, engineVersion: require('ppu-paddle-ocr/package.json').version }
+        ppocrPaths = { ...(await ppocrModelPaths(preset)), preset, engineVersion: await ppocrEngineVersion() }
       }
       // await 期间取消、退出或归档后，不得重新启动已失效的任务。
-      if (stopping || version(next.id).status !== 'parsing') { starting = undefined; release(); queueMicrotask(() => void pump()); return }
+      if (stopping || version(next.id).status !== 'parsing') { releaseSidecar?.(); if (ocr.engine === 'pix2text') stopPix2TextSidecar(); starting = undefined; release(); queueMicrotask(() => void pump()); return }
     }
     // 只把 realpath 校验后的托管文件交给解析线程。
     const modelJson = ocr
@@ -204,6 +206,8 @@ async function pump(): Promise<void> {
       : undefined
     worker = new Worker(join(__dirname, 'material-worker.js'), { workerData: { ...materialParseInput(next.id, materialPath(next.id), next.format), ocr, modelDirectory: ocr && ocr.engine === 'tesseract' ? ocrModelDirectory() : undefined, ppocr: ppocrPaths, p2tBaseUrl, modelJson }, resourceLimits: { maxOldGenerationSizeMb: 512 } })
   } catch (error) {
+    releaseSidecar?.()
+    if (ocr?.engine === 'pix2text') stopPix2TextSidecar()
     if (!stopping) getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ? AND status = 'parsing'").run(String(error), next.id)
     converting = undefined; starting = undefined; release(); queueMicrotask(() => void pump()); return
   }
@@ -232,6 +236,8 @@ async function pump(): Promise<void> {
     } catch (failure) {
       getDb().prepare("UPDATE material_versions SET status = 'failed', error = ? WHERE id = ?").run(String(failure), next.id)
     } finally {
+      releaseSidecar?.()
+      if (ocr?.engine === 'pix2text' && status !== 'ready') stopPix2TextSidecar()
       void worker.terminate(); active = undefined; release()
       if (!stopping) queueMicrotask(() => void pump())
     }

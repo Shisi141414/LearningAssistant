@@ -10,6 +10,7 @@
  * 识别 worker 只读本地文件（离线推理）；下载原子写 + 大小上限 + 记录摘要。
  */
 import { createHash } from 'node:crypto'
+import { createRequire } from 'node:module'
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { nanoid } from 'nanoid'
@@ -18,9 +19,17 @@ import { dbFilePath } from './db'
 import { withWork } from './work'
 
 const HF_BASE = 'https://huggingface.co/snowfluke/ppu-paddle-ocr-models/resolve/main'
-const GH_BASE = 'https://github.com/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/raw/main'
+const GH_BASE = 'https://media.githubusercontent.com/media/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main'
 /** GitHub raw 国内可达性通常好于 HF；失败自动回退 HF */
-const urlFor = (rel: string, mirror: boolean): string => `${mirror ? GH_BASE : HF_BASE}/${rel}`
+const urlFor = (rel: string, mirror: boolean): string => `${mirror ? (rel.endsWith('.txt') ? 'https://raw.githubusercontent.com/PT-Perkasa-Pilar-Utama/ppu-paddle-ocr-models/main' : GH_BASE) : HF_BASE}/${rel}`
+
+/** 从已解析的公开入口读取同目录元数据，避免访问未导出的 package.json 子路径。 */
+export async function ppocrEngineVersion(): Promise<string> {
+  const require = createRequire(typeof __filename === 'string' ? __filename : import.meta.url)
+  const metadata = JSON.parse(await readFile(join(dirname(require.resolve('ppu-paddle-ocr')), 'package.json'), 'utf-8'))
+  if (metadata.name !== 'ppu-paddle-ocr' || typeof metadata.version !== 'string') throw new Error('PP-OCR 版本信息无效')
+  return metadata.version
+}
 
 export interface PpocrPreset {
   key: string
@@ -59,7 +68,7 @@ export const PPOCR_PRESETS: Record<string, PpocrPreset> = {
   },
   'v5-latin': {
     key: 'v5-latin',
-    label: '拉丁语系·PP-OCRv5 拉丁专用（法德西俄等）',
+    label: '拉丁字母·PP-OCRv5 拉丁专用（法德西等）',
     files: {
       detection: 'detection/PP-OCRv5_mobile_det_infer.onnx',
       recognition: 'recognition/multi/latin/v5/latin_PP-OCRv5_mobile_rec_infer.onnx',
@@ -81,11 +90,17 @@ export const ppocrModelDirectory = (preset: string): string => join(dirname(dbFi
 async function validFile(path: string, recordedSha: string): Promise<boolean> {
   try {
     const bytes = await readFile(path)
-    if (bytes.length === 0) return false
+    if (!validContents(bytes, path)) return false
     return createHash('sha256').update(bytes).digest('hex') === recordedSha
   } catch {
     return false
   }
+}
+
+function validContents(bytes: Buffer, path: string): boolean {
+  if (bytes.length === 0 || bytes.length > (path.endsWith('.txt') ? DICT_MAX_BYTES : MODEL_MAX_BYTES)) return false
+  const prefix = bytes.subarray(0, 200).toString('utf-8').trimStart()
+  return !/^(version https:\/\/git-lfs|<!doctype html|<html)/i.test(prefix) && (path.endsWith('.txt') || bytes.length > 1024)
 }
 
 async function readSha(path: string): Promise<string | null> {
@@ -128,7 +143,7 @@ export function preparePpocrModel(presetKey: string): Promise<PpocrModelsStatus>
       const recorded = await readSha(shaFile)
       if (recorded && (await validFile(target, recorded))) continue
       const limit = name.includes('dict') ? DICT_MAX_BYTES : MODEL_MAX_BYTES
-      const bytes = (await download(urlFor(rel, true), limit)) ?? (await download(urlFor(rel, false), limit))
+      const bytes = (await download(urlFor(rel, true), limit, rel)) ?? (await download(urlFor(rel, false), limit, rel))
       if (!bytes) throw new Error(`模型文件下载失败（GitHub 镜像与 HuggingFace 均不可达）：${name}`)
       const temporary = `${target}.${nanoid()}.part`
       try {
@@ -144,7 +159,7 @@ export function preparePpocrModel(presetKey: string): Promise<PpocrModelsStatus>
   return preparing[presetKey]
 }
 
-async function download(url: string, limit: number): Promise<Buffer | null> {
+async function download(url: string, limit: number, rel: string): Promise<Buffer | null> {
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(300_000), redirect: 'follow' })
     if (!response.ok || !response.body) return null
@@ -158,7 +173,8 @@ async function download(url: string, limit: number): Promise<Buffer | null> {
       }
       chunks.push(chunk)
     }
-    return Buffer.concat(chunks)
+    const bytes = Buffer.concat(chunks)
+    return validContents(bytes, rel) ? bytes : null
   } catch (e) {
     if (e instanceof Error && e.message.includes('体积限制')) throw e
     return null
@@ -184,7 +200,8 @@ export async function ppocrModelPaths(presetKey: string): Promise<{ detection: s
     charactersDictionary: join(dir, preset.files.charactersDictionary.split('/').pop() as string)
   }
   for (const p of Object.values(paths)) {
-    if (!(await stat(p).then((s) => s.isFile()).catch(() => false))) {
+    const sha = await readSha(`${p}.sha256`)
+    if (!sha || !(await stat(p).then((s) => s.isFile()).catch(() => false)) || !(await validFile(p, sha))) {
       throw new Error(`PP-OCR 模型未就绪，请先在材料库「准备模型」（缺 ${p.split('\\').pop()?.split('/').pop() ?? '文件'}）`)
     }
   }
