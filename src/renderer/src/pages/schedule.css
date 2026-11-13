@@ -65,6 +65,23 @@
   font-size: 13px;
   padding: 5px 9px;
 }
+.schedule-calendar .fc-toolbar-chunk:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.schedule-calendar .fc .fc-toolbar-chunk:first-child > * {
+  margin: 0;
+}
+/* Mouse focus must not look latched; keyboard navigation keeps a visible focus ring. */
+.schedule-calendar .fc .fc-button-primary:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+.schedule-calendar .fc .fc-button-primary:focus-visible {
+  outline: 2px solid #8b83ef;
+  outline-offset: 3px;
+  box-shadow: none;
+}
 .schedule-calendar .fc-event {
   cursor: pointer;
 }

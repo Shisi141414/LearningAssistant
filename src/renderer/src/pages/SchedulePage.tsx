@@ -501,8 +501,8 @@ export function SchedulePage() {
             slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
             buttonText={{ today: '今天', day: '日', week: '周', month: '月' }}
             headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
+              left: 'prev title next today',
+              center: '',
               right: 'timeGridDay,timeGridWeek,dayGridMonth'
             }}
             events={events}
