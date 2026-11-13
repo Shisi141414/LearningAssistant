@@ -1,5 +1,6 @@
 import type { LearningAsset, LearningEntry, LearningSource, LearningState } from './types'
 import { entryText, validateLearningState } from './learning-document'
+import { isExerciseApproach } from './exercise-set'
 
 export const exerciseFields = {
   statement: '题面',
@@ -125,11 +126,12 @@ export function exerciseSnapshot(
     ...(role === 'statement' && previous?.origin?.entry.figures
       ? { figures: previous.origin.entry.figures }
       : {}),
-    ...(role === 'standard_answer' && previous?.origin
+    ...((role === 'standard_answer' || role === 'approach') && previous?.origin
       ? {
           figures: [
             ...new Map(
               previous.origin.solutions
+                .filter(entry => isExerciseApproach(entry) === (role === 'approach'))
                 .flatMap((entry) => entry.figures ?? [])
                 .map((figure) => [figure.asset_id, figure])
             ).values()

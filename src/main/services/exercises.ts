@@ -9,8 +9,8 @@ import type {
 } from '@shared/exercises'
 import { exerciseSnapshot, exerciseTexts } from '@shared/exercises'
 import { entryText, validateLearningState } from '@shared/learning-document'
-import { learningContent } from '@shared/learning-formulas'
-import type { LearningEntry } from '@shared/types'
+import { exerciseEntryText, isExerciseApproach } from '@shared/exercise-set'
+import type { LearningDocument, LearningEntry, LearningSource } from '@shared/types'
 import { getDb } from './db'
 import { getLearningDocument } from './learning-documents'
 
@@ -220,6 +220,21 @@ export function saveExercise(input: ExerciseInput): ExerciseDetail {
   })()
 }
 export function importExercise(source: ExerciseSource): ExerciseDetail {
+  return importExercises([source])[0]
+}
+/** Reuse one fixed source document for the whole batch, rather than loading it per question. */
+export function importExercises(sources: ExerciseSource[]): ExerciseDetail[] {
+  if (!sources.length) return []
+  const first = sources[0]
+  if (sources.length > 500 || sources.some(source => source.version_id !== first.version_id || source.revision_id !== first.revision_id || source.material_id !== first.material_id)) throw new Error('批量转入必须来自同一材料修订，最多 500 道')
+  return getDb().transaction(() => {
+    const document = getLearningDocument({ version_id: first.version_id, revision_id: first.revision_id })
+    if (!document) throw new Error('教材尚未建立学习文档')
+    validateLearningState(document.state, document.sources)
+    return sources.map(source => importExerciseFromDocument(source, document))
+  })()
+}
+function importExerciseFromDocument(source: ExerciseSource, document: LearningDocument): ExerciseDetail {
   const db = getDb()
   return db.transaction(() => {
     const material = db
@@ -230,12 +245,6 @@ export function importExercise(source: ExerciseSource): ExerciseDetail {
       | { title: string; subject_id: string | null }
       | undefined
     if (!material) throw new Error('教材与版本不匹配')
-    const document = getLearningDocument({
-      version_id: source.version_id,
-      revision_id: source.revision_id
-    })
-    if (!document) throw new Error('教材尚未建立学习文档')
-    validateLearningState(document.state, document.sources)
     const entry = document.state.entries.find((item) => item.id === source.entry_id)
     if (!entry || !['exercise', 'example'].includes(entry.type))
       throw new Error('只能从指定修订转入习题或例题条目')
@@ -255,23 +264,23 @@ export function importExercise(source: ExerciseSource): ExerciseDetail {
         .map((item) => item.from)
     )
     const solutions = document.state.entries.filter((item) => solutionIds.has(item.id))
-    const text = (item: LearningEntry): string =>
-      learningContent(entryText(item, sources), item.formulas)
-        .map((node) =>
-          node.type === 'text'
-            ? node.text
-            : node.formula.display
-              ? `\n$$${node.formula.latex}$$\n`
-              : `$${node.formula.latex}$`
-        )
-        .join('')
+    const text = (item: LearningEntry): string => exerciseEntryText(item, sources)
     const statement = text(entry),
-      answer = solutions.map(text).join('\n\n')
-    if (statement.length > 200_000 || answer.length > 200_000)
+      approach = solutions.filter(isExerciseApproach).map(text).join('\n\n'),
+      answer = solutions.filter(item => !isExerciseApproach(item)).map(text).join('\n\n')
+    if ([statement, approach, answer].some(value => value.length > 200_000))
       throw new Error('此条目超过单题 20 万字符限制，请先在教材中拆分')
-    const usedSources = new Set(
-      [entry, ...solutions].flatMap((item) => item.sources.map((ref) => ref.source_id))
-    )
+    // Snapshot just the referenced ranges. A page/source may contain hundreds of questions.
+    const originSources = new Map<string, LearningSource>()
+    const captureEntry = (item: LearningEntry): LearningEntry => ({ ...item, sources: item.sources.map(ref => {
+      const original = sources.get(ref.source_id)!
+      const [start, end] = ref.text_range ?? [0, original.raw_text.length]
+      if (start === 0 && end === original.raw_text.length) { originSources.set(original.id, original); return ref }
+      const id = nanoid()
+      originSources.set(id, { ...original, id, raw_text: original.raw_text.slice(start, end), locator_json: JSON.stringify({ ...JSON.parse(original.locator_json), original_source: { id: original.id, text_range: [start, end] } }) })
+      return { source_id: id }
+    }) })
+    const originEntry = captureEntry(entry), originSolutions = solutions.map(captureEntry)
     const usedAssets = new Set(
       [entry, ...solutions].flatMap((item) => item.figures?.map((figure) => figure.asset_id) ?? [])
     )
@@ -305,7 +314,7 @@ export function importExercise(source: ExerciseSource): ExerciseDetail {
       review_concept_ids: [],
       fields: {
         statement,
-        approach: '',
+        approach,
         standard_answer: answer,
         user_answer: '',
         error_reason: ''
@@ -316,9 +325,9 @@ export function importExercise(source: ExerciseSource): ExerciseDetail {
       reference: source,
       label,
       raw_text: entryText(entry, sources),
-      entry,
-      solutions,
-      sources: document.sources.filter((item) => usedSources.has(item.id)),
+      entry: originEntry,
+      solutions: originSolutions,
+      sources: [...originSources.values()],
       assets: (document.assets ?? []).filter((item) => usedAssets.has(item.id))
     }
     const snapshot = exerciseSnapshot(id, input, base)

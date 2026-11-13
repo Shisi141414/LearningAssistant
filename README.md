@@ -62,6 +62,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 
 ## 文档
 
+- [习题集文件导入与自动切分](docs/44-exercise-set-import.md)
 - [项目要求、计划书与版本化文档](docs/42-project-documents.md)
 - [知识图谱与学习应用回链](docs/41-knowledge-graph.md)
 - [产品总览](docs/00-overview.md)

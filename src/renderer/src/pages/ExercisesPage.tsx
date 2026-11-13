@@ -8,6 +8,7 @@ import { MathInput } from '../components/MathInput'
 import { MarkdownSegment } from '../components/MarkdownSegment'
 import { LearningEntryFigures } from '../components/LearningFigures'
 import { LearningPdfExport } from '../components/LearningPdfExport'
+import { ExerciseSetImport } from '../components/ExerciseSetImport'
 import './exercises.css'
 
 const blank = (subject: string | null): ExerciseInput => ({
@@ -32,6 +33,7 @@ export function ExercisesPage() {
     [concept, setConcept] = useState(params.get('concept') ?? '')
   const [trash, setTrash] = useState(false),
     [offset, setOffset] = useState(0)
+  const [importOpen, setImportOpen] = useState(false), [refresh, setRefresh] = useState(0)
   const [page, setPage] = useState<ExercisePage | null>(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(false)
@@ -64,7 +66,7 @@ export function ExercisesPage() {
       alive = false
       clearTimeout(timer)
     }
-  }, [query, subject, status, type, concept, trash, offset])
+  }, [query, subject, status, type, concept, trash, offset, refresh])
   const filter = (set: (value: string) => void, value: string) => {
     set(value)
     setOffset(0)
@@ -76,10 +78,12 @@ export function ExercisesPage() {
           <h1>习题库</h1>
           <p className="muted">把解题过程留下来，也把需要重温的知识连起来。</p>
         </div>
-        <Link className="exercise-new" to="/exercises/new">
+        <div className="exercise-page-actions"><Link className="exercise-new" to="/exercises/new">
           + 新建习题
         </Link>
+        <button onClick={() => setImportOpen(true)}>导入习题集</button></div>
       </div>
+      {importOpen && <ExerciseSetImport onClose={() => setImportOpen(false)} onImported={() => { setTrash(false); setQuery(''); setSubject('all'); setStatus(''); setType(''); setConcept(''); setOffset(0); setRefresh(value => value + 1) }} />}
       <div className="exercise-filters">
         <input
           aria-label="搜索习题"

@@ -9,6 +9,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
 import type { ExerciseDetail, ExerciseInput, ExerciseListInput, ExercisePage, ExerciseSource } from '@shared/exercises'
+import type { ExerciseSetPreview, ExerciseSetResult } from '@shared/exercise-set'
 import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions, CalendarTaskSaveInput, CalendarTaskSaveResult } from '@shared/calendar'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
 import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
@@ -31,6 +32,11 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  exerciseSets: {
+    preview: (versionId: string) => invoke<ExerciseSetPreview>(IPC.ExerciseSetsPreview, versionId),
+    import: (input: { token: string; entry_ids: string[] }) => invoke<ExerciseSetResult>(IPC.ExerciseSetsImport, input),
+    discard: () => invoke<boolean>(IPC.ExerciseSetsDiscard)
+  },
   exercises: {
     list: (input: ExerciseListInput) => invoke<ExercisePage>(IPC.ExercisesList, input),
     get: (input: { id: string; revision_id?: string }) => invoke<ExerciseDetail>(IPC.ExercisesGet, input),

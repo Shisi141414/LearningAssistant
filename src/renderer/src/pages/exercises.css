@@ -12,6 +12,26 @@
 .exercise-page-heading h1 {
   margin-bottom: 8px;
 }
+.exercise-page-actions { display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; }
+.exercise-set-import { padding: 20px; margin-bottom: 24px; border: 1px solid var(--border); border-radius: 12px; background: #fff; min-width: 0; }
+.exercise-import-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.exercise-import-heading h2 { margin: 0; font-size: 18px; }
+.exercise-import-heading > button { font-size: 22px; padding: 2px 9px; border: 0; background: transparent; }
+.exercise-import-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin: 16px 0; }
+.exercise-import-controls label { display: flex; flex-direction: column; gap: 6px; max-width: 100%; }
+.exercise-import-controls select { max-width: 100%; min-width: 160px; }
+.exercise-import-controls span { align-self: center; }
+.exercise-import-warnings { margin: 14px 0; }
+.exercise-import-warnings li { margin: 7px 0; }
+.exercise-set-import .toolbar { flex-wrap: wrap; margin: 16px 0; }
+.exercise-import-candidates { display: grid; gap: 12px; }
+.exercise-import-candidates article { border: 1px solid var(--border); border-radius: 10px; padding: 14px; overflow-wrap: anywhere; }
+.exercise-import-candidates article > label { display: flex; align-items: baseline; gap: 9px; }
+.exercise-import-title { font-weight: 700; }
+.exercise-import-title p { margin: 0; }
+.exercise-import-candidates details { margin-top: 10px; }
+.exercise-import-error { color: var(--danger); }
+.exercise-import-result { color: #236353; padding: 14px; background: #e5f5ee; border-radius: 8px; }
 .exercise-page-heading p {
   margin: 0;
 }
