@@ -1,0 +1,87 @@
+.auto-schedule,
+.task-planning {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 12px 0;
+  min-width: 0;
+}
+.auto-schedule summary,
+.task-planning summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.auto-schedule fieldset,
+.task-planning fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.auto-settings-row {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+.auto-settings-row label,
+.task-planning label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 10px 0;
+}
+.task-planning label:has(input[type='checkbox']) {
+  flex-direction: row;
+  align-items: center;
+}
+.task-planning label input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.auto-settings-row input {
+  max-width: 100%;
+}
+.auto-availability {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(370px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.auto-slot {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.auto-slot input {
+  width: 115px;
+}
+.auto-preview {
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 10px;
+  max-height: 600px;
+  overflow: auto;
+}
+.auto-preview p,
+.auto-block {
+  border-bottom: 1px solid var(--border);
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.task-planning input:not([type='checkbox']),
+.task-planning select {
+  width: 100%;
+  min-width: 0;
+}
+.auto-schedule [role='alert'],
+.task-planning [role='alert'] {
+  color: var(--danger, #b91c1c);
+}
+@media (max-width: 650px) {
+  .auto-availability {
+    grid-template-columns: 1fr;
+  }
+}

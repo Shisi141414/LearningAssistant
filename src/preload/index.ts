@@ -7,6 +7,7 @@
 import type { ProjectDocumentDetail, ProjectDocumentSummary, ProjectDocumentSave, ProjectDocumentChange, ProjectDocumentAction, ProjectDocumentKind } from '@shared/project-documents'
 import type { TaskResourceAdd, TaskResourceEdit, TaskResourceSource, TaskResourcePage, TaskResource } from '@shared/task-resources'
 import { contextBridge, ipcRenderer } from 'electron'
+import type { PlanningState, PlanningPreview, ScheduleSettings, TaskPlanningSave } from '@shared/auto-schedule'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
 import type { ExerciseDetail, ExerciseInput, ExerciseListInput, ExercisePage, ExerciseSource } from '@shared/exercises'
@@ -262,6 +263,14 @@ const api = {
     listAll: () => invoke<Array<Task & { project_title: string | null; project_subject_id: string | null }>>(IPC.TasksListAll)
   },
   calendar: {
+    planning: () => invoke<PlanningState>(IPC.PlanningGet),
+    saveSettings: (input: {expected_revision:string|null;value:ScheduleSettings}) => invoke<PlanningState>(IPC.PlanningSettings,input),
+    savePlanning: (input: TaskPlanningSave) => invoke<PlanningState>(IPC.PlanningTask,input),
+    changeBlock: (input:{id:string;expected_revision:string;action:'lock'|'unlock'|'remove'}) => invoke<PlanningState>(IPC.PlanningBlock,input),
+    plan: (range:CalendarRange) => invoke<PlanningPreview>(IPC.PlanningPreview,range),
+    applyPlan: (token:string) => invoke<PlanningState>(IPC.PlanningApply,token),
+    discardPlan: () => invoke<boolean>(IPC.PlanningDiscard),
+    undoPlan: (id:string) => invoke<PlanningState>(IPC.PlanningUndo,id),
     save: (input: CalendarTaskSaveInput) => invoke<CalendarTaskSaveResult>(IPC.CalendarSave, input),
     preview: (range: CalendarRange) => invoke<CalendarPreview | null>(IPC.CalendarPreview, range),
     import: (token: string, options?: CalendarImportOptions) => invoke<CalendarImportResult>(IPC.CalendarImport, token, options),

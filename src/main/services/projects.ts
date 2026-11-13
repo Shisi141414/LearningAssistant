@@ -250,6 +250,7 @@ export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: T
   }
   next.title = next.title.trim()
   validateTaskTime(next)
+  if (next.planned_at !== null && db.prepare('SELECT id FROM schedule_blocks WHERE task_id=? LIMIT 1').get(id)) throw new Error('此任务已有学习时间块，请先在自动安排中移除时间块，再设置固定日程')
   db.prepare('UPDATE tasks SET title = ?, detail = ?, status = ?, blocked_reason = ?, due_at = ?, planned_at = ?, planned_end_at = ?, all_day = ?, location = ?, milestone_id = ?, knowledge_refs_json = ?, updated_at = ? WHERE id = ?').run(
     next.title, next.detail, next.status, next.blocked_reason, next.due_at, next.planned_at, next.planned_end_at, Number(next.all_day), next.location, next.milestone_id, next.knowledge_refs_json, next.updated_at, id
   )

@@ -1,4 +1,6 @@
 import { TaskResources } from '../components/TaskResources'
+import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
+import type { PlanningState } from '@shared/auto-schedule'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
@@ -81,6 +83,7 @@ const draftFor = (task?: TaskWithProject, start?: Date, allDay = false): Draft =
 export function SchedulePage() {
   const calendar = useRef<FullCalendar>(null)
   const [dateTitle, setDateTitle] = useState('日期')
+  const [planning, setPlanning] = useState<PlanningState | null>(null)
   const [dateJump, setDateJump] = useState<{ start: string; end: string; original_start: string; original_end: string; week: boolean } | null>(null)
   const [jumpError, setJumpError] = useState('')
   const [params] = useSearchParams()
@@ -93,8 +96,13 @@ export function SchedulePage() {
   const [tasks, setTasks] = useState<TaskWithProject[]>([]),
     [draft, setDraft] = useState<Draft | null>(null)
   const originalDraft = useRef<Draft | null>(null)
+  const planningDraft = useRef({dirty:false,busy:false})
+  const planningDraftChanged = useCallback((value:{dirty:boolean;busy:boolean})=>{planningDraft.current=value},[])
   const beginDraft = (value: Draft): void => { originalDraft.current = value; setDraft(value) }
-  const canDiscardDraft = (): boolean => !draft || JSON.stringify(draft) === JSON.stringify(originalDraft.current) || window.confirm('放弃未保存的日程修改？')
+  const canDiscardDraft = (): boolean => {
+    if (planningDraft.current.busy) {showToast('学习安排正在保存，请稍候');return false}
+    return !draft || (!planningDraft.current.dirty && JSON.stringify(draft) === JSON.stringify(originalDraft.current)) || window.confirm('放弃未保存的日程修改？')
+  }
   const [showDone, setShowDone] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
@@ -137,14 +145,17 @@ export function SchedulePage() {
       )
     )
   const reload = useCallback(async () => {
-    const result = await window.api.tasks.listAll()
+    const [result, plan] = await Promise.all([window.api.tasks.listAll(),window.api.calendar.planning()])
     if (result.ok) setTasks(result.data)
     else setError(result.error)
+    if (plan.ok) setPlanning(plan.data)
+    else setError(plan.error)
   }, [])
   useEffect(() => {
     void reload()
     return () => {
       void window.api.calendar.discard()
+      void window.api.calendar.discardPlan()
     }
   }, [reload])
   const perform = async (run: () => Promise<void>): Promise<void> => {
@@ -163,7 +174,7 @@ export function SchedulePage() {
     return r.data
   }
   const visible = tasks.filter((t) => showDone || t.status !== 'done')
-  const startTime = scheduleStartTime(fromSix, dateRange, visible, preferredStart ? Number(preferredStart.slice(0, 2)) * 60 + Number(preferredStart.slice(3)) : 360)
+  const startTime = scheduleStartTime(fromSix, dateRange, [...visible,...(planning?.blocks??[]).filter(b=>visible.some(t=>t.id===b.task_id)).map(b=>({planned_at:b.start_at,planned_end_at:b.end_at,all_day:false,due_at:null}))], preferredStart ? Number(preferredStart.slice(0, 2)) * 60 + Number(preferredStart.slice(3)) : 360)
   const events = useMemo(() => {
     const list: EventInput[] = []
     for (const t of tasks.filter((t) => showDone || t.status !== 'done')) {
@@ -185,6 +196,9 @@ export function SchedulePage() {
           end: t.planned_end_at ?? undefined,
           allDay: t.all_day
         })
+      for (const b of planning?.blocks.filter(b=>b.task_id===t.id) ?? []) list.push({
+        ...appearance,id:`block:${b.id}`,title:`${b.locked?'锁定 · ':''}${t.title}`,start:b.start_at,end:b.end_at,allDay:false
+      })
       if (t.due_at !== null && t.due_at !== t.planned_at)
         list.push({
           ...appearance,
@@ -195,7 +209,7 @@ export function SchedulePage() {
         })
     }
     return list
-  }, [tasks, showDone, subjects])
+  }, [tasks, showDone, subjects, planning])
   const edit = (task: TaskWithProject): void => {
     if (!busy && canDiscardDraft()) {
       beginDraft(draftFor(task))
@@ -204,6 +218,8 @@ export function SchedulePage() {
   }
   const save = (): void => {
     if (!draft) return
+    if (planningDraft.current.busy) {showToast('学习安排正在保存，请稍候');return}
+    if (planningDraft.current.dirty && !window.confirm('学习安排尚未保存。放弃这些输入并保存日程？')) return
     void perform(async () => {
       const input: TaskInput = {
         title: draft.title.trim(),
@@ -264,10 +280,10 @@ export function SchedulePage() {
       },
       {
         name: '待安排（无截止日期）',
-        items: visible.filter((t) => t.planned_at === null && t.due_at === null)
+        items: visible.filter((t) => t.planned_at === null && t.due_at === null && !planning?.blocks.some(b=>b.task_id===t.id&&b.end_at>Date.now()))
       }
     ]
-  }, [tasks, showDone])
+  }, [tasks, showDone, planning])
   const selected = tasks.find((t) => t.id === draft?.id)
   useEffect(() => {
     const task = tasks.find(item => item.id === targetTaskId)
@@ -516,6 +532,7 @@ export function SchedulePage() {
           </div>
         )}
       </details>
+      {planning && <AutoSchedule state={planning} tasks={tasks} onChange={setPlanning} disabled={busy} />}
       <div className={`schedule-layout ${draft ? 'editing' : ''}`}>
         <section className="schedule-calendar" aria-label="日历">
           {dateJump && <form className="schedule-date-jump" aria-label="填写日期跳转" onSubmit={e => {
@@ -633,6 +650,7 @@ export function SchedulePage() {
               <input
                 type="checkbox"
                 aria-label="全天日程"
+                disabled={!!selected && !!planning?.blocks.some(b=>b.task_id===selected.id)}
                 checked={draft.allDay}
                 onChange={(e) => {
                   const allDay = e.target.checked
@@ -660,6 +678,7 @@ export function SchedulePage() {
               开始
               <input
                 aria-label="日程开始"
+                disabled={!!selected && !!planning?.blocks.some(b=>b.task_id===selected.id)}
                 type={draft.allDay ? 'date' : 'datetime-local'}
                 value={draft.start}
                 onChange={(e) => setDraft({ ...draft, start: e.target.value })}
@@ -669,6 +688,7 @@ export function SchedulePage() {
               {draft.allDay ? '结束日期（不含该日）' : '结束'}
               <input
                 aria-label="日程结束"
+                disabled={!!selected && !!planning?.blocks.some(b=>b.task_id===selected.id)}
                 type={draft.allDay ? 'date' : 'datetime-local'}
                 value={draft.end}
                 onChange={(e) => setDraft({ ...draft, end: e.target.value })}
@@ -771,6 +791,8 @@ export function SchedulePage() {
               )}
             </div>
           </form>
+          {selected && planning?.blocks.some(b=>b.task_id===selected.id) && <p className="muted">此任务按下方学习时间块安排。要改为固定日程，请先移除全部时间块并停用自动安排。</p>}
+          {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
           </aside>
         )}

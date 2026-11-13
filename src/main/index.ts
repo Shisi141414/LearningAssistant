@@ -13,6 +13,7 @@ import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { stopPix2TextSidecar } from './services/pix2text'
 import { stopCalendarJobs } from './services/calendar'
+import { stopScheduleJobs } from './services/auto-schedule'
 import { declareMaterialProtocol, registerMaterialProtocol } from './services/material-protocol'
 import { stopLearningPreparation } from './services/learning-documents'
 import { recoverLearningSuggestions, stopLearningSuggestions } from './services/learning-suggestions'
@@ -109,6 +110,7 @@ app.on('before-quit', () => {
   stopAllChats()
   stopMaterialJobs()
   stopCalendarJobs()
+  stopScheduleJobs()
   stopPix2TextSidecar()
   stopLearningPreparation()
   stopLearningAssets()

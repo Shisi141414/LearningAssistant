@@ -725,5 +725,47 @@ CREATE TABLE task_resource_links (
 CREATE INDEX idx_task_resource_source ON task_resource_links(source_key);
 CREATE INDEX idx_task_resource_concept ON task_resource_links(concept_id);
 `
+  },
+  {
+    version: 26,
+    name: 'automatic_schedule_blocks',
+    sql: `
+CREATE TABLE task_planning (
+  task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL,
+  options_json TEXT NOT NULL
+);
+CREATE TABLE task_dependencies (
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  depends_on_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  PRIMARY KEY(task_id,depends_on_id),
+  CHECK(task_id != depends_on_id)
+);
+CREATE INDEX idx_task_dependency_target ON task_dependencies(depends_on_id);
+CREATE TABLE schedule_settings (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  revision TEXT NOT NULL,
+  value_json TEXT NOT NULL
+);
+CREATE TABLE schedule_blocks (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  start_at INTEGER NOT NULL,
+  end_at INTEGER NOT NULL CHECK(end_at>start_at),
+  locked INTEGER NOT NULL CHECK(locked IN (0,1)),
+  revision TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  UNIQUE(task_id,start_at,end_at)
+);
+CREATE INDEX idx_schedule_blocks_time ON schedule_blocks(start_at,end_at);
+CREATE TABLE schedule_runs (
+  id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  before_json TEXT NOT NULL,
+  after_fingerprint TEXT NOT NULL,
+  changed_json TEXT NOT NULL,
+  undone_at INTEGER
+);
+`
   }
 ]

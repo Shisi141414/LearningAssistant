@@ -2,6 +2,7 @@
  * ipc/index.ts —— IPC handler 注册总装
  */
 import { registerTaskResourcesIpc } from './task-resources.ipc'
+import { registerAutoScheduleIpc } from './auto-schedule.ipc'
 import { registerProjectDocumentsIpc } from './project-documents.ipc'
 import { registerCalendarIpc } from './calendar.ipc'
 import { registerSubjectsIpc } from './subjects.ipc'
@@ -22,6 +23,7 @@ import { registerProjectsIpc } from './projects.ipc'
 import { registerExercisesIpc } from './exercises.ipc'
 
 export function registerAllIpc(): void {
+  registerAutoScheduleIpc()
   registerTaskResourcesIpc()
   registerProjectDocumentsIpc()
   registerExercisesIpc()

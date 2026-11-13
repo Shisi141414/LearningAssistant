@@ -248,6 +248,7 @@ export function ProjectDetail() {
                         <button style={{ padding: '1px 8px', fontSize: 12 }} title="标记阻塞" onClick={() => void blockTask(t)}>⛔</button>
                       </div>
                       <TaskResources taskId={t.id} initiallyOpen={targetTask === t.id} />
+                      <Link to={`/review?task=${encodeURIComponent(t.id)}`} style={{ fontSize: 12 }}>安排学习时间</Link>
                     </div>
                   )
                 })}

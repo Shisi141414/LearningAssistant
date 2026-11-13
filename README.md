@@ -64,6 +64,7 @@ npm run build:win      # 打包 Windows 安装包（NSIS）
 ## 文档
 
 - [任务学习资料、用途与双向条目引用](docs/43-task-learning-resources.md)
+- [自动安排学习时间、分段与预览撤销](docs/45-auto-schedule.md)
 - [习题集文件导入与自动切分](docs/44-exercise-set-import.md)
 - [项目要求、计划书与版本化文档](docs/42-project-documents.md)
 - [知识图谱与学习应用回链](docs/41-knowledge-graph.md)

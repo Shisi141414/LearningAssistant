@@ -38,7 +38,7 @@ function duplicate(entry: CalendarImportEntry): boolean {
     !!db
       .prepare('SELECT import_key FROM calendar_import_receipts WHERE import_key = ?')
       .get(entry.key) ||
-    !!(entry.local_id && db.prepare('SELECT id FROM tasks WHERE id = ?').get(entry.local_id))
+    !!(entry.local_id && (db.prepare('SELECT id FROM tasks WHERE id = ?').get(entry.local_id) || db.prepare('SELECT import_key FROM calendar_import_receipts WHERE import_key=?').get(`local:${entry.local_id}`)))
   )
 }
 function conflictsFor(entries: CalendarImportEntry[]): CalendarConflicts {
@@ -68,14 +68,16 @@ function conflictsWithTasks(fresh: CalendarConflictItem[], excludedId = ''): Cal
     all_day: number
   }>
   if (rows.length > 10000) throw new Error('该日期范围日程过多，请缩小课表导入日期范围')
+  const blocks = getDb().prepare("SELECT b.id,b.start_at,b.end_at,t.title FROM schedule_blocks b JOIN tasks t ON b.task_id=t.id WHERE t.id!=? AND t.status!='done' AND b.start_at<? AND b.end_at>? LIMIT 10001").all(excludedId,to,from) as {id:string;start_at:number;end_at:number;title:string}[]
+  if (blocks.length+rows.length>10000) throw new Error('该日期范围日程过多，请缩小范围')
   return calendarConflicts(
     fresh,
-    rows.map((row) => ({
+    [...blocks.map(b=>({key:`block:${b.id}`,title:b.title,start:b.start_at,end:b.end_at})),...rows.map((row) => ({
       key: row.id,
       title: row.title,
       start: row.planned_at,
       end: occupiedEnd(row.planned_at, row.planned_end_at, !!row.all_day)
-    }))
+    }))]
   )
 }
 class TaskTimeConflict extends Error {
@@ -282,8 +284,10 @@ export async function exportCalendar(file: string): Promise<CalendarExportResult
     const keys = getDb()
       .prepare('SELECT task_id, import_key FROM calendar_import_receipts WHERE task_id IS NOT NULL')
       .all() as Array<{ task_id: string; import_key: string }>
+    const tasks = listAllTasks(), blocks = getDb().prepare('SELECT id,task_id,start_at,end_at FROM schedule_blocks ORDER BY start_at').all() as {id:string;task_id:string;start_at:number;end_at:number}[],
+      taskMap = new Map(tasks.map(t=>[t.id,t])), blockedIds = new Set(blocks.map(b=>b.task_id))
     const result = serializeCalendarIcs(
-      listAllTasks(),
+      [...tasks.filter(t=>!blockedIds.has(t.id)||t.due_at!==null||t.planned_at!==null), ...blocks.map(b=>({...taskMap.get(b.task_id)!,id:`block:${b.id}`,planned_at:b.start_at,planned_end_at:b.end_at,all_day:false,due_at:null}))],
       new Map(keys.map((row) => [row.task_id, row.import_key]))
     )
     const temporary = join(destination.directory, `.calendar-${nanoid()}.tmp`)
