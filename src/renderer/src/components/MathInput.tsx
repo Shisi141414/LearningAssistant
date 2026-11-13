@@ -10,9 +10,9 @@ import HardBreak from '@tiptap/extension-hard-break'
 import { UndoRedo } from '@tiptap/extensions/undo-redo'
 import { Placeholder } from '@tiptap/extensions/placeholder'
 import { MathfieldElement } from 'mathlive'
-import { MATH_PALETTES } from '@shared/mathPalette'
 import { mathEditorDocument, mathEditorText } from '@shared/math-editor'
 import { VisualMath } from './VisualMath'
+import { MathKeyboard, type MathKeyboardCommand } from './MathKeyboard'
 
 export function MathInput({
   value,
@@ -36,11 +36,11 @@ export function MathInput({
   autoFocus?: boolean
 }): React.ReactNode {
   const [open, setOpen] = useState(false)
-  const [group, setGroup] = useState(MATH_PALETTES[0].key)
   const [placement, setPlacement] = useState({ below: false, height: 300 })
   const latest = useRef({ onChange, onKeyDown })
   latest.current = { onChange, onKeyDown }
   const emitted = useRef(value)
+  const lastField = useRef<MathfieldElement | null>(null)
   const editor = useEditor({
     extensions: [
       Document,
@@ -119,7 +119,7 @@ export function MathInput({
       window.removeEventListener('resize', position)
       window.removeEventListener('scroll', position, true)
     }
-  }, [open, group, value])
+  }, [open, value])
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent): void => {
@@ -134,18 +134,24 @@ export function MathInput({
       latex = latex.trim() + '{}'
       brace = true
     }
-    const focused = document.activeElement
-    if (focused instanceof MathfieldElement && wrapRef.current?.contains(focused)) {
-      focused.insert(latex.replace(/\{\}/g, '{#?}'), {
+    const focused = focusedField()
+    if (focused) {
+      HTMLElement.prototype.focus.call(focused, { preventScroll: true })
+      focused.focus()
+      focused.insert(latex.replace(/\{\}/g, '{#?}').replace(/\[\]/g, '[#?]'), {
         selectionMode: brace ? 'placeholder' : 'after'
       })
       return
     }
     if (!editor) return
-    const template = brace ? latex.replace(/\{\}/g, '{\\placeholder{}}') : latex.trim()
+    const template = (
+      brace
+        ? latex.replace(/\{\}/g, '{\\placeholder{}}').replace(/\[\]/g, '[\\placeholder{}]')
+        : latex.trim()
+    ).replace(/#@/g, '\\placeholder{}')
+    editor.view.focus()
     editor
       .chain()
-      .focus()
       .insertContent({
         type: 'visualMath',
         attrs: { latex: template, display: false, source: null }
@@ -153,20 +159,101 @@ export function MathInput({
       .run()
     const position = editor.state.selection.from - 1
     requestAnimationFrame(() => {
+      if (editor.isDestroyed) return
       const dom = editor.view.nodeDOM(position) as HTMLElement | null
       const field = dom?.querySelector('math-field') as MathfieldElement | null
+      // Do not let a pending insertion steal focus after the user switches inputs/pages.
+      if (document.activeElement !== editor.view.dom && document.activeElement !== field) return
+      if (field) HTMLElement.prototype.focus.call(field, { preventScroll: true })
       field?.focus()
-      if (brace && field) {
+      if ((brace || latex.includes('#@')) && field) {
         field.position = 0
         field.executeCommand('moveToNextPlaceholder')
       }
     })
   }
 
-  const active = MATH_PALETTES.find((gp) => gp.key === group) ?? MATH_PALETTES[0]
+  const focusedField = (): MathfieldElement | null => {
+    const active = document.activeElement
+    if (active instanceof MathfieldElement && wrapRef.current?.contains(active)) return active
+    if (
+      active instanceof HTMLElement &&
+      active.closest('.math-palette') &&
+      lastField.current?.isConnected
+    )
+      return lastField.current
+    return null
+  }
+
+  const runKeyboard = (command: MathKeyboardCommand): void => {
+    if (!editor) return
+    const field = focusedField()
+    if (field) {
+      HTMLElement.prototype.focus.call(field, { preventScroll: true })
+      field.focus()
+      if (command === 'exit' || (command === 'backspace' && !field.value)) {
+        field.dispatchEvent(
+          new KeyboardEvent('keydown', {
+            key: command === 'exit' ? 'Enter' : 'Backspace',
+            bubbles: true,
+            cancelable: true
+          })
+        )
+      } else {
+        const commands = {
+          backspace: 'deleteBackward',
+          left: 'moveToPreviousChar',
+          right: 'moveToNextChar',
+          next: 'moveToNextPlaceholder'
+        } as const
+        field.executeCommand(commands[command])
+      }
+      return
+    }
+    const { view } = editor
+    view.focus()
+    if (command === 'backspace') {
+      const event = new KeyboardEvent('keydown', {
+        key: 'Backspace',
+        bubbles: true,
+        cancelable: true
+      })
+      if (view.someProp('handleKeyDown', (handler) => handler(view, event))) return
+      const { selection } = view.state
+      if (selection.empty && selection.$from.nodeBefore?.isText) {
+        const before = selection.$from.parent.textBetween(0, selection.$from.parentOffset)
+        const segment = [
+          ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(before)
+        ].at(-1)
+        if (segment)
+          editor.commands.deleteRange({
+            from: selection.from - segment.segment.length,
+            to: selection.from
+          })
+      }
+    } else if (command === 'left' || command === 'right') {
+      // Chromium moves by grapheme and respects paragraph/inline-node boundaries.
+      view.dom.ownerDocument
+        .getSelection()
+        ?.modify('move', command === 'left' ? 'backward' : 'forward', 'character')
+    } else if (command === 'exit' && multiline) {
+      editor.commands.setHardBreak()
+    }
+  }
 
   return (
-    <div className={`math-input-wrap ${multiline ? '' : 'math-input-inline'}`} ref={wrapRef}>
+    <div
+      className={`math-input-wrap ${multiline ? '' : 'math-input-inline'}`}
+      ref={wrapRef}
+      onFocusCapture={(event) => {
+        if (event.target instanceof MathfieldElement) lastField.current = event.target
+        else if (
+          event.target instanceof HTMLElement &&
+          event.target.classList.contains('math-editor')
+        )
+          lastField.current = null
+      }}
+    >
       <div className="math-input-row">
         <EditorContent
           editor={editor}
@@ -176,7 +263,9 @@ export function MathInput({
         <button
           type="button"
           className={`math-toggle${open ? ' active' : ''}`}
-          title="数学符号面板"
+          title="数学键盘"
+          aria-label="数学键盘"
+          aria-expanded={open}
           onMouseDown={(e) => e.preventDefault()} // 保持输入框焦点
           onClick={() => setOpen((v) => !v)}
         >
@@ -189,32 +278,7 @@ export function MathInput({
           className={`math-palette${placement.below ? ' math-palette-below' : ''}`}
           style={{ maxHeight: placement.height, overflowY: 'auto' }}
         >
-          <div className="math-palette-tabs">
-            {MATH_PALETTES.map((gp) => (
-              <button
-                type="button"
-                key={gp.key}
-                className={gp.key === group ? 'active' : ''}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => setGroup(gp.key)}
-              >
-                {gp.label}
-              </button>
-            ))}
-          </div>
-          <div className="math-palette-grid">
-            {active.symbols.map((sym, i) => (
-              <button
-                type="button"
-                key={`${active.key}-${i}`}
-                title={sym.title ?? `插入 ${sym.latex}`}
-                onMouseDown={(e) => e.preventDefault()} // 插入后焦点/光标不丢
-                onClick={() => insert(sym.latex, sym.brace)}
-              >
-                {sym.label}
-              </button>
-            ))}
-          </div>
+          <MathKeyboard onInsert={insert} onCommand={runKeyboard} onClose={() => setOpen(false)} />
         </div>
       )}
     </div>

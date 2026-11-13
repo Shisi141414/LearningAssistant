@@ -92,9 +92,24 @@ export const VisualMath = Node.create({
       field.setAttribute('aria-label', '编辑数学公式')
       field.mathVirtualKeyboardPolicy = 'manual'
       field.value = node.attrs.latex
-      field.addEventListener('input', () => {
+      const removeEmptyField = (): void => {
         const position = getPos()
         if (typeof position !== 'number') return
+        editor
+          .chain()
+          .deleteRange({ from: position, to: position + current.nodeSize })
+          .setTextSelection(position)
+          .run()
+        // Keep held/repeated deletion keys in the surrounding text editor.
+        editor.view.focus()
+      }
+      field.addEventListener('input', (event) => {
+        const position = getPos()
+        if (typeof position !== 'number') return
+        if (!field.value && event instanceof InputEvent && event.inputType.startsWith('delete')) {
+          removeEmptyField()
+          return
+        }
         editor.view.dispatch(
           editor.state.tr.setNodeMarkup(position, undefined, {
             ...current.attrs,
@@ -115,6 +130,16 @@ export const VisualMath = Node.create({
       field.addEventListener(
         'keydown',
         (event) => {
+          if (
+            !event.isComposing &&
+            !field.value &&
+            (event.key === 'Backspace' || event.key === 'Delete')
+          ) {
+            event.preventDefault()
+            event.stopImmediatePropagation()
+            removeEmptyField()
+            return
+          }
           if (event.key === 'Enter' && !event.isComposing) {
             const position = getPos()
             if (typeof position === 'number')
