@@ -182,7 +182,13 @@ export const IPC = {
   CalendarPreview: 'calendar:preview',
   CalendarImport: 'calendar:import',
   CalendarDiscard: 'calendar:discard',
-  CalendarExport: 'calendar:export'
+  CalendarExport: 'calendar:export',
+  ExercisesList: 'exercises:list',
+  ExercisesGet: 'exercises:get',
+  ExercisesSave: 'exercises:save',
+  ExercisesImport: 'exercises:import',
+  ExercisesTrash: 'exercises:trash',
+  ExercisesRestore: 'exercises:restore'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

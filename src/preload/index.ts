@@ -6,6 +6,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
+import type { ExerciseDetail, ExerciseInput, ExerciseListInput, ExercisePage, ExerciseSource } from '@shared/exercises'
 import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions, CalendarTaskSaveInput, CalendarTaskSaveResult } from '@shared/calendar'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
 import type { LearningPdfInput, LearningPdfResult } from '@shared/learning-pdf'
@@ -28,6 +29,14 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  exercises: {
+    list: (input: ExerciseListInput) => invoke<ExercisePage>(IPC.ExercisesList, input),
+    get: (input: { id: string; revision_id?: string }) => invoke<ExerciseDetail>(IPC.ExercisesGet, input),
+    save: (input: ExerciseInput) => invoke<ExerciseDetail>(IPC.ExercisesSave, input),
+    import: (input: ExerciseSource) => invoke<ExerciseDetail>(IPC.ExercisesImport, input),
+    trash: (input: { id: string; expected_revision_id: string }) => invoke<ExerciseDetail>(IPC.ExercisesTrash, input),
+    restore: (input: { id: string; expected_revision_id: string }) => invoke<ExerciseDetail>(IPC.ExercisesRestore, input)
+  },
   knowledgeSuggestions: {
     start: (input: KnowledgeSuggestInput) => invoke<KnowledgeSuggestion>(IPC.KnowledgeSuggestStart, input),
     list: (source: EvidenceSource) => invoke<KnowledgeSuggestion[]>(IPC.KnowledgeSuggestList, source),

@@ -10,6 +10,8 @@ import { externalExportTarget } from './export-target'
 import { beginWork } from './work'
 import { nanoid } from 'nanoid'
 import { learningAssetResponse } from './learning-assets'
+import { getExercise } from './exercises'
+import { exerciseStatuses } from '@shared/exercises'
 
 let stopping = false
 let active: { owner: number; cancel: () => boolean } | undefined
@@ -25,6 +27,15 @@ export function learningPdfSnapshot(input: LearningPdfInput): LearningPdfDocumen
       const history = data.history.find(row => row.id === source.revision_id)!
       document = { landscape: input.landscape, include_original_text: input.include_original_text, title: material.title, subject_name: material.subject_name, source_name: material.file_name, revision_id: source.revision_id, revision_number: data.history.length - data.history.findIndex(row => row.id === source.revision_id), saved_at: history.created_at,
         sources: data.sources, state: data.state, assets: data.assets ?? [], origins: {} }
+    } else if (source.kind === 'exercise') {
+      const data = getExercise({ id: source.exercise_id, revision_id: source.revision_id }), snapshot = data.snapshot
+      const subject = snapshot.subject_id ? db.prepare('SELECT name FROM subjects WHERE id=?').get(snapshot.subject_id) as { name: string } | undefined : undefined
+      const concepts = snapshot.review_concept_ids.map(id => (db.prepare('SELECT name FROM knowledge_points WHERE id=?').get(id) as { name: string } | undefined)?.name ?? '知识点已不可用')
+      document = { landscape: input.landscape, include_original_text: input.include_original_text, title: snapshot.title, subject_name: subject?.name ?? null,
+        source_name: ['习题', exerciseStatuses[snapshot.status], snapshot.question_type, snapshot.no_idea ? '暂无解题思路' : '', `来源：${snapshot.source_label || '尚未填写'}`, `需复习：${concepts.join('、') || '尚未关联'}`].filter(Boolean).join(' · '),
+        revision_id: data.revision_id, revision_number: data.history.length-data.history.findIndex(row => row.id === data.revision_id), saved_at: data.history.find(row => row.id === data.revision_id)!.created_at,
+        sources: snapshot.document.sources, state: snapshot.document.state, assets: snapshot.origin?.assets ?? [], origins: {},
+        ...(snapshot.origin ? { exercise_origin: { label: snapshot.origin.label, raw_text: snapshot.origin.raw_text } } : {}) }
     } else {
       const data = getNoteLearning(source)
       const subject = data.subject_id ? db.prepare('SELECT name FROM subjects WHERE id=?').get(data.subject_id) as { name: string } | undefined : undefined

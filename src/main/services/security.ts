@@ -62,12 +62,18 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ExercisesList]: [record({ subject_id: opt(id), status: optional(choice('unfinished','correct','wrong')), query: optional(text(500)), question_type: optional(text(120)), concept_id: optional(id), trash: optional(bool), offset: optional(v => number(v) && (v as number) <= 10_000_000) })],
+  [IPC.ExercisesGet]: [record({ id, revision_id: optional(id) })],
+  [IPC.ExercisesSave]: [record({ id: optional(id), expected_revision_id: optional(id), title, subject_id: nullable(id), status: choice('unfinished','correct','wrong'), question_type: text(120), source_label: text(2000), no_idea: bool, review_concept_ids: v => Array.isArray(v) && v.length <= 32 && v.every(id), fields: record({ statement: text(200_000,true), approach: content, standard_answer: content, user_answer: content, error_reason: content }) })],
+  [IPC.ExercisesImport]: [record({ material_id: id, version_id: id, revision_id: id, entry_id: id })],
+  [IPC.ExercisesTrash]: [record({ id, expected_revision_id: id })],
+  [IPC.ExercisesRestore]: [record({ id, expected_revision_id: id })],
   [IPC.CalendarSave]: [record({ id: optional(id), task: record({ title, detail: optional(content), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), due_at: opt(number), status: optional(choice('open','doing','blocked','done')), blocked_reason: optional(text(2000)) }), confirmation: optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) })) })],
   [IPC.CalendarPreview]: [record({ from: number, to: number })],
   [IPC.CalendarImport]: [id, optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) }))],
   [IPC.CalendarDiscard]: [],
   [IPC.CalendarExport]: [],
-  [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
+  [IPC.LearningPdfExport]: [record({ source: value => [record({ kind: choice('material'), version_id: id, revision_id: id }), record({ kind: choice('note'), note_id: id, revision_id: id }), record({ kind: choice('exercise'), exercise_id: id, revision_id: id })].some(check => check(value)), landscape: bool, include_original_text: bool })],
   [IPC.LearningPdfCancel]: [],
   [IPC.NotesLearningGet]: [record({ note_id: id, revision_id: optional(id) })],
   [IPC.NotesLearningChange]: [learningChange('note_id', false)],

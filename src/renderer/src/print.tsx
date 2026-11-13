@@ -47,9 +47,10 @@ function PrintDocument({ data, done, failed }: { data: LearningPdfDocument; done
       </article>
     })}</main>
     <section className="sources"><h2>来源与原文对照</h2><p className="reference">本文件保存选中修订的整理内容与来源位置。原件由学习助理另行保管；扫描页尚未识别的文字不会自动补全。</p>
+      {data.exercise_origin && <article><h3>教材原题 · {data.exercise_origin.label}</h3>{data.include_original_text && <div className="original">{data.exercise_origin.raw_text}</div>}</article>}
       {data.sources.map(source => { const origin = data.origins[source.id]; return <article id={`source-${source.id}`} key={source.id}>
         <h3>{learningPdfSourceLabel(source)}{source.heading ? ` · ${source.heading}` : ''}</h3>
-        <p className="reference">{origin ? `记录于 ${date(origin.recorded_at)} · 段落版本 ${origin.segment_revision} · ${origin.organized_by === 'ai' ? `AI 整理：${origin.model ?? '模型未记录'}` : origin.organized_by === 'user' ? '人工整理' : '初始记录'}` : source.extraction === 'ocr' ? 'OCR 识别来源，需对照原件核对' : '教材来源'}{!source.raw_text.trim() && ' · 本段尚无可用文字'}</p>
+        <p className="reference">{origin ? `记录于 ${date(origin.recorded_at)} · 段落版本 ${origin.segment_revision} · ${origin.organized_by === 'ai' ? `AI 整理：${origin.model ?? '模型未记录'}` : origin.organized_by === 'user' ? '人工整理' : '初始记录'}` : source.extraction === 'ocr' ? 'OCR 识别来源，需对照原件核对' : source.extraction === 'manual' ? '人工输入' : '教材来源'}{!source.raw_text.trim() && ' · 本段尚无可用文字'}</p>
         {origin?.material_ref && <p className="reference">教材：{origin.material_ref.material_title} · {learningPdfSourceLabel({ ...source, locator_json: origin.material_ref.locator_json })}</p>}
         {data.include_original_text && <><h4>{origin ? '原始转写' : '来源文字'}</h4><div className="original">{origin ? origin.raw_text || '（原始转写为空）' : source.raw_text || '（来源文字为空）'}</div>{origin && source.raw_text !== origin.raw_text && <><h4>保存的整理稿</h4><div className="original">{source.raw_text || '（整理稿为空）'}</div></>}</>}
       </article> })}

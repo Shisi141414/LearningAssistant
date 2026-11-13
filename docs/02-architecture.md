@@ -335,3 +335,7 @@ R2 已按此原则实施，验证记录见 [R2 报告](08-classroom-material-lin
 首版复用 `knowledge_points`，v7 追加 `concept_aliases` 与修订号。别名经确认后参与本地 Aho-Corasick 匹配；原文字段不插入链接标记。等长 ASCII/全角规范化保留 UTF-16 原位置，学科过滤后仍有多目标则展示歧义候选。字典快照共享自动机，修改别名后重新匹配既有文字。
 
 反向查找按 300 个来源块分页派生，只列明确关联并标记原始/整理字段，包含未归档材料的历史版本。它是提及索引，不能当成教材定义或 AI 证明关系。当前 UI 对歧义的选择只用于查看候选卡片，尚不保存逐处消歧覆盖。使用与验收见 [概念关联记录](10-concept-alias-links.md)。
+
+## M3 习题内置格式（2026-11-13 · codex）
+
+习题复用 LearningSource / LearningState：题面为 exercise，思路与答案为 solution，错因为 note，以 solves 关联题面。字段角色、作答状态、题型、来源与复习知识 ID 写入不可变 exercise_revisions 快照；exercises 的旧列作为兼容和检索索引，迁移只追加 22。教材转入固定材料/版本/修订/条目，并保留原题、解答、来源和配图元数据。保存与回收操作检查预期修订，事务同时发布修订和索引，详见 [习题库记录](40-exercise-library.md)。

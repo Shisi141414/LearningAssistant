@@ -15,7 +15,7 @@ const NAV = [
   { to: '/knowledge', label: '知识与概念' },
   { to: '/projects', label: '项目' },
   { to: '/library', label: '材料库' },
-  { to: '/exercises', label: '习题库', badge: 'M3' },
+  { to: '/exercises', label: '习题库' },
   { to: '/review', label: '日程' },
   { to: '/inspirations', label: '灵感' },
   { to: '/settings', label: '设置' }
@@ -37,7 +37,6 @@ export function Layout({ children }: { children: ReactNode }) {
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
               {n.label}
-              {n.badge && <span className="badge">{n.badge}</span>}
             </NavLink>
           ))}
           <div className="subject-box">

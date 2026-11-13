@@ -17,8 +17,10 @@ import { registerLearningIpc } from './learning.ipc'
 import { registerEvidenceIpc } from './evidence.ipc'
 import { registerKnowledgeSuggestionsIpc } from './knowledge-suggestions.ipc'
 import { registerProjectsIpc } from './projects.ipc'
+import { registerExercisesIpc } from './exercises.ipc'
 
 export function registerAllIpc(): void {
+  registerExercisesIpc()
   registerCalendarIpc()
   registerKnowledgeSuggestionsIpc()
   registerEvidenceIpc()

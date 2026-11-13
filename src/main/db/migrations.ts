@@ -632,5 +632,28 @@ CREATE TABLE calendar_import_receipts (
 );
 CREATE INDEX idx_tasks_planned ON tasks(planned_at);
 `
+  },
+  {
+    version: 22,
+    name: 'exercise_learning_documents',
+    sql: `
+ALTER TABLE exercises ADD COLUMN title TEXT NOT NULL DEFAULT '';
+ALTER TABLE exercises ADD COLUMN status TEXT NOT NULL DEFAULT 'unfinished' CHECK(status IN ('unfinished','correct','wrong'));
+ALTER TABLE exercises ADD COLUMN question_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE exercises ADD COLUMN source_label TEXT NOT NULL DEFAULT '';
+ALTER TABLE exercises ADD COLUMN review_concepts_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE exercises ADD COLUMN head_revision_id TEXT;
+ALTER TABLE exercises ADD COLUMN source_key TEXT;
+ALTER TABLE exercises ADD COLUMN deleted_at INTEGER;
+CREATE TABLE exercise_revisions (
+  id TEXT PRIMARY KEY,
+  exercise_id TEXT NOT NULL REFERENCES exercises(id) ON DELETE RESTRICT,
+  snapshot_json TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_exercise_revisions ON exercise_revisions(exercise_id, created_at);
+CREATE INDEX idx_exercises_subject_status ON exercises(subject_id, status, deleted_at);
+CREATE UNIQUE INDEX idx_exercises_source ON exercises(source_key) WHERE source_key IS NOT NULL;
+`
   }
 ]

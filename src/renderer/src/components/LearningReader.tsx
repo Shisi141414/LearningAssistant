@@ -10,6 +10,7 @@ import { LearningSuggestions } from './LearningSuggestions'
 import { KnowledgeEvidence } from './KnowledgeEvidence'
 import { LearningFormulaContent } from './LearningFormulaContent'
 import { LearningAssetPanel, LearningEntryFigures, LearningFigureEditor, learningAssetLocation } from './LearningFigures'
+import { Link } from 'react-router-dom'
 
 function sourceLabel(source: LearningSource): string {
   const locator = JSON.parse(source.locator_json) as MaterialLocator
@@ -24,6 +25,15 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   const [preview, setPreview] = useState<{ label: string; locator: MaterialLocator } | null>(null)
   const [chapter, setChapter] = useState(''), [focusedEntry, setFocusedEntry] = useState(targetEntryId)
   const [navigation, setNavigation] = useState(0)
+  const [importedExercise, setImportedExercise] = useState('')
+  const addExercise = async (entryId: string): Promise<void> => {
+    if (!document || busy) return
+    setBusy(true); setError(''); setImportedExercise('')
+    try {
+      const result = await window.api.exercises.import({ material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entryId })
+      if (result.ok) setImportedExercise(result.data.id); else setError(result.error)
+    } finally { setBusy(false) }
+  }
   useEffect(() => {
     let alive = true
     void window.api.learning.get({ version_id: versionId, ...(initialRevisionId ? { revision_id: initialRevisionId } : {}) }).then(result => {
@@ -86,6 +96,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
   return <section className="learning-reader" aria-label="学习文档">
     {error && <p className="material-error" role="alert">{error}</p>}
     {exportMessage && <p role="status">{exportMessage}</p>}
+    {importedExercise && <p role="status">习题已在库中，已有答案会保留。<Link to={`/exercises/${importedExercise}`}>打开习题 →</Link></p>}
     {!document ? initialRevisionId ? <p>无法打开指定学习修订。<button disabled={busy} onClick={() => void revision()}>读取当前修订</button></p> : <div className="learning-intro"><h3>先保留来源，再整理语义</h3><p>从原件建立连续的来源文字，再把同页内容拆为定义、定理、证明等条目。原有课堂引用会保留。</p><p className="muted">扫描 PDF 请先识别需要的页面；本步不会自动 OCR，也不会自动判断内容类型。</p><button className="primary" disabled={busy || archived} onClick={() => void prepare()}>{busy ? '正在建立来源文字…' : '建立学习文档'}</button></div> : <>
       <div className="toolbar learning-toolbar">
         <label>修订 <select aria-label="学习文档修订" disabled={busy} value={document.revision_id} onChange={e => void revision(e.target.value)}>{document.history.map((item, i) => <option key={item.id} value={item.id}>修订 {document.history.length - i}{item.id === document.current_revision_id ? '（当前）' : ''} · {new Date(item.created_at).toLocaleTimeString()}</option>)}</select></label>
@@ -116,6 +127,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
           {!!entry.figures?.length && <LearningEntryFigures figures={entry.figures} assets={document.assets ?? []} onLocate={asset => { setPreview({ label: learningAssetLocation(asset), locator: JSON.parse(asset.locator_json) }); requestAnimationFrame(() => window.document.querySelector('.learning-source-preview')?.scrollIntoView({ block: 'start' })) }} />}
           {target && <p className="learning-relation">{related.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
           {current && !archived && <button disabled={busy} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
+          {['exercise','example'].includes(entry.type) && <button disabled={busy} onClick={() => void addExercise(entry.id)}>加入习题库</button>}
           {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
           <KnowledgeEvidence key={`evidence:${document.revision_id}:${entry.id}`} source={{ kind: 'learning', material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entry.id }} title={entry.title} subjectId={subjectId} quoteLength={text.length} />
         </article>
