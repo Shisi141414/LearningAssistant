@@ -66,6 +66,9 @@
 }
 .schedule-calendar .fc .fc-toolbar-title {
   font-size: 18px;
+  width: 270px;
+  text-align: center;
+  white-space: nowrap;
 }
 .schedule-calendar .fc .fc-button {
   font-size: 13px;
