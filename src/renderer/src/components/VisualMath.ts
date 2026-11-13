@@ -1,4 +1,6 @@
 import { InputRule, Node, mergeAttributes } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
+import { closeHistory } from '@tiptap/pm/history'
 import { MathfieldElement } from 'mathlive'
 import 'mathlive/fonts.css'
 import { mathTokens } from '@shared/math-editor'
@@ -8,6 +10,7 @@ MathfieldElement.soundsDirectory = null
 
 export const VisualMath = Node.create({
   name: 'visualMath',
+  priority: 1000, // Handle formula boundaries before the default atomic-node deletion.
   inline: true,
   group: 'inline',
   atom: true,
@@ -20,6 +23,41 @@ export const VisualMath = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ['span', mergeAttributes(HTMLAttributes, { 'data-visual-math': '' })]
+  },
+  addKeyboardShortcuts() {
+    const enterAndDelete = (backward: boolean): boolean => {
+      const { state, view } = this.editor
+      const { selection } = state
+      const selected = selection instanceof NodeSelection
+      if (!selected && !selection.empty) return false // Preserve deliberate range deletion.
+      const node = selected
+        ? selection.node
+        : backward
+          ? selection.$from.nodeBefore
+          : selection.$from.nodeAfter
+      if (node?.type !== this.type) return false
+      const position = selected || !backward ? selection.from : selection.from - node.nodeSize
+      const field = (view.nodeDOM(position) as HTMLElement | null)?.querySelector('math-field')
+      if (!(field instanceof MathfieldElement)) return false
+      if (!field.value)
+        return this.editor.commands.deleteRange({ from: position, to: position + node.nodeSize })
+
+      // A selected formula is edited from its tail; an ordinary forward Delete starts at its head.
+      const fromTail = backward || selected
+      this.editor.commands.setTextSelection(fromTail ? position + node.nodeSize : position)
+      view.dispatch(closeHistory(view.state.tr))
+      // Establish native focus immediately; MathLive's programmatic focus may be deferred.
+      HTMLElement.prototype.focus.call(field, { preventScroll: true })
+      field.focus()
+      field.position = fromTail ? -1 : 0
+      field.executeCommand(fromTail ? 'deleteBackward' : 'deleteForward')
+      return true
+    }
+    return {
+      Backspace: () => enterAndDelete(true),
+      'Shift-Backspace': () => enterAndDelete(true),
+      Delete: () => enterAndDelete(false)
+    }
   },
   addInputRules() {
     return [
