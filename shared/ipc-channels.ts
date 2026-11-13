@@ -188,7 +188,12 @@ export const IPC = {
   ExercisesSave: 'exercises:save',
   ExercisesImport: 'exercises:import',
   ExercisesTrash: 'exercises:trash',
-  ExercisesRestore: 'exercises:restore'
+  ExercisesRestore: 'exercises:restore',
+  ConceptsGraph: 'concepts:graph',
+  ConceptsRelationSave: 'concepts:relationSave',
+  ConceptsRelationRemove: 'concepts:relationRemove',
+  ConceptsPositions: 'concepts:positions',
+  ConceptsUsage: 'concepts:usage'
 } as const
 
 export type IpcChannel = (typeof IPC)[keyof typeof IPC]

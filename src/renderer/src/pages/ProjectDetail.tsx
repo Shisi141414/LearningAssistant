@@ -2,7 +2,7 @@
  * pages/ProjectDetail.tsx —— 项目详情：目标 / 里程碑 / 任务（按状态分组）/ 知识点引用
  */
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import type { ProjectDetail, Task, TaskKnowledgeRef, Concept } from '@shared/types'
 import { useAppStore } from '../stores/app'
 
@@ -23,6 +23,8 @@ function parseRefs(json: string): TaskKnowledgeRef[] {
 }
 
 export function ProjectDetail() {
+  const [params] = useSearchParams()
+  const targetTask = params.get('task') ?? ''
   const { projectId } = useParams<{ projectId: string }>()
   const showToast = useAppStore((s) => s.showToast)
   const [detail, setDetail] = useState<ProjectDetail | null>(null)
@@ -42,6 +44,9 @@ export function ProjectDetail() {
   useEffect(() => {
     void reload()
   }, [reload])
+  useEffect(() => {
+    if (detail && targetTask) document.getElementById(`project-task-${targetTask}`)?.scrollIntoView({ block:'center' })
+  },[detail,targetTask])
 
   useEffect(() => {
     void window.api.concepts.list().then((r) => {
@@ -202,7 +207,7 @@ export function ProjectDetail() {
                   const refs = parseRefs(t.knowledge_refs_json)
                   const ms = detail.milestones.find((m) => m.id === t.milestone_id)
                   return (
-                    <div key={t.id} style={{ borderBottom: '1px solid var(--border)', padding: '6px 0' }}>
+                    <div key={t.id} id={`project-task-${t.id}`} className={targetTask === t.id ? 'evidence-target' : ''} style={{ borderBottom: '1px solid var(--border)', padding: '6px 0' }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                         <button style={{ padding: '1px 8px', fontSize: 12 }} title="切换状态" onClick={() => void cycleStatus(t)}>↻</button>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -212,7 +217,7 @@ export function ProjectDetail() {
                           {t.due_at && <div className="meta">截止 {new Date(t.due_at).toLocaleDateString('zh-CN')}</div>}
                           {refs.map((r) => (
                             <span key={r.concept_id} className="pill" style={{ color: 'var(--accent)', background: 'var(--accent-weak)', marginTop: 3, display: 'inline-flex', gap: 4 }} title={r.why || '未填写用途'}>
-                              ⚛ {conceptName(r.concept_id)}
+                              ⚛ <Link to={`/knowledge?concept=${encodeURIComponent(r.concept_id)}`}>{conceptName(r.concept_id)}</Link>
                               <span style={{ opacity: 0.5, cursor: 'pointer' }} onClick={() => void removeRef(t.id, r.concept_id)}>×</span>
                             </span>
                           ))}

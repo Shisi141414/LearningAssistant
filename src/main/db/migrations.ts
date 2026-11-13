@@ -655,5 +655,21 @@ CREATE INDEX idx_exercise_revisions ON exercise_revisions(exercise_id, created_a
 CREATE INDEX idx_exercises_subject_status ON exercises(subject_id, status, deleted_at);
 CREATE UNIQUE INDEX idx_exercises_source ON exercises(source_key) WHERE source_key IS NOT NULL;
 `
+  },
+  {
+    version: 23,
+    name: 'knowledge_graph_relations_and_layout',
+    sql: `
+ALTER TABLE knowledge_edges ADD COLUMN memo TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_edges ADD COLUMN revision TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE knowledge_edges ADD COLUMN created_at INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE knowledge_edges ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX idx_knowledge_edges_target ON knowledge_edges(to_id);
+CREATE TABLE concept_graph_positions (
+  concept_id TEXT PRIMARY KEY REFERENCES knowledge_points(id) ON DELETE CASCADE,
+  x REAL NOT NULL,
+  y REAL NOT NULL
+);
+`
   }
 ]

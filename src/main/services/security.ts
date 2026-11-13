@@ -62,6 +62,11 @@ const learningChange = (owner: 'note_id' | 'version_id', figures: boolean): Chec
 }
 
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ConceptsGraph]: [],
+  [IPC.ConceptsRelationSave]: [record({ from_id: id, to_id: id, relation: choice('prerequisite','extends','related'), memo: text(2000), expected_revision: optional(id) })],
+  [IPC.ConceptsRelationRemove]: [record({ from_id: id, to_id: id, expected_revision: id })],
+  [IPC.ConceptsPositions]: [v => Array.isArray(v) && v.length > 0 && v.length <= 2000 && v.every(record({ concept_id: id, x: n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1_000_000, y: n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 1_000_000 }))],
+  [IPC.ConceptsUsage]: [record({ concept_id: id, offset: optional(v => number(v) && (v as number) <= 10_000_000) })],
   [IPC.ExercisesList]: [record({ subject_id: opt(id), status: optional(choice('unfinished','correct','wrong')), query: optional(text(500)), question_type: optional(text(120)), concept_id: optional(id), trash: optional(bool), offset: optional(v => number(v) && (v as number) <= 10_000_000) })],
   [IPC.ExercisesGet]: [record({ id, revision_id: optional(id) })],
   [IPC.ExercisesSave]: [record({ id: optional(id), expected_revision_id: optional(id), title, subject_id: nullable(id), status: choice('unfinished','correct','wrong'), question_type: text(120), source_label: text(2000), no_idea: bool, review_concept_ids: v => Array.isArray(v) && v.length <= 32 && v.every(id), fields: record({ statement: text(200_000,true), approach: content, standard_answer: content, user_answer: content, error_reason: content }) })],

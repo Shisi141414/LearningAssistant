@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -76,6 +76,9 @@ const draftFor = (task?: TaskWithProject, start?: Date, allDay = false): Draft =
 })
 
 export function SchedulePage() {
+  const [params] = useSearchParams()
+  const targetTaskId = params.get('task') ?? ''
+  const shownTarget = useRef('')
   const subjects = useAppStore((s) => s.subjects)
   const [importOpen, setImportOpen] = useState(false),
     [ignoreConflicts, setIgnoreConflicts] = useState(false)
@@ -234,6 +237,13 @@ export function SchedulePage() {
     ]
   }, [tasks, showDone])
   const selected = tasks.find((t) => t.id === draft?.id)
+  useEffect(() => {
+    const task = tasks.find(item => item.id === targetTaskId)
+    if (!task || shownTarget.current === targetTaskId) return
+    shownTarget.current = targetTaskId
+    setDraft(draftFor(task))
+    requestAnimationFrame(() => document.querySelector('.schedule-editor')?.scrollIntoView({ block:'start' }))
+  },[tasks,targetTaskId])
   return (
     <div className="page schedule-page">
       <div className="schedule-heading">

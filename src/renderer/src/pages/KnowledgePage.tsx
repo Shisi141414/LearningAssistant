@@ -6,6 +6,7 @@ import { useAppStore } from '../stores/app'
 import { useConceptStore } from '../stores/concepts'
 import './knowledge.css'
 import { EvidenceList } from '../components/KnowledgeEvidence'
+import { ConceptUsage } from '../components/ConceptUsage'
 
 const empty = (): ConceptInput => ({ name: '', aliases: [], summary: '', subject_id: null })
 export function KnowledgePage() {
@@ -68,6 +69,7 @@ export function KnowledgePage() {
   const filtered = items.filter(c => (subjectFilter === 'all' || (c.subject_id ?? 'general') === subjectFilter) && [c.name, ...c.aliases, c.summary ?? ''].some(s => conceptKey(s).includes(needle)))
   return <div className="page knowledge-page">
     <h1>知识与概念</h1>
+    <div className="toolbar"><Link to={`/knowledge/graph${id ? `?concept=${encodeURIComponent(id)}` : ''}`}>打开知识图谱</Link></div>
     <p className="muted">为同一定理、方法和知识点登记不同名称，材料和笔记中的提及会自动关联。</p>
     {error && <p role="alert">{error}</p>}
     <div className="knowledge-workspace">
@@ -90,6 +92,7 @@ export function KnowledgePage() {
             <button className="primary" type="submit" disabled={saving || !draft.name.trim()}>{saving ? '正在保存…' : '保存概念'}</button>
           </form>
           {selected && <section className="concept-evidence" aria-label="知识点来源证据"><h2>已确认的来源证据</h2><p className="muted">保留引用时正文与位置。引用角色由用户选择，不代表系统已认证内容正确。</p><EvidenceList key={selected.id} input={{ concept_id: selected.id }} /></section>}
+          {selected && <ConceptUsage key={selected.id} conceptId={selected.id} />}
           {selected && <section className="concept-references" aria-label="概念提及">
             <h2>材料与笔记中的提及</h2>
             <p className="muted">已扫描 {scanned} 个文字块；{next === null && !loadingRefs ? '本次扫描完成。' : '可继续查找。'}仅列出含义明确的提及，每个来源字段显示首次命中；包含材料历史版本。</p>

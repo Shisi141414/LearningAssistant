@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ExerciseDetail, ExerciseInput, ExercisePage, ExerciseStatus } from '@shared/exercises'
 import { exerciseFields, exerciseStatuses, exerciseTexts } from '@shared/exercises'
 import { useAppStore } from '../stores/app'
@@ -22,13 +22,14 @@ const blank = (subject: string | null): ExerciseInput => ({
 })
 
 export function ExercisesPage() {
+  const [params] = useSearchParams()
   const { subjects, currentSubjectId } = useAppStore()
   const concepts = useConceptStore((s) => s.items)
   const [query, setQuery] = useState(''),
-    [subject, setSubject] = useState(currentSubjectId ?? 'all')
+    [subject, setSubject] = useState(params.get('concept') ? 'all' : currentSubjectId ?? 'all')
   const [status, setStatus] = useState(''),
     [type, setType] = useState(''),
-    [concept, setConcept] = useState('')
+    [concept, setConcept] = useState(params.get('concept') ?? '')
   const [trash, setTrash] = useState(false),
     [offset, setOffset] = useState(0)
   const [page, setPage] = useState<ExercisePage | null>(null),

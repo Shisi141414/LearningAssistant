@@ -14,8 +14,9 @@
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
     "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
     "test:chunk": "node --experimental-strip-types scripts/smoke-chunk.ts",
-    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs",
-    "test:exercises": "npm run build && node scripts/test-exercises.cjs",
+    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs",
+    "test:graph": "npm run build && node scripts/test-knowledge-graph.cjs",
+    "test:exercises": "npm run build && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs",
     "test:calendar": "npm run build && node scripts/test-calendar-management.cjs",
     "test:projects": "npm run build && node scripts/test-projects-schedule.cjs",
     "test:note-import": "npm run build && node scripts/test-note-package-import.cjs",
@@ -33,6 +34,7 @@
     "test:ocr": "npm run build && node scripts/test-ocr.cjs"
   },
   "dependencies": {
+    "@dagrejs/dagre": "3.1.3",
     "@fullcalendar/core": "6.1.21",
     "@fullcalendar/daygrid": "6.1.21",
     "@fullcalendar/interaction": "6.1.21",
@@ -48,6 +50,7 @@
     "@tiptap/extensions": "3.33.1",
     "@tiptap/pm": "3.33.1",
     "@tiptap/react": "3.33.1",
+    "@xyflow/react": "12.12.1",
     "ahocorasick": "^1.0.2",
     "ajv": "8.20.0",
     "better-sqlite3": "^13.0.3",

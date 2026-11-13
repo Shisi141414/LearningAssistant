@@ -13,7 +13,7 @@
 | 前端 | React 19.3.1 + TypeScript 7.0.2 + react-router | 当前锁定版本，以 package-lock.json 为准 |
 | 状态 | zustand | 最新稳定 |
 | 编辑器 | BlockNote（M0 先用轻量段落模型，M1 引入） | 最新稳定 |
-| 图谱 | @xyflow/react | M2 引入 |
+| 图谱 | @xyflow/react 12.12.1 + @dagrejs/dagre 3.1.3 | 已接入；关系和布局独立存储，见 [图谱记录](41-knowledge-graph.md) |
 | 数据库 | better-sqlite3（主进程）+ @electron/rebuild | 最新稳定 |
 | LLM | openai npm SDK（换 baseURL） | 最新稳定 |
 | 密钥存储 | Electron safeStorage（DPAPI，Windows） | 内置 |

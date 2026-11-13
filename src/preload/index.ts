@@ -6,6 +6,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
+import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
 import type { ExerciseDetail, ExerciseInput, ExerciseListInput, ExercisePage, ExerciseSource } from '@shared/exercises'
 import type { CalendarRange, CalendarPreview, CalendarImportResult, CalendarExportResult, CalendarImportOptions, CalendarTaskSaveInput, CalendarTaskSaveResult } from '@shared/calendar'
 import type { LearningPackageExportInput, LearningPackageExportResult, LearningPackagePreview, LearningPackageImportInput, LearningPackageImportResult } from '@shared/learning-package'
@@ -73,6 +74,11 @@ const api = {
     change: (input: LearningChange) => invoke<LearningDocument>(IPC.LearningChange, input)
   },
   concepts: {
+    graph: () => invoke<KnowledgeGraph>(IPC.ConceptsGraph),
+    relationSave: (input: ConceptRelationInput) => invoke<ConceptRelation>(IPC.ConceptsRelationSave,input),
+    relationRemove: (input: ConceptRelationRemove) => invoke<boolean>(IPC.ConceptsRelationRemove,input),
+    positions: (input: ConceptPosition[]) => invoke<boolean>(IPC.ConceptsPositions,input),
+    usage: (input: { concept_id: string; offset?: number }) => invoke<ConceptUsagePage>(IPC.ConceptsUsage,input),
     list: () => invoke<import('@shared/types').Concept[]>(IPC.ConceptsList),
     save: (input: import('@shared/types').ConceptInput) => invoke<import('@shared/types').Concept>(IPC.ConceptsSave, input),
     references: (input: { id: ID; offset?: number }) => invoke<import('@shared/types').ConceptReferences>(IPC.ConceptsReferences, input)

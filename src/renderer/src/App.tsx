@@ -19,6 +19,7 @@ import { MaterialLibraryPage } from './pages/MaterialLibraryPage'
 import { useAppStore } from './stores/app'
 import { useChatStore } from './stores/chat'
 import { KnowledgePage } from './pages/KnowledgePage'
+import { KnowledgeGraphPage } from './pages/KnowledgeGraphPage'
 import { ProjectsPage } from './pages/ProjectsPage'
 import { ProjectDetail } from './pages/ProjectDetail'
 import { SchedulePage } from './pages/SchedulePage'
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="/activities/:activityId" element={<ActivityDetail />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/knowledge" element={<KnowledgePage />} />
+        <Route path="/knowledge/graph" element={<KnowledgeGraphPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectDetail />} />
         <Route path="/library" element={<MaterialLibraryPage />} />
