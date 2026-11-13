@@ -237,6 +237,7 @@ app.on('browser-window-created', (_event, win) =>
       assert.equal(await js("document.querySelector('.fc-jumpDate-button').textContent"),beforeJumpTitle,'非法日期不跳转')
       await set('[aria-label="跳转起始日期"]','2026-12-31');await click('跳转')
       await wait("document.querySelector('.fc-col-header-cell[data-date]')?.getAttribute('data-date')==='2026-12-28'")
+      assert.equal(await js("(()=>{const b=document.querySelector('.fc-jumpDate-button');return b.scrollWidth<=b.clientWidth})()"),true,'跨年日期在固定标题区域内完整显示')
       await js("document.querySelector('.fc-jumpDate-button').click()")
       await set('[aria-label="跳转结束日期"]','2027-01-15');await click('跳转')
       await wait("document.querySelector('.fc-col-header-cell[data-date]')?.getAttribute('data-date')==='2027-01-11'")
