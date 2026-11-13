@@ -5,11 +5,12 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import zhCnLocale from '@fullcalendar/core/locales/zh-cn'
-import type { EventInput } from '@fullcalendar/core'
+import type { DatesSetArg, EventInput } from '@fullcalendar/core'
 import type { Task, TaskWithProject, TaskInput } from '@shared/types'
 import type { CalendarPreview, CalendarConflicts } from '@shared/calendar'
 import { useAppStore } from '../stores/app'
 import { scheduleCategory, scheduleColor } from '@shared/schedule-colors'
+import { scheduleStartTime } from '@shared/schedule-hours'
 import './schedule.css'
 
 const STATUS: Record<Task['status'], string> = {
@@ -88,6 +89,14 @@ export function SchedulePage() {
   const [showDone, setShowDone] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('')
+  const [fromSix, setFromSix] = useState(() => {
+    try { return localStorage.getItem('schedule.fromSix') !== 'false' } catch { return true }
+  })
+  const [dateRange, setDateRange] = useState<{ start: number; end: number } | null>(null)
+  const updateRange = useCallback((info: DatesSetArg) => {
+    const start = info.view.currentStart.getTime(), end = info.view.currentEnd.getTime()
+    setDateRange((old) => old?.start === start && old.end === end ? old : { start, end })
+  }, [])
   const [draftConflicts, setDraftConflicts] = useState<CalendarConflicts | null>(null)
   const [ignoreDraftConflicts, setIgnoreDraftConflicts] = useState(false)
   useEffect(() => {
@@ -132,6 +141,7 @@ export function SchedulePage() {
     return r.data
   }
   const visible = tasks.filter((t) => showDone || t.status !== 'done')
+  const startTime = scheduleStartTime(fromSix, dateRange, visible)
   const events = useMemo(() => {
     const list: EventInput[] = []
     for (const t of tasks.filter((t) => showDone || t.status !== 'done')) {
@@ -278,6 +288,17 @@ export function SchedulePage() {
         </div>
       </div>
       <div className="toolbar schedule-tools">
+        <label title="有更早或跨午夜的日程时，自动提前显示；取消后从 0:00 开始">
+          <input
+            type="checkbox"
+            checked={fromSix}
+            onChange={(e) => {
+              setFromSix(e.target.checked)
+              try { localStorage.setItem('schedule.fromSix', String(e.target.checked)) } catch { /* Session preference still works. */ }
+            }}
+          />{' '}
+          从6:00开始
+        </label>
         <label>
           <input
             type="checkbox"
@@ -470,7 +491,9 @@ export function SchedulePage() {
             nowIndicator
             defaultTimedEventDuration="01:00:00"
             height={660}
-            scrollTime="08:00:00"
+            slotMinTime={startTime}
+            scrollTime={startTime}
+            datesSet={updateRange}
             slotDuration="00:30:00"
             allDayText="全天"
             dayMaxEvents={3}
