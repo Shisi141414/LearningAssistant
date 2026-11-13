@@ -1,0 +1,70 @@
+.reminder-settings,
+.reminder-center,
+.task-reminders {
+  min-width: 0;
+  margin: 12px 0;
+}
+.reminder-center,
+.task-reminders {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.reminder-center summary,
+.task-reminders summary {
+  font-weight: 600;
+  cursor: pointer;
+}
+.reminder-settings fieldset,
+.task-reminders fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.reminder-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.reminder-settings label,
+.task-reminders label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.reminder-settings .reminder-check,
+.task-reminders .reminder-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+}
+.task-reminders input[type='checkbox'],
+.reminder-settings input[type='checkbox'] {
+  width: auto;
+  flex: 0 0 auto;
+  margin: 0;
+}
+.task-reminders input:not([type='checkbox']) {
+  width: 100%;
+  min-width: 0;
+}
+.reminder-item {
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+  overflow-wrap: anywhere;
+}
+.reminder-item .pill {
+  margin-left: 10px;
+}
+.reminder-center > .toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.reminder-settings [role='alert'],
+.reminder-center [role='alert'],
+.task-reminders [role='alert'] {
+  color: var(--danger, #b91c1c);
+}

@@ -3,6 +3,7 @@
  */
 import { registerTaskResourcesIpc } from './task-resources.ipc'
 import { registerAutoScheduleIpc } from './auto-schedule.ipc'
+import { registerRemindersIpc } from './reminders.ipc'
 import { registerProjectDocumentsIpc } from './project-documents.ipc'
 import { registerCalendarIpc } from './calendar.ipc'
 import { registerSubjectsIpc } from './subjects.ipc'
@@ -24,6 +25,7 @@ import { registerExercisesIpc } from './exercises.ipc'
 
 export function registerAllIpc(): void {
   registerAutoScheduleIpc()
+  registerRemindersIpc()
   registerTaskResourcesIpc()
   registerProjectDocumentsIpc()
   registerExercisesIpc()

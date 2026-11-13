@@ -5,6 +5,8 @@
  * 不再挤在窄列里；下方左列供应商列表、右列模型管理。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { ReminderSettingsCard } from '../components/Reminders'
 import type { Provider, ProviderInput, ModelInfo, ApiFormat, SpeedTier, AsrStatus, StorageInfo } from '@shared/types'
 import { PROVIDER_PRESETS } from '@shared/presets'
 import { chunkText } from '@shared/textChunk'
@@ -13,11 +15,12 @@ import { useAppStore } from '../stores/app'
 
 type ProviderTestState = Record<string, 'testing' | { ok: boolean; latencyMs: number; error?: string }>
 
-type SettingsTab = 'models' | 'test' | 'prefs'
+type SettingsTab = 'models' | 'test' | 'prefs' | 'reminders'
 
 export function SettingsPage() {
+  const [params] = useSearchParams()
   const showToast = useAppStore((s) => s.showToast)
-  const [tab, setTab] = useState<SettingsTab>('models')
+  const [tab, setTab] = useState<SettingsTab>(params.get('tab')==='reminders'?'reminders':'models')
   const [providers, setProviders] = useState<Provider[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [tests, setTests] = useState<ProviderTestState>({})
@@ -56,6 +59,7 @@ export function SettingsPage() {
         <button className={`tab${tab === 'prefs' ? ' active' : ''}`} onClick={() => setTab('prefs')}>
           个性化
         </button>
+        <button className={`tab${tab === 'reminders' ? ' active' : ''}`} onClick={() => setTab('reminders')}>提醒</button>
       </div>
 
       {tab === 'models' && (
@@ -141,6 +145,7 @@ export function SettingsPage() {
       {tab === 'test' && <DiagnosticsCard />}
 
       {tab === 'prefs' && <PrefsCard />}
+      {tab === 'reminders' && <ReminderSettingsCard />}
     </div>
   )
 }

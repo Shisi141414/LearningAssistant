@@ -7,6 +7,7 @@
 import type { ProjectDocumentDetail, ProjectDocumentSummary, ProjectDocumentSave, ProjectDocumentChange, ProjectDocumentAction, ProjectDocumentKind } from '@shared/project-documents'
 import type { TaskResourceAdd, TaskResourceEdit, TaskResourceSource, TaskResourcePage, TaskResource } from '@shared/task-resources'
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ReminderAction, ReminderConfiguration, ReminderPage, ReminderSettings, ReminderTaskOptions } from '@shared/reminders'
 import type { PlanningState, PlanningPreview, ScheduleSettings, TaskPlanningSave } from '@shared/auto-schedule'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
@@ -277,6 +278,16 @@ const api = {
     discard: () => invoke<boolean>(IPC.CalendarDiscard),
     export: () => invoke<CalendarExportResult | null>(IPC.CalendarExport)
   },
+  reminders: {
+    settings: () => invoke<ReminderConfiguration>(IPC.RemindersSettings),
+    saveSettings: (input:{expected_revision:string|null;value:ReminderSettings}) => invoke<ReminderConfiguration>(IPC.RemindersSaveSettings,input),
+    task: (id:string) => invoke<ReminderTaskOptions>(IPC.RemindersTask,id),
+    saveTask: (input:ReminderTaskOptions) => invoke<ReminderTaskOptions>(IPC.RemindersSaveTask,input),
+    list: (input:{view:'attention'|'upcoming'|'history';offset?:number}) => invoke<ReminderPage>(IPC.RemindersList,input),
+    action: (input:ReminderAction) => invoke<boolean>(IPC.RemindersAction,input),
+    test: () => invoke<string>(IPC.RemindersTest)
+  },
+  onReminderOpen: (cb:(input:{task_id?:string})=>void) => subscribe(IPC_EVENTS.ReminderOpen,cb),
   /** 流式事件订阅（返回取消订阅函数） */
   onLlmChunk: (cb: (e: LlmChunkEvent) => void) => subscribe(IPC_EVENTS.LlmChunk, cb),
   onLlmDone: (cb: (e: LlmDoneEvent) => void) => subscribe(IPC_EVENTS.LlmDone, cb),

@@ -1,5 +1,6 @@
 import { TaskResources } from '../components/TaskResources'
 import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
+import { ReminderCenter, TaskReminderEditor } from '../components/Reminders'
 import type { PlanningState } from '@shared/auto-schedule'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -97,11 +98,13 @@ export function SchedulePage() {
     [draft, setDraft] = useState<Draft | null>(null)
   const originalDraft = useRef<Draft | null>(null)
   const planningDraft = useRef({dirty:false,busy:false})
+  const reminderDraft = useRef({dirty:false,busy:false})
+  const reminderDraftChanged = useCallback((value:{dirty:boolean;busy:boolean})=>{reminderDraft.current=value},[])
   const planningDraftChanged = useCallback((value:{dirty:boolean;busy:boolean})=>{planningDraft.current=value},[])
   const beginDraft = (value: Draft): void => { originalDraft.current = value; setDraft(value) }
   const canDiscardDraft = (): boolean => {
-    if (planningDraft.current.busy) {showToast('学习安排正在保存，请稍候');return false}
-    return !draft || (!planningDraft.current.dirty && JSON.stringify(draft) === JSON.stringify(originalDraft.current)) || window.confirm('放弃未保存的日程修改？')
+    if (planningDraft.current.busy || reminderDraft.current.busy) {showToast('学习安排或提醒正在保存，请稍候');return false}
+    return !draft || (!planningDraft.current.dirty && !reminderDraft.current.dirty && JSON.stringify(draft) === JSON.stringify(originalDraft.current)) || window.confirm('放弃未保存的日程修改？')
   }
   const [showDone, setShowDone] = useState(false),
     [busy, setBusy] = useState(false),
@@ -157,6 +160,15 @@ export function SchedulePage() {
       void window.api.calendar.discard()
       void window.api.calendar.discardPlan()
     }
+  }, [reload])
+  useEffect(() => {
+    if (targetTaskId) void reload()
+    else shownTarget.current = ''
+  }, [reload, targetTaskId])
+  useEffect(() => {
+    const refresh = (): void => { shownTarget.current = ''; void reload() }
+    window.addEventListener('open-reminders', refresh)
+    return () => window.removeEventListener('open-reminders', refresh)
   }, [reload])
   const perform = async (run: () => Promise<void>): Promise<void> => {
     setBusy(true)
@@ -218,8 +230,8 @@ export function SchedulePage() {
   }
   const save = (): void => {
     if (!draft) return
-    if (planningDraft.current.busy) {showToast('学习安排正在保存，请稍候');return}
-    if (planningDraft.current.dirty && !window.confirm('学习安排尚未保存。放弃这些输入并保存日程？')) return
+    if (planningDraft.current.busy || reminderDraft.current.busy) {showToast('学习安排或提醒正在保存，请稍候');return}
+    if ((planningDraft.current.dirty || reminderDraft.current.dirty) && !window.confirm('学习安排或任务提醒尚未保存。放弃这些输入并保存日程？')) return
     void perform(async () => {
       const input: TaskInput = {
         title: draft.title.trim(),
@@ -289,6 +301,7 @@ export function SchedulePage() {
     const task = tasks.find(item => item.id === targetTaskId)
     if (!task || shownTarget.current === targetTaskId) return
     shownTarget.current = targetTaskId
+    if (draft?.id === task.id || !canDiscardDraft()) return
     beginDraft(draftFor(task))
     requestAnimationFrame(() => document.querySelector('.schedule-editor')?.scrollIntoView({ block:'start' }))
   },[tasks,targetTaskId])
@@ -533,6 +546,7 @@ export function SchedulePage() {
         )}
       </details>
       {planning && <AutoSchedule state={planning} tasks={tasks} onChange={setPlanning} disabled={busy} />}
+      <ReminderCenter initiallyOpen={params.get('reminders')==='1'} beforeComplete={canDiscardDraft} onTaskCompleted={()=>{setDraft(null);void reload()}} disabled={busy} />
       <div className={`schedule-layout ${draft ? 'editing' : ''}`}>
         <section className="schedule-calendar" aria-label="日历">
           {dateJump && <form className="schedule-date-jump" aria-label="填写日期跳转" onSubmit={e => {
@@ -793,6 +807,7 @@ export function SchedulePage() {
           </form>
           {selected && planning?.blocks.some(b=>b.task_id===selected.id) && <p className="muted">此任务按下方学习时间块安排。要改为固定日程，请先移除全部时间块并停用自动安排。</p>}
           {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
+          {selected && <TaskReminderEditor key={`reminder:${selected.id}`} taskId={selected.id} onDraftState={reminderDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
           </aside>
         )}
@@ -801,7 +816,7 @@ export function SchedulePage() {
       <section className="schedule-task-list" aria-label="任务清单">
         <h2>任务清单</h2>
         <p className="muted">
-          先处理逾期与今日截止事项，给待安排任务设置时间。提醒仅在应用运行时生效。
+          先处理逾期与今日截止事项，给待安排任务设置时间。提醒中心保存处理记录；后台能力可在设置中启用。
         </p>
         {groups.map((group) => (
           <div className="schedule-group" key={group.name}>

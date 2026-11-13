@@ -180,6 +180,13 @@ export const IPC = {
   TasksListAll: 'tasks:listAll',
   CalendarSave: 'calendar:save',
   PlanningGet: 'planning:get',
+  RemindersSettings: 'reminders:settings',
+  RemindersSaveSettings: 'reminders:saveSettings',
+  RemindersTask: 'reminders:task',
+  RemindersSaveTask: 'reminders:saveTask',
+  RemindersList: 'reminders:list',
+  RemindersAction: 'reminders:action',
+  RemindersTest: 'reminders:test',
   PlanningSettings: 'planning:settings',
   PlanningTask: 'planning:task',
   PlanningBlock: 'planning:block',
@@ -224,6 +231,7 @@ export type IpcChannel = (typeof IPC)[keyof typeof IPC]
 
 /** 流式/事件通道（主进程 -> 渲染进程单向推送） */
 export const IPC_EVENTS = {
+  ReminderOpen: 'reminders:open',
   LlmChunk: 'llm:chunk',
   LlmDone: 'llm:done',
   LlmError: 'llm:error',

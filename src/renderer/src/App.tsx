@@ -2,7 +2,7 @@
  * App.tsx —— 路由与全局副作用
  */
 import { useEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { Layout } from './app/Layout'
 import { ErrorBoundary } from './app/ErrorBoundary'
 import { Dashboard } from './pages/Dashboard'
@@ -28,6 +28,11 @@ import { useConceptStore } from './stores/concepts'
 import './pages/knowledge.css'
 
 export default function App() {
+  const navigate = useNavigate()
+  useEffect(() => window.api.onReminderOpen((input) => {
+    navigate('/review?reminders=1' + (input.task_id ? '&task=' + encodeURIComponent(input.task_id) : ''))
+    window.dispatchEvent(new Event('open-reminders'))
+  }), [navigate])
   const loadSubjects = useAppStore((s) => s.loadSubjects)
   const showToast = useAppStore((s) => s.showToast)
   const chat = useChatStore()

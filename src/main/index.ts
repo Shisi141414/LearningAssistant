@@ -1,12 +1,13 @@
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
-import { app, shell, BrowserWindow, session, dialog, Notification } from 'electron'
+import { app, shell, BrowserWindow, session, dialog } from 'electron'
 import { join } from 'node:path'
 import { registerAllIpc } from './ipc'
 import { closeDb, getDb } from './services/db'
 import { safeExternal, trustedRenderer } from './services/security'
-import { dueTodayCount } from './services/projects'
+import { startReminderRuntime, type ReminderRuntime } from './services/reminder-runtime'
+import { IPC_EVENTS } from '@shared/ipc-channels'
 import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
 import { stopAllChats } from './ipc/chat.ipc'
@@ -29,8 +30,10 @@ import { recoverLearningPackageImports } from './services/learning-package-impor
 declareMaterialProtocol()
 
 let stopRecovery: (() => void) | undefined
+let reminderRuntime: ReminderRuntime | undefined
+let quitting = false
 
-function createWindow(): void {
+function createWindow(route?: string): void {
   const win = new BrowserWindow({
     width: 1360,
     height: 860,
@@ -49,6 +52,12 @@ function createWindow(): void {
   })
 
   win.on('ready-to-show', () => win.show())
+  win.on('close', (event) => {
+    if (!quitting && reminderRuntime?.keepInBackground()) {
+      event.preventDefault()
+      win.hide()
+    }
+  })
 
   // 外部链接交给系统浏览器，不在应用内导航（防钓鱼/安全）
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -59,10 +68,10 @@ function createWindow(): void {
 
   if (process.env.ELECTRON_RENDERER_URL) {
     // 开发模式：electron-vite dev server
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL)
+    void win.loadURL(process.env.ELECTRON_RENDERER_URL + (route ? '#' + route : ''))
   } else {
     // 生产模式：打包产物
-    void win.loadFile(join(__dirname, '../renderer/index.html'))
+    void win.loadFile(join(__dirname, '../renderer/index.html'), route ? { hash: route } : undefined)
   }
 }
 
@@ -83,17 +92,20 @@ app.whenReady().then(async () => {
   recoverNoteSuggestions()
   recoverKnowledgeSuggestions()
   createWindow()
-
-  // R5 到期提醒：启动时检查今日截止任务并发系统通知。
-  // 诚实边界：仅应用运行期间有效；系统级定时提醒（应用未运行也推送）在 R5 后续批次接入系统计划任务。
-  try {
-    const due = dueTodayCount()
-    if (due > 0 && Notification.isSupported()) {
-      new Notification({ title: 'LearningAssistant 学习助手', body: `今日有 ${due} 项任务到期，打开「日程」页查看` }).show()
+  if (process.platform === 'win32') app.setAppUserModelId('cn.tsinghua.learningassistant')
+  reminderRuntime = startReminderRuntime((task_id) => {
+    const win = BrowserWindow.getAllWindows().find(
+      w => !w.isDestroyed() && trustedRenderer(w.webContents.getURL())
+    )
+    if (!win) {
+      createWindow('/review?reminders=1' + (task_id ? '&task=' + encodeURIComponent(task_id) : ''))
+      return
     }
-  } catch (e) {
-    console.warn('启动提醒发送失败', e)
-  }
+    if (win.isMinimized()) win.restore()
+    win.show()
+    win.focus()
+    win.webContents.send(IPC_EVENTS.ReminderOpen, task_id ? { task_id } : {})
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -105,6 +117,8 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  quitting = true
+  reminderRuntime?.stop()
   stopRecovery?.()
   stopClassroom()
   stopAllChats()

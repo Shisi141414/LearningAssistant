@@ -28,11 +28,14 @@ app.on('browser-window-created',(_event,win)=>{win.webContents.session.webReques
       const saved=JSON.parse(fs.readFileSync(path.join(root,'checkpoint.json'),'utf8')),detail=await call('projects','detail',saved.project)
       assert.equal(detail.tasks[0].milestone_id,saved.milestone);assert.equal(JSON.parse(detail.tasks[0].knowledge_refs_json)[0].concept_id,saved.concept)
       assert.equal((await call('tasks','listAll')).find(t=>t.id===saved.completed).status,'done')
-      assert.equal(notifications.length,1);assert.match(notifications[0].body,/今日有 1 项任务到期/)
+      assert.equal(notifications.length,0,'系统通知默认关闭，不在每次重启重复弹出到期汇总')
+      assert.equal((await call('reminders','settings')).value.system_enabled,false)
+      const reminders=(await Promise.all(['attention','upcoming','history'].map(view=>call('reminders','list',{view})))).flatMap(p=>p.items)
+      assert.ok(reminders.some(r=>r.title==='今日提醒样例'),'提醒计划或超窗历史可在重启后恢复')
       await js("location.hash='/review'");await wait("document.body.innerText.includes('今日提醒样例')");assert.equal(await js("document.body.innerText.includes('一次勾选完成')"),false)
       assert.equal((await call('inspirations','list')).find(item=>item.id===saved.math).content,saved.mathContent)
       assert.deepEqual(remoteRequests,[])
-      console.log('PROJECTS_RESTART_OK project/milestone/knowledge uses, task completion and startup notification dispatch parameters');clearTimeout(deadline);app.exit(0);return
+      console.log('PROJECTS_RESTART_OK project/milestone/knowledge uses, task completion and durable reminders with system notifications off by default');clearTimeout(deadline);app.exit(0);return
     }
     assert.deepEqual(await call('projects','list'),[])
     const concept=await call('concepts','save',{subject_id:null,name:'动量守恒',summary:'校验实验结果',aliases:[]})

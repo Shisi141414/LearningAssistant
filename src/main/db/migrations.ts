@@ -767,5 +767,59 @@ CREATE TABLE schedule_runs (
   undone_at INTEGER
 );
 `
+  },
+  {
+    version: 27,
+    name: 'durable_reminders_and_delivery_outbox',
+    sql: `
+CREATE TABLE reminder_settings (
+  id INTEGER PRIMARY KEY CHECK(id=1), revision TEXT NOT NULL, value_json TEXT NOT NULL
+);
+CREATE TABLE task_reminder_options (
+  task_id TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+  start_lead_minutes INTEGER, due_lead_minutes INTEGER
+);
+CREATE TABLE reminder_change_counter(id INTEGER PRIMARY KEY CHECK(id=1),seq INTEGER NOT NULL);
+INSERT INTO reminder_change_counter VALUES(1,0);
+CREATE TRIGGER reminder_tasks_insert AFTER INSERT ON tasks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_tasks_update AFTER UPDATE ON tasks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_tasks_delete AFTER DELETE ON tasks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_blocks_insert AFTER INSERT ON schedule_blocks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_blocks_update AFTER UPDATE ON schedule_blocks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_blocks_delete AFTER DELETE ON schedule_blocks BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_project_update AFTER UPDATE OF status ON projects BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_options_insert AFTER INSERT ON task_reminder_options BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_options_update AFTER UPDATE ON task_reminder_options BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_options_delete AFTER DELETE ON task_reminder_options BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_settings_insert AFTER INSERT ON reminder_settings BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TRIGGER reminder_settings_update AFTER UPDATE ON reminder_settings BEGIN UPDATE reminder_change_counter SET seq=seq+1; END;
+CREATE TABLE reminders (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  event_key TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK(kind IN ('start','due','block')),
+  source_id TEXT NOT NULL,
+  event_at INTEGER NOT NULL,
+  remind_at INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  location TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending','published','dismissed','snoozed','cancelled','expired')),
+  published_at INTEGER,
+  revision TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_reminders_due ON reminders(status,remind_at);
+CREATE INDEX idx_reminders_task ON reminders(task_id,event_key);
+CREATE TABLE reminder_deliveries (
+  reminder_id TEXT PRIMARY KEY REFERENCES reminders(id) ON DELETE CASCADE,
+  status TEXT NOT NULL CHECK(status IN ('pending','claimed','shown','failed','uncertain','skipped','cancelled')),
+  attempt TEXT,
+  attempted_at INTEGER,
+  next_at INTEGER NOT NULL,
+  error TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_reminder_outbox ON reminder_deliveries(status,next_at);
+`
   }
 ]
