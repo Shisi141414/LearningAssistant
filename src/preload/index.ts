@@ -5,6 +5,7 @@
  * ipcRenderer 本体、Node API 一律不暴露。
  */
 import type { ProjectDocumentDetail, ProjectDocumentSummary, ProjectDocumentSave, ProjectDocumentChange, ProjectDocumentAction, ProjectDocumentKind } from '@shared/project-documents'
+import type { TaskResourceAdd, TaskResourceEdit, TaskResourceSource, TaskResourcePage, TaskResource } from '@shared/task-resources'
 import { contextBridge, ipcRenderer } from 'electron'
 import { IPC, IPC_EVENTS } from '@shared/ipc-channels'
 import type { KnowledgeGraph, ConceptRelationInput, ConceptRelation, ConceptRelationRemove, ConceptPosition, ConceptUsagePage } from '@shared/knowledge-graph'
@@ -223,6 +224,13 @@ const api = {
     list: () => invoke<Inspiration[]>(IPC.InspirationsList),
     add: (input: InspirationInput) => invoke<Inspiration>(IPC.InspirationsAdd, input),
     remove: (id: ID) => invoke<boolean>(IPC.InspirationsRemove, id)
+  },
+  taskResources: {
+    list: (input: {task_id:string;offset?:number}) => invoke<TaskResourcePage>(IPC.TaskResourcesList,input),
+    backlinks: (input: {source:TaskResourceSource;offset?:number}) => invoke<TaskResourcePage>(IPC.TaskResourcesBacklinks,input),
+    add: (input:TaskResourceAdd) => invoke<{resource:TaskResource;created:boolean}>(IPC.TaskResourcesAdd,input),
+    edit: (input:TaskResourceEdit) => invoke<TaskResource>(IPC.TaskResourcesEdit,input),
+    remove: (input:{id:string;expected_revision:string}) => invoke<boolean>(IPC.TaskResourcesRemove,input)
   },
   projectDocuments: {
     list: (input: { project_id: string; trash?: boolean }) => invoke<ProjectDocumentSummary[]>(IPC.ProjectDocumentsList,input),

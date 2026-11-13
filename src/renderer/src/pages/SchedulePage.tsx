@@ -1,3 +1,4 @@
+import { TaskResources } from '../components/TaskResources'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import FullCalendar from '@fullcalendar/react'
@@ -600,9 +601,8 @@ export function SchedulePage() {
           />
         </section>
         {draft && (
+          <aside className="schedule-editor" aria-label="日程编辑">
           <form
-            className="schedule-editor"
-            aria-label="日程编辑"
             onSubmit={(e) => {
               e.preventDefault()
               save()
@@ -771,6 +771,8 @@ export function SchedulePage() {
               )}
             </div>
           </form>
+          {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
+          </aside>
         )}
       </div>
 

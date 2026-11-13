@@ -132,7 +132,7 @@ export function NoteDetail() {
         </button>
       </div>
 
-      {uniform ? <NoteLearningReader key={note.id} noteId={note.id} onOpenOriginal={() => { setUniform(false); setView('raw'); void reload() }} /> : <>
+      {uniform ? <NoteLearningReader key={`${note.id}:${params.get('revision')}:${params.get('entry')}`} initialRevisionId={params.get('revision') ?? ''} targetEntryId={params.get('entry') ?? ''} noteId={note.id} onOpenOriginal={() => { setUniform(false); setView('raw'); void reload() }} /> : <>
       <div className="muted" style={{ marginBottom: 12 }}>
         {view === 'organized'
           ? '整理视图：显示整理后的内容（M1 起由课堂转写流水线自动生成）。选中文字后用底部快捷栏可标注。'

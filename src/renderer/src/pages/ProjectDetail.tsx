@@ -1,3 +1,4 @@
+import { TaskResources } from '../components/TaskResources'
 /**
  * pages/ProjectDetail.tsx —— 项目详情：目标 / 里程碑 / 任务（按状态分组）/ 知识点引用
  */
@@ -200,7 +201,7 @@ export function ProjectDetail() {
           <button className="primary" onClick={() => void addTask()}>+ 任务</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginTop: 10 }}>
+        <div className="project-task-board" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginTop: 10 }}>
           {TASK_GROUPS.map((group) => {
             const items = detail.tasks.filter((t) => t.status === group.status)
             return (
@@ -246,6 +247,7 @@ export function ProjectDetail() {
                         </div>
                         <button style={{ padding: '1px 8px', fontSize: 12 }} title="标记阻塞" onClick={() => void blockTask(t)}>⛔</button>
                       </div>
+                      <TaskResources taskId={t.id} initiallyOpen={targetTask === t.id} />
                     </div>
                   )
                 })}

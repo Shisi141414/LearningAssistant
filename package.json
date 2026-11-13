@@ -14,7 +14,7 @@
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
     "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
     "test:chunk": "node --experimental-strip-types scripts/smoke-chunk.ts",
-    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs && node scripts/test-project-documents.cjs && node scripts/test-exercise-sets.cjs",
+    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs && node scripts/test-project-documents.cjs && node scripts/test-exercise-sets.cjs && node scripts/test-task-resources.cjs",
     "test:project-documents": "npm run build && node scripts/test-project-documents.cjs",
     "test:graph": "npm run build && node scripts/test-knowledge-graph.cjs",
     "test:exercises": "npm run build && node scripts/test-exercises.cjs",
@@ -33,7 +33,8 @@
     "test:reliability": "node --import ./scripts/test-support.mjs --test scripts/*.test.mjs",
     "test:materials": "npm run build && node scripts/test-materials.cjs",
     "test:ocr": "npm run build && node scripts/test-ocr.cjs",
-    "test:exercise-sets": "npm run build && node scripts/test-exercise-sets.cjs"
+    "test:exercise-sets": "npm run build && node scripts/test-exercise-sets.cjs",
+    "test:task-resources": "npm run build && node scripts/test-task-resources.cjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",

@@ -1,3 +1,4 @@
+import { TaskSourceLinks } from './TaskResources'
 import { LearningEntryEditor } from './LearningEntryEditor'
 import { LearningPdfExport } from './LearningPdfExport'
 import { useEffect, useMemo, useState } from 'react'
@@ -130,6 +131,7 @@ export function LearningReader({ materialId, versionId, subjectId, initialRevisi
           {['exercise','example'].includes(entry.type) && <button disabled={busy} onClick={() => void addExercise(entry.id)}>加入习题库</button>}
           {current && !archived && editing === entry.id && <EntryEditor key={`edit:${document.revision_id}:${entry.id}`} entry={entry} text={text} document={document} first={index === 0} busy={busy} onChange={change} />}
           <KnowledgeEvidence key={`evidence:${document.revision_id}:${entry.id}`} source={{ kind: 'learning', material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entry.id }} title={entry.title} subjectId={subjectId} quoteLength={text.length} />
+          <TaskSourceLinks key={`task-source:${document.revision_id}:${entry.id}`} source={{ kind: 'material', material_id: materialId, version_id: versionId, revision_id: document.revision_id, entry_id: entry.id }} disabled={busy || !!editing} />
         </article>
       })}
       {!filtered.length && <p className="empty">没有匹配的学习条目。</p>}

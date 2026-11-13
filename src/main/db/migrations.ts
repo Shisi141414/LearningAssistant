@@ -697,5 +697,33 @@ CREATE TABLE project_document_revisions (
 );
 CREATE INDEX idx_project_document_history ON project_document_revisions(document_id);
 `
+  },
+  {
+    version: 25,
+    name: 'task_learning_resources',
+    sql: `
+CREATE TABLE task_resource_links (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  source_key TEXT NOT NULL,
+  snapshot_json TEXT NOT NULL,
+  material_revision_id TEXT REFERENCES learning_revisions(id) ON DELETE SET NULL,
+  note_revision_id TEXT REFERENCES note_learning_revisions(id) ON DELETE SET NULL,
+  note_id TEXT REFERENCES notes(id) ON DELETE SET NULL,
+  exercise_revision_id TEXT REFERENCES exercise_revisions(id) ON DELETE SET NULL,
+  project_document_revision_id TEXT REFERENCES project_document_revisions(id) ON DELETE SET NULL,
+  concept_id TEXT REFERENCES knowledge_points(id) ON DELETE SET NULL,
+  role TEXT NOT NULL CHECK(role IN ('learn','apply','output','question','verify')),
+  why TEXT NOT NULL,
+  verification TEXT NOT NULL,
+  revision TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(task_id,source_key),
+  CHECK ((material_revision_id IS NOT NULL)+(note_revision_id IS NOT NULL)+(exercise_revision_id IS NOT NULL)+(project_document_revision_id IS NOT NULL)<=1)
+);
+CREATE INDEX idx_task_resource_source ON task_resource_links(source_key);
+CREATE INDEX idx_task_resource_concept ON task_resource_links(concept_id);
+`
   }
 ]

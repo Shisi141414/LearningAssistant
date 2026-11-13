@@ -61,7 +61,20 @@ const learningChange = (owner: 'note_id' | 'version_id' | 'id', figures: boolean
   ].some(check => check(value))
 }
 
+const taskResourceSource: Check = value => [
+  record({kind:choice('material'),material_id:id,version_id:id,revision_id:id,entry_id:id}),
+  record({kind:choice('note'),note_id:id,revision_id:id,entry_id:id}),
+  record({kind:choice('exercise'),exercise_id:id,revision_id:id,entry_id:id}),
+  record({kind:choice('project_document'),document_id:id,revision_id:id,entry_id:id})
+].some(check=>check(value))
+const taskResourceFields = { role:choice('learn','apply','output','question','verify'),concept_id:nullable(id),why:text(4000),verification:text(4000) }
+const taskResourceOffset=optional((value:unknown)=>number(value)&&(value as number)<=10_000_000)
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.TaskResourcesList]: [record({task_id:id,offset:taskResourceOffset})],
+  [IPC.TaskResourcesBacklinks]: [record({source:taskResourceSource,offset:taskResourceOffset})],
+  [IPC.TaskResourcesAdd]: [record({task_id:id,source:taskResourceSource,...taskResourceFields})],
+  [IPC.TaskResourcesEdit]: [record({id,expected_revision:id,...taskResourceFields})],
+  [IPC.TaskResourcesRemove]: [record({id,expected_revision:id})],
   [IPC.ProjectDocumentsList]: [record({ project_id: id, trash: optional(bool) })],
   [IPC.ProjectDocumentsGet]: [record({ id, revision_id: optional(id) })],
   [IPC.ProjectDocumentsSave]: [record({ project_id: id, id: optional(id), expected_revision_id: optional(id), title, kind: choice('requirements','plan','report','other'), body: optional(text(200_000,true)), concept_ids: v => Array.isArray(v) && v.length <= 32 && v.every(id) })],

@@ -1,5 +1,6 @@
+import { TaskSourceLinks } from '../components/TaskResources'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ProjectDocumentDetail, ProjectDocumentKind } from '@shared/project-documents'
 import { projectDocumentKinds } from '@shared/project-documents'
 import type { LearningOperation } from '@shared/types'
@@ -15,15 +16,18 @@ import './project-documents.css'
 
 export function ProjectDocumentPage() {
   const { projectId = '', documentId = '' } = useParams()
+  const [params] = useSearchParams()
+  const revisionId = params.get('revision') ?? '', targetEntryId = params.get('entry') ?? ''
   return (
     <DocumentEditor
-      key={`${projectId}:${documentId}`}
+      key={`${projectId}:${documentId}:${revisionId}:${targetEntryId}`}
+      initialRevisionId={revisionId} targetEntryId={targetEntryId}
       projectId={projectId}
       documentId={documentId}
     />
   )
 }
-function DocumentEditor({ projectId, documentId }: { projectId: string; documentId: string }) {
+function DocumentEditor({ projectId, documentId, initialRevisionId, targetEntryId }: { projectId: string; documentId: string; initialRevisionId: string; targetEntryId: string }) {
   const isNew = documentId === 'new',
     navigate = useNavigate(),
     { items: concepts, load: loadConcepts } = useConceptStore()
@@ -64,7 +68,9 @@ function DocumentEditor({ projectId, documentId }: { projectId: string; document
     setEditing(false)
     setReplaceBody(false)
     setActiveEntry('')
-    setOffset(0)
+    const index = doc.snapshot.state.entries.findIndex(entry => entry.id === targetEntryId)
+    setOffset(index >= 0 ? Math.floor(index / 100) * 100 : 0)
+    if (targetEntryId && index < 0) setError('所引修订中没有此条目，请核对引用链接')
     setBaseline(
       JSON.stringify({
         title: doc.snapshot.title,
@@ -78,7 +84,7 @@ function DocumentEditor({ projectId, documentId }: { projectId: string; document
   useEffect(() => {
     alive.current = true
     if (!isNew)
-      void window.api.projectDocuments.get({ id: documentId }).then((result) => {
+      void window.api.projectDocuments.get({ id: documentId, ...(initialRevisionId ? { revision_id: initialRevisionId } : {}) }).then((result) => {
         if (!alive.current) return
         setLoading(false)
         if (result.ok && result.data.project_id === projectId) apply(result.data)
@@ -88,6 +94,9 @@ function DocumentEditor({ projectId, documentId }: { projectId: string; document
       alive.current = false
     }
   }, [documentId, projectId, isNew])
+  useEffect(() => {
+    if (detail && targetEntryId) document.getElementById(`project-document-entry-${targetEntryId}`)?.scrollIntoView({ block: 'center' })
+  }, [detail?.revision_id, targetEntryId, offset, loading])
   useEffect(() => {
     if (!dirty) return
     const leave = (event: MouseEvent) => {
@@ -397,7 +406,7 @@ function DocumentEditor({ projectId, documentId }: { projectId: string; document
             )}
             <div className="project-document-paper">
               {snapshot.state.entries.slice(offset, offset + 100).map((entry, index) => (
-                <article key={entry.id} className={`learning-entry learning-${entry.type}`}>
+                <article id={`project-document-entry-${entry.id}`} key={entry.id} className={`learning-entry learning-${entry.type}${entry.id === targetEntryId ? ' evidence-target' : ''}`}>
                   <div className="learning-entry-header">
                     <span>{learningTypes[entry.type]}</span>
                     <strong>{entry.title}</strong>
@@ -431,6 +440,7 @@ function DocumentEditor({ projectId, documentId }: { projectId: string; document
                       onOperation={(op) => operate(entry.id, op)}
                     />
                   )}
+                  <TaskSourceLinks key={`task-source:${detail!.revision_id}:${entry.id}`} source={{ kind: 'project_document', document_id: documentId, revision_id: detail!.revision_id, entry_id: entry.id }} disabled={busy || !!activeEntry} />
                 </article>
               ))}
             </div>

@@ -105,8 +105,8 @@ export function conceptUsage(input: { concept_id: string; offset?: number }): Co
   const sql = `SELECT 'exercise' AS kind,e.id,CASE WHEN e.title='' THEN substr(e.statement,1,80) ELSE e.title END AS title,e.status,'' AS why,NULL AS project_id,NULL AS project_title
     FROM exercises e WHERE e.deleted_at IS NULL AND EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(e.review_concepts_json) THEN e.review_concepts_json ELSE '[]' END) WHERE value=@concept)
     UNION ALL
-    SELECT 'task',t.id,t.title,t.status,COALESCE((SELECT json_extract(value,'$.why') FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept LIMIT 1),''),p.id,p.title
-    FROM tasks t LEFT JOIN projects p ON p.id=t.project_id WHERE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept)
+    SELECT 'task',t.id,t.title,t.status,COALESCE((SELECT json_extract(value,'$.why') FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept LIMIT 1),(SELECT r.why FROM task_resource_links r WHERE r.task_id=t.id AND r.concept_id=@concept ORDER BY r.created_at,r.id LIMIT 1),''),p.id,p.title
+    FROM tasks t LEFT JOIN projects p ON p.id=t.project_id WHERE EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(t.knowledge_refs_json) THEN t.knowledge_refs_json ELSE '[]' END) WHERE json_extract(value,'$.concept_id')=@concept) OR EXISTS (SELECT 1 FROM task_resource_links r WHERE r.task_id=t.id AND r.concept_id=@concept)
     UNION ALL
     SELECT 'project_document',d.id,d.title,'document','项目资料中关联的知识',p.id,p.title
     FROM project_documents d JOIN projects p ON p.id=d.project_id JOIN project_document_revisions r ON r.id=d.head_revision_id

@@ -1,3 +1,4 @@
+import { TaskSourceLinks } from '../components/TaskResources'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { ExerciseDetail, ExerciseInput, ExercisePage, ExerciseStatus } from '@shared/exercises'
@@ -207,9 +208,11 @@ export function ExercisesPage() {
 
 export function ExerciseDetailPage() {
   const { exerciseId = '' } = useParams()
-  return <ExerciseEditor key={exerciseId} exerciseId={exerciseId} />
+  const [params] = useSearchParams()
+  const revisionId = params.get('revision') ?? '', targetEntryId = params.get('entry') ?? ''
+  return <ExerciseEditor key={`${exerciseId}:${revisionId}:${targetEntryId}`} exerciseId={exerciseId} initialRevisionId={revisionId} targetEntryId={targetEntryId} />
 }
-function ExerciseEditor({ exerciseId }: { exerciseId: string }) {
+function ExerciseEditor({ exerciseId, initialRevisionId, targetEntryId }: { exerciseId: string; initialRevisionId: string; targetEntryId: string }) {
   const navigate = useNavigate(),
     { subjects, currentSubjectId, showToast } = useAppStore()
   const { items: concepts, error: conceptError } = useConceptStore()
@@ -244,7 +247,7 @@ function ExerciseEditor({ exerciseId }: { exerciseId: string }) {
   useEffect(() => {
     if (isNew) return
     let alive = true
-    void window.api.exercises.get({ id: exerciseId }).then((result) => {
+    void window.api.exercises.get({ id: exerciseId, ...(initialRevisionId ? { revision_id: initialRevisionId } : {}) }).then((result) => {
       if (!alive) return
       setLoading(false)
       if (result.ok) apply(result.data)
@@ -272,6 +275,11 @@ function ExerciseEditor({ exerciseId }: { exerciseId: string }) {
       document.removeEventListener('click', leave, true)
     }
   }, [dirty])
+  useEffect(() => {
+    if (!detail || !targetEntryId) return
+    if (!detail.snapshot.document.state.entries.some(entry => entry.id === targetEntryId)) setError('所引修订中没有此条目，请核对引用链接')
+    else document.getElementById(`exercise-entry-${targetEntryId}`)?.scrollIntoView({ block: 'center' })
+  }, [detail?.revision_id, targetEntryId, loading])
   const set = <K extends keyof ExerciseInput>(key: K, value: ExerciseInput[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
   const read = async (revision?: string) => {
@@ -615,7 +623,7 @@ function ExerciseEditor({ exerciseId }: { exerciseId: string }) {
                 (item) => item.id === snapshot.document.fields[key as keyof typeof exerciseFields]
               )!
               return (
-                <section key={key} className={`exercise-block field-${key}`}>
+                <section id={`exercise-entry-${entry.id}`} key={key} className={`exercise-block field-${key}${entry.id === targetEntryId ? ' evidence-target' : ''}`}>
                   <h2>{label}</h2>
                   {displayed[key as keyof typeof exerciseFields].trim() ? (
                     <MarkdownSegment
@@ -628,6 +636,7 @@ function ExerciseEditor({ exerciseId }: { exerciseId: string }) {
                   {!!entry.figures?.length && (
                     <LearningEntryFigures figures={entry.figures} assets={source?.assets ?? []} />
                   )}
+                  <TaskSourceLinks key={`task-source:${detail!.revision_id}:${entry.id}`} source={{ kind: 'exercise', exercise_id: exerciseId, revision_id: detail!.revision_id, entry_id: entry.id }} disabled={busy} />
                 </section>
               )
             })}

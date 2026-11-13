@@ -1,3 +1,4 @@
+import { TaskSourceLinks } from './TaskResources'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { NoteImportReceipt } from './NoteImportReceipt'
@@ -14,17 +15,18 @@ import { LearningSuggestions } from './LearningSuggestions'
 import { NotePackageExport } from './NotePackageExport'
 import './learning-reader.css'
 
-function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigation }: {
+function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigation, initialRevisionId = '', targetEntryId = '' }: {
+  initialRevisionId?: string; targetEntryId?: string
   noteId: string; onOpenOriginal?: () => void
   live?: { revision: object; active: boolean }
   classroomNavigation?: { original: (segmentId: string) => void; material: (anchor: MaterialAnchor) => void }
 }) {
   const [document, setDocument] = useState<NoteLearningDocument | null>(null)
-  const [revision, setRevision] = useState(''), [refresh, setRefresh] = useState(0)
+  const [revision, setRevision] = useState(initialRevisionId), [refresh, setRefresh] = useState(0)
   const [error, setError] = useState(''), [loading, setLoading] = useState(true)
   const [type, setType] = useState(''), [query, setQuery] = useState(''), [offset, setOffset] = useState(0)
   const [busy, setBusy] = useState(false), [editing, setEditing] = useState<string | null>(null)
-  const [chapter, setChapter] = useState(''), [focused, setFocused] = useState('')
+  const [chapter, setChapter] = useState(''), [focused, setFocused] = useState(targetEntryId)
   const [navigation, setNavigation] = useState(0)
   const [preview, setPreview] = useState<NoteLearningSyncPreview | null>(null)
   const [followLive, setFollowLive] = useState(true)
@@ -41,7 +43,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
     setLoading(true); setError('')
     void window.api.notes.learningGet({ note_id: noteId, ...(revision ? { revision_id: revision } : {}) }).then(result => {
       if (!alive) return
-      if (result.ok) { setDocument(result.data); setOffset(0); setEditing(null); setPreview(null); if (!revision) setAppliedLive(token) } else setError(result.error)
+      if (result.ok) { setDocument(result.data); const index = result.data.state.entries.findIndex(entry => entry.id === targetEntryId); setOffset(index >= 0 ? Math.floor(index / 100) * 100 : 0); if (targetEntryId && index < 0) setError('所引修订中没有此条目，请核对引用链接'); setEditing(null); setPreview(null); if (!revision) setAppliedLive(token) } else setError(result.error)
       setLoading(false)
     }).catch(reason => { if (alive) { setError(reason instanceof Error ? reason.message : '读取笔记失败，请重试'); setLoading(false) } })
     return () => { alive = false }
@@ -57,7 +59,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
   }, [document, sources])
   const rows = useMemo(() => allRows.filter(({ entry, text, path }) => (!type || entry.type === type) && (!query || `${entry.title}\n${text}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())) && (!chapter || (chapter === 'root' ? !path.length && entry.type !== 'section' : entry.id === chapter || path.some(parent => parent.id === chapter)))), [allRows, type, query, chapter])
   useEffect(() => { setOffset(value => Math.min(value, Math.max(0, Math.floor((rows.length - 1) / 100) * 100))) }, [rows.length])
-  useEffect(() => { if (focused) window.document.getElementById(`note-learning-${focused}`)?.scrollIntoView({ block: 'center' }) }, [focused, offset, query, type, chapter, navigation])
+  useEffect(() => { if (focused) window.document.getElementById(`note-learning-${focused}`)?.scrollIntoView({ block: 'center' }) }, [focused, offset, query, type, chapter, navigation, document?.revision_id, loading])
   const current = !revision && document?.revision_id === document?.current_revision_id
   const jump = (id: string) => { if (editing || preview || busy) return; const index = allRows.findIndex(row => row.entry.id === id); if (index < 0) return; setQuery(''); setType(''); setChapter(''); setOffset(Math.floor(index / 100) * 100); setFocused(id); setNavigation(value => value + 1) }
   const update = (next: NoteLearningDocument) => { setDocument(next); setEditing(null); setPreview(null); setRevision('') }
@@ -110,7 +112,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
       <details className="learning-outline"><summary>笔记章节目录</summary><nav>{allRows.filter(row => row.entry.type === 'section').map(row => <button key={row.entry.id} onClick={() => jump(row.entry.id)}>{'　'.repeat(row.path.length)}{row.entry.title || '未命名章节'}</button>)}</nav></details>
       {rows.slice(offset, offset + 100).map(({ entry, text, index, path }) => {
         const related = document.state.relations.find(relation => relation.from === entry.id), target = related && document.state.entries.find(item => item.id === related.to)
-        return <article id={`note-learning-${entry.id}`} className={`learning-entry learning-${entry.type}`} key={entry.id}>
+        return <article id={`note-learning-${entry.id}`} className={`learning-entry learning-${entry.type}${entry.id === focused ? ' evidence-target' : ''}`} key={entry.id}>
           {!!path.length && <div className="learning-breadcrumb">{path.map(parent => <button key={parent.id} onClick={() => jump(parent.id)}>{parent.title || '未命名章节'}</button>)}</div>}
           <div className="learning-entry-heading"><span className="learning-type">{learningTypes[entry.type]}</span><h3>{entry.title}</h3><span className="muted">{entry.analysis.method === 'ai' ? `AI 整理 · ${entry.analysis.model}` : entry.analysis.method === 'manual' ? '人工编辑' : '初始记录'} · {entry.analysis.review_status === 'confirmed' ? '人工保存' : '待核对'}</span></div>
           <div className="learning-entry-text">{entry.formulas?.length ? <LearningFormulaContent text={text} formulas={entry.formulas} subjectId={document.subject_id} /> : <MarkdownSegment text={text} subjectId={document.subject_id} />}</div>
@@ -127,6 +129,7 @@ function NoteLearningReaderView({ noteId, onOpenOriginal, live, classroomNavigat
           {target && <p className="learning-relation">{related!.type === 'proves' ? '证明' : '解答'}对象：<button onClick={() => jump(target.id)}>{target.title || learningTypes[target.type]}</button></p>}
           {current && !document.pending_sync && <button disabled={busy || (reviewingAi && editing !== entry.id)} onClick={() => setEditing(editing === entry.id ? null : entry.id)}>{editing === entry.id ? '收起整理' : '整理条目'}</button>}
           {current && !document.pending_sync && editing === entry.id && <LearningEntryEditor key={`${document.revision_id}:${entry.id}`} entry={entry} text={text} state={document.state} first={!index} busy={busy} onOperation={operation => change(entry.id, operation)} />}
+          <TaskSourceLinks key={`task-source:${document.revision_id}:${entry.id}`} source={{ kind: 'note', note_id: noteId, revision_id: document.revision_id, entry_id: entry.id }} disabled={busy || !!editing || !!preview || reviewingAi} />
         </article>
       })}
       {rows.length > 100 && <div className="toolbar"><button disabled={!offset || busy || !!editing || !!preview} onClick={() => setOffset(value => Math.max(0, value - 100))}>上一组</button><span>{Math.floor(offset / 100) + 1} / {Math.ceil(rows.length / 100)}</span><button disabled={offset + 100 >= rows.length || busy || !!editing || !!preview} onClick={() => setOffset(value => value + 100)}>下一组</button></div>}
