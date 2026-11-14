@@ -14,7 +14,7 @@
     "test:db": "node --experimental-strip-types scripts/smoke-db.ts",
     "test:organize": "node --experimental-strip-types scripts/smoke-organize.ts",
     "test:chunk": "node --experimental-strip-types scripts/smoke-chunk.ts",
-    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs && node scripts/test-project-documents.cjs && node scripts/test-exercise-sets.cjs && node scripts/test-task-resources.cjs && node scripts/test-auto-schedule.cjs && node scripts/test-reminders.cjs && node scripts/test-continuous-schedule.cjs && node scripts/test-schedule-block-move.cjs && node scripts/test-memos.cjs && node scripts/test-memo-auto.cjs && node scripts/test-classroom-alignment.cjs && node scripts/test-reviews.cjs && node scripts/test-review-blocks.cjs && node scripts/test-assignments.cjs && node scripts/test-campus.cjs",
+    "test": "npm run test:db && npm run test:organize && npm run test:chunk && npm run test:reliability && npm run test:materials && node scripts/test-note-learning.cjs && node scripts/test-learning-pdf.cjs && node scripts/test-classroom-learning.cjs && node scripts/test-note-ai.cjs && node scripts/test-note-package.cjs && node scripts/test-note-package-import.cjs && node scripts/test-projects-schedule.cjs && node scripts/test-calendar-management.cjs && node scripts/test-exercises.cjs && node scripts/test-knowledge-graph.cjs && node scripts/test-project-documents.cjs && node scripts/test-exercise-sets.cjs && node scripts/test-task-resources.cjs && node scripts/test-auto-schedule.cjs && node scripts/test-reminders.cjs && node scripts/test-continuous-schedule.cjs && node scripts/test-schedule-block-move.cjs && node scripts/test-memos.cjs && node scripts/test-memo-auto.cjs && node scripts/test-classroom-alignment.cjs && node scripts/test-reviews.cjs && node scripts/test-review-blocks.cjs && node scripts/test-assignments.cjs && node scripts/test-campus.cjs && node scripts/test-classroom-guide.cjs",
     "test:project-documents": "npm run build && node scripts/test-project-documents.cjs",
     "test:graph": "npm run build && node scripts/test-knowledge-graph.cjs",
     "test:exercises": "npm run build && node scripts/test-exercises.cjs",
@@ -45,7 +45,8 @@
     "test:reviews": "npm run build && node scripts/test-reviews.cjs",
     "test:campus": "npm run build && node scripts/test-campus.cjs",
     "test:assignments": "npm run build && node scripts/test-assignments.cjs",
-    "test:review-blocks": "npm run build && node scripts/test-review-blocks.cjs"
+    "test:review-blocks": "npm run build && node scripts/test-review-blocks.cjs",
+    "test:classroom-guide": "npm run build && node scripts/test-classroom-guide.cjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "3.1.3",

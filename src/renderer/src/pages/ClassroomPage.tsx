@@ -1,3 +1,4 @@
+import { ClassroomGuidePanel } from '../components/ClassroomGuidePanel'
 /**
  * pages/ClassroomPage.tsx —— 课堂模式（M1a）
  *
@@ -487,6 +488,12 @@ export function ClassroomPage() {
           setNote(previous => previous ? { ...previous, segments: previous.segments.map(segment => ({ ...segment, material_ref: refs.has(segment.id) ? refs.get(segment.id) ?? null : segment.material_ref })) } : previous)
           setMaterialRefsRevision(value => value + 1)
         }
+      }} />}
+      {note && <ClassroomGuidePanel key={note.id} noteId={note.id} live onOriginal={segment => void openOriginal(segment)} onAnnotated={async () => {
+        const id = noteRef.current
+        if (!id) return
+        const saved = await window.api.notes.get(id)
+        if (saved.ok && noteRef.current === id) setNote(previous => previous ? { ...previous, annotations: saved.data.annotations } : previous)
       }} />}
       <div className="classroom-split">
       <ClassroomMaterialPanel live currentAnchor={position?.block ?? null} focusTarget={focusTarget} onCalibrate={calibrate} calibrationRevision={calibrationRevision} refsRevision={`${note?.segments.length ?? 0}:${materialRefsRevision}`} />

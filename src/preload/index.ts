@@ -1,3 +1,4 @@
+import type { ClassroomGuideAction, ClassroomGuideHint, ClassroomGuideSave, ClassroomGuideState } from '@shared/classroom-guide'
 import type { CampusApply, CampusPreview, CampusProvenance, CampusState } from '@shared/campus'
 import type { AssignmentArchive, AssignmentDetail, AssignmentList, AssignmentPage, AssignmentSave } from '@shared/assignments'
 import type { ReviewSource, ReviewPage, ReviewListInput, ReviewDetail, ReviewReveal, ReviewGrade, ReviewAction, ReviewPlanningState, ReviewPlanningSave } from '@shared/reviews'
@@ -40,6 +41,11 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  classroomGuide: {
+    state:(input:{note_id:string;offset:number})=>invoke<ClassroomGuideState>(IPC.ClassroomGuideState,input),
+    save:(input:ClassroomGuideSave)=>invoke<ClassroomGuideState>(IPC.ClassroomGuideSave,input),
+    action:(input:ClassroomGuideAction)=>invoke<ClassroomGuideHint>(IPC.ClassroomGuideAction,input)
+  },
   campus: {
     state:()=>invoke<CampusState>(IPC.CampusState),
     login:()=>invoke<CampusState>(IPC.CampusLogin),

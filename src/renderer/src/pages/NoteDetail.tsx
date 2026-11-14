@@ -1,3 +1,4 @@
+import { ClassroomGuidePanel } from '../components/ClassroomGuidePanel'
 /**
  * pages/NoteDetail.tsx —— 笔记编辑（M0 核心）
  *
@@ -21,7 +22,7 @@ type ViewMode = 'organized' | 'raw'
 
 export function NoteDetail() {
   const { noteId } = useParams<{ noteId: string }>()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const linkedSegment = params.get('segment') ?? ''
   const showToast = useAppStore((s) => s.showToast)
   const [note, setNote] = useState<NoteWithSegments | null>(null)
@@ -41,13 +42,14 @@ export function NoteDetail() {
   }, [noteId, showToast])
 
   useEffect(() => {
-    setUniform(params.get('view') === 'uniform')
     void reload()
-  }, [reload, params])
+  }, [reload])
+  // In-note source navigation changes the view, not the user's unsaved title.
+  useEffect(() => { setUniform(params.get('view') === 'uniform') }, [params])
 
   useEffect(() => {
     if (linkedSegment && note) document.getElementById(`note-segment-${linkedSegment}`)?.scrollIntoView({ block: 'center' })
-  }, [linkedSegment, note])
+  }, [linkedSegment, note, uniform, view])
   const linkedView = params.get('view')
   useEffect(() => { if (linkedView === 'raw' || linkedView === 'organized') setView(linkedView) }, [linkedView])
 
@@ -132,6 +134,10 @@ export function NoteDetail() {
         </button>
       </div>
 
+      {note.source === 'class' && <ClassroomGuidePanel key={note.id} noteId={note.id} onOriginal={segment => setParams({view:'raw',segment})} onAnnotated={async () => {
+        const saved = await window.api.notes.get(note.id)
+        if (saved.ok) setNote(previous => previous?.id === note.id ? { ...previous, annotations: saved.data.annotations } : previous)
+      }} />}
       {uniform ? <NoteLearningReader key={`${note.id}:${params.get('revision')}:${params.get('entry')}`} initialRevisionId={params.get('revision') ?? ''} targetEntryId={params.get('entry') ?? ''} noteId={note.id} onOpenOriginal={() => { setUniform(false); setView('raw'); void reload() }} /> : <>
       <div className="muted" style={{ marginBottom: 12 }}>
         {view === 'organized'

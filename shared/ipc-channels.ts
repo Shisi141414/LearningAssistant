@@ -11,6 +11,7 @@
  */
 
 export const IPC = {
+  ClassroomGuideState: 'classroom:guide', ClassroomGuideSave: 'classroom:guide-save', ClassroomGuideAction: 'classroom:guide-action',
   CampusState: 'campus:state', CampusLogin: 'campus:login', CampusDisconnect: 'campus:disconnect',
   CampusMap: 'campus:map', CampusPreview: 'campus:preview', CampusApply: 'campus:apply',
   CampusDiscard: 'campus:discard', CampusProvenance: 'campus:provenance',

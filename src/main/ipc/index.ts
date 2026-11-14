@@ -1,3 +1,4 @@
+import { registerClassroomGuideIpc } from './classroom-guide.ipc'
 import { registerCampusIpc } from './campus.ipc'
 import { registerAssignmentsIpc } from './assignments.ipc'
 import { registerReviewsIpc } from './reviews.ipc'
@@ -47,6 +48,7 @@ export function registerAllIpc(): void {
   registerNotesIpc()
   registerChatIpc()
   registerInspirationsIpc()
+  registerClassroomGuideIpc()
   registerClassroomIpc()
   registerConfigIpc()
   registerDiagnosticsIpc()

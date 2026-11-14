@@ -1148,5 +1148,27 @@ CREATE TRIGGER campus_subject_deleted AFTER UPDATE OF subject_id ON campus_cours
   UPDATE campus_courses SET revision=lower(hex(randomblob(16))) WHERE account_id=NEW.account_id AND semester=NEW.semester AND id=NEW.id;
 END;
 `
+  },
+  {
+    version: 36,
+    name: 'classroom_guide_rules_and_reviewable_hints',
+    sql: `
+CREATE TABLE classroom_guide_settings (
+  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL,enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+  cooldown_seconds INTEGER NOT NULL DEFAULT 45 CHECK(cooldown_seconds BETWEEN 15 AND 300)
+);
+CREATE TABLE classroom_guide_hints (
+  id TEXT PRIMARY KEY,revision TEXT NOT NULL,note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES classroom_sessions(id) ON DELETE CASCADE,
+  segment_id TEXT REFERENCES note_segments(id) ON DELETE SET NULL,source_hash TEXT NOT NULL,
+  rule_version TEXT NOT NULL,kind TEXT NOT NULL,evidence_json TEXT NOT NULL,excerpt TEXT NOT NULL,
+  notice INTEGER NOT NULL CHECK(notice IN (0,1)),quiet_reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','dismissed','adopted')),
+  annotation_id TEXT REFERENCES annotations(id) ON DELETE SET NULL,annotation_kind TEXT,
+  created_at INTEGER NOT NULL,UNIQUE(session_id,segment_id,source_hash)
+);
+CREATE INDEX idx_classroom_guide_note ON classroom_guide_hints(note_id,created_at DESC,id);
+`
   }
 ]

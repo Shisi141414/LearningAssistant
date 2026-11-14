@@ -78,6 +78,9 @@ const memoPlan = record({
   task:nullable(record({title,detail:text(4000),due_at:nullable(number),planned_at:nullable(number),planned_end_at:nullable(number),location:text(1000)}))
 })
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ClassroomGuideState]: [record({note_id:id,offset:v=>number(v)&&(v as number)<=10000000})],
+  [IPC.ClassroomGuideSave]: [record({note_id:id,revision:nullable(id),enabled:bool,cooldown_seconds:v=>number(v)&&(v as number)>=15&&(v as number)<=300})],
+  [IPC.ClassroomGuideAction]: [record({id,revision:id,action:choice('dismiss','keypoint','question')})],
   [IPC.CampusState]: [], [IPC.CampusLogin]: [], [IPC.CampusDisconnect]: [], [IPC.CampusDiscard]: [],
   [IPC.CampusProvenance]: [id],
   [IPC.CampusMap]: [record({id,revision:id,subject_id:nullable(id)})],

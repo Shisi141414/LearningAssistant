@@ -1,3 +1,4 @@
+import { startClassroomGuide, stopClassroomGuide } from '../services/classroom-guide'
 /**
  * ipc/classroom.ipc.ts —— 课堂模式：ASR 启停/喂数据 + 段落 AI 整理
  */
@@ -19,6 +20,7 @@ let active: { noteId: ID; sessionId: ID; sender: WebContents; release: () => voi
 export function stopClassroom(): void {
   try { asrService.stop() } finally {
     if (active) {
+      stopClassroomGuide()
       stopClassroomAlignment()
       getDb().prepare("UPDATE classroom_sessions SET ended_at = ?, end_reason = 'stopped' WHERE id = ?").run(Date.now(), active.sessionId)
       active.sender.removeListener('destroyed', active.onDestroyed); active.release(); active = null
@@ -54,6 +56,7 @@ export function registerClassroomIpc(): void {
       getDb().prepare('INSERT INTO classroom_sessions (id, note_id, started_at) VALUES (?, ?, ?)').run(sessionId, noteId, Date.now())
       active = { noteId, sessionId, sender: event.sender, release: beginWork('课堂记录'), onDestroyed }
       startClassroomAlignment(noteId, sessionId)
+      startClassroomGuide(noteId, sessionId)
       event.sender.once('destroyed', onDestroyed)
       const modelDir = configGet('asr.model_dir')
       const hotwords = configGet('asr.hotwords') ?? ''
@@ -64,8 +67,9 @@ export function registerClassroomIpc(): void {
         modelDir,
         hotwords,
         events: {
-          onPartial: (text) => safeSend(event.sender, IPC_EVENTS.ClassroomPartial, { text }),
+          onPartial: (text) => { if (active?.sessionId === sessionId) safeSend(event.sender, IPC_EVENTS.ClassroomPartial, { text }) },
           onFinal: (text) => {
+            if (active?.sessionId !== sessionId) return
             const segment = addSegment({ note_id: noteId, raw_text: text })
             safeSend(event.sender, IPC_EVENTS.ClassroomFinal, { text, segment })
             if (segment.organize_status === 'pending') void organizeSegment(segment.id).then(result => safeSend(event.sender, IPC_EVENTS.SegmentOrganized, result)).catch(() => undefined)

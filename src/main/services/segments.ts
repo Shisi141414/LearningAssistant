@@ -1,3 +1,4 @@
+import { queueClassroomGuide } from './classroom-guide'
 import { nanoid } from 'nanoid'
 import type { NoteSegment, SegmentInput } from '@shared/types'
 import { getDb } from './db'
@@ -21,6 +22,7 @@ export function addSegment(input: SegmentInput): NoteSegment {
     captureNoteLearning(id)
     return { ...db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as NoteSegment, material_ref: segmentMaterialRef(id) }
   })()
+  queueClassroomGuide(segment.id)
   queueClassroomAlignment(segment.id)
   return segment
 }
