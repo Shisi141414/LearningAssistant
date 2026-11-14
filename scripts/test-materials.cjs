@@ -141,7 +141,7 @@ app.on('browser-window-created', (_event, win) => {
     const waitUi = async (expression, label) => {
       const timeout = Date.now() + 12_000
       while (!await win.webContents.executeJavaScript(expression)) {
-        if (Date.now() > timeout) throw Error(label + ': ' + await win.webContents.executeJavaScript('document.body.innerText.slice(-2500)'))
+        if (Date.now() > timeout) throw Error(label + ': ' + await win.webContents.executeJavaScript("JSON.stringify({route:location.hash,learningPressed:[...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='学习文档')?.getAttribute('aria-pressed'),reader:!!document.querySelector('.learning-reader'),images:[...document.querySelectorAll('.learning-entry-figures img')].map(i=>({width:i.naturalWidth,loading:i.loading}))})") + '\n' + await win.webContents.executeJavaScript('document.body.innerText.slice(-2500)'))
         await new Promise(resolve => setTimeout(resolve, 40))
       }
     }
@@ -194,7 +194,7 @@ app.on('browser-window-created', (_event, win) => {
         assert.equal(resumedCrop.state.entries[0].figures[0].caption,savedCrop.caption)
         assert.equal((await call('learning','get',{version_id:savedCrop.version,revision_id:savedCrop.firstRevision})).state.entries[0].figures,undefined)
         await win.webContents.executeJavaScript(`location.hash='/library?material=${savedCrop.material}&version=${savedCrop.version}'`)
-        await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后 PDF 配图入口')
+        await waitUi(`document.querySelector('[aria-label="材料版本"]')?.value===${JSON.stringify(savedCrop.version)}&&Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后 PDF 配图入口')
         await click('学习文档');await waitUi(`document.querySelector('.learning-entry-figures img')?.naturalWidth>0`,'重启后 PDF 选区图片')
         const savedFigure=JSON.parse(fs.readFileSync(path.join(root,'learning-figure-test.json'),'utf8'))
         const resumedFigure=await call('learning','get',{version_id:savedFigure.version})
@@ -203,9 +203,16 @@ app.on('browser-window-created', (_event, win) => {
         assert.equal(resumedFigure.state.entries[0].figures[0].caption,savedFigure.caption)
         assert.equal((await call('learning','get',{version_id:savedFigure.version,revision_id:savedFigure.firstRevision})).state.entries[0].figures,undefined)
         await win.webContents.executeJavaScript(`location.hash='/library?material=${savedFigure.material}&version=${savedFigure.version}'`)
-        await waitUi(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后配图入口')
+        await waitUi(`document.querySelector('[aria-label="材料版本"]')?.value===${JSON.stringify(savedFigure.version)}&&Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()==='学习文档')`,'重启后配图入口')
         await click('学习文档')
         await waitUi(`document.querySelector('.learning-entry-figures img')?.naturalWidth===400`,'重启后读取托管配图')
+        // Rapid source switches must keep a fresh learning-view click and its own figures.
+        for(const target of [savedCrop,savedFigure,savedCrop,savedFigure]){
+          await win.webContents.executeJavaScript(`location.hash='/library?material=${target.material}&version=${target.version}'`)
+          await waitUi(`document.querySelector('[aria-label="材料版本"]')?.value===${JSON.stringify(target.version)}`,'教材身份切换完成')
+          await click('学习文档')
+          await waitUi(`document.querySelector('.learning-reader')&&document.querySelector('.learning-entry-figures img')?.naturalWidth>0`,'新点击不被异步初始化撤销')
+        }
         const savedFormula=JSON.parse(fs.readFileSync(path.join(root,'learning-formula-test.json'),'utf8'))
         const resumedFormula=await call('learning','get',{version_id:savedFormula.version})
         assert.deepEqual(resumedFormula.state.entries[0].formulas,savedFormula.formulas)

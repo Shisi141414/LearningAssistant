@@ -124,7 +124,7 @@ await test('v32→33 故障回滚、修复重试，既有复习与任务记录�
   )
   db.exec('DROP TABLE review_block_history')
   db.close()
-  assert.equal(getDb().pragma('user_version', { simple: true }), 33)
+  assert.equal(getDb().pragma('user_version', { simple: true }), MIGRATIONS.at(-1).version)
   for (const table of retained)
     assert.deepEqual(
       getDb()

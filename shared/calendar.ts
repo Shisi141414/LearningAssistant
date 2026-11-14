@@ -56,6 +56,7 @@ export interface CalendarExportResult {
 }
 
 export interface CalendarTaskSaveInput {
+  expected_assignment_revision?: string
   id?: string
   task: Pick<
     TaskInput,

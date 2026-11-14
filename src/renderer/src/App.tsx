@@ -1,3 +1,4 @@
+import { AssignmentsPage } from './pages/AssignmentsPage'
 import { ReviewPage } from './pages/ReviewPage'
 import { MemosPage } from './pages/MemosPage'
 /**
@@ -83,6 +84,7 @@ export default function App() {
         <Route path="/library" element={<MaterialLibraryPage />} />
         <Route path="/exercises" element={<ExercisesPage />} />
         <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
+        <Route path="/assignments" element={<AssignmentsPage />} />
         <Route path="/practice" element={<ReviewPage />} />
         <Route path="/review" element={<SchedulePage />} />
         <Route path="/memos" element={<MemosPage />} />

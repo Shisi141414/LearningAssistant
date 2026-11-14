@@ -317,7 +317,7 @@ app.on('browser-window-created', (_event, win) =>
       assert.equal(manual.planned_end_at - manual.planned_at, 3600000)
       await js('document.querySelector(\'[aria-label="编辑日程：实验讨论"]\').click()')
       await set('[aria-label="日程名称"]', '实验讨论（已编辑）')
-      await set('[aria-label="日程说明"]', '携带讲义')
+      await js("(()=>{const e=document.querySelector('[aria-label=\"日程说明\"]');e.focus();document.execCommand('insertText',false,'携带讲义')})()")
       await click('保存日程')
       await wait('document.querySelector(\'[aria-label="编辑日程：实验讨论（已编辑）"]\')')
       // Manual creation and editing use the same guarded save path as imports.

@@ -16,6 +16,7 @@ const NAV = [
   { to: '/projects', label: '项目' },
   { to: '/library', label: '材料库' },
   { to: '/exercises', label: '习题库' },
+  { to: '/assignments', label: '作业' },
   { to: '/review', label: '日程' },
   { to: '/practice', label: '复习' },
   { to: '/memos', label: '备忘' },

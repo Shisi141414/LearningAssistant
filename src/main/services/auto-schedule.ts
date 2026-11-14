@@ -81,14 +81,14 @@ function snapshot(): Snapshot {
       .prepare('SELECT revision,value_json FROM schedule_settings WHERE id=1')
       .get() as { revision: string; value_json: string } | undefined,
     rows = db
-      .prepare('SELECT * FROM task_planning ORDER BY task_id LIMIT 501')
+      .prepare('SELECT tp.* FROM task_planning tp LEFT JOIN assignment_links al ON al.task_id=tp.task_id WHERE al.deleted_at IS NULL ORDER BY tp.task_id LIMIT 501')
       .all() as { task_id: string; revision: string; options_json: string }[],
     deps = db
       .prepare('SELECT * FROM task_dependencies ORDER BY task_id,depends_on_id')
       .all() as { task_id: string; depends_on_id: string }[],
     tasks = db
       .prepare(
-        'SELECT t.id,t.title,t.status,t.due_at,t.planned_at,t.planned_end_at,t.all_day,t.updated_at,p.status AS project_status,c.due_at AS review_due_at,rp.cycle AS review_cycle FROM tasks t LEFT JOIN projects p ON t.project_id=p.id LEFT JOIN review_cards c ON c.task_id=t.id LEFT JOIN review_planning rp ON rp.card_id=c.id ORDER BY t.id LIMIT 5001'
+        'SELECT t.id,t.title,CASE WHEN al.deleted_at IS NOT NULL THEN \'blocked\' ELSE t.status END AS status,t.due_at,t.planned_at,t.planned_end_at,t.all_day,t.updated_at,p.status AS project_status,c.due_at AS review_due_at,rp.cycle AS review_cycle FROM tasks t LEFT JOIN projects p ON t.project_id=p.id LEFT JOIN review_cards c ON c.task_id=t.id LEFT JOIN review_planning rp ON rp.card_id=c.id LEFT JOIN assignment_links al ON al.task_id=t.id ORDER BY t.id LIMIT 5001'
       )
       .all() as Array<PlannerInput['tasks'][number] & { updated_at: number }>,
     latest = db
@@ -167,6 +167,7 @@ export function saveTaskPlanning(input: TaskPlanningSave): PlanningState {
       task = s.tasks.find((t) => t.id === input.task_id),
       current = s.state.planning.find((p) => p.task_id === input.task_id)
     if (!task) throw Error('任务不存在')
+    if (getDb().prepare('SELECT assignment_id FROM assignment_links WHERE task_id=? AND deleted_at IS NOT NULL').get(input.task_id)) throw Error('作业已在回收站，请先恢复后再安排学习时间')
     if (getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(input.task_id)) throw Error('请在复习详情中设置每轮复习时间安排')
     if (input.dependencies.some(id=>getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(id))) throw Error('复习是持续循环，不能作为一次性任务的前置依赖')
     assertRevision(current?.revision ?? null, input.expected_revision)

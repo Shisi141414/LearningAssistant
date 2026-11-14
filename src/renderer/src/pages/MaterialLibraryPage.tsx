@@ -50,7 +50,7 @@ export function MaterialLibraryPage() {
   const [kind, setKind] = useState<MaterialKind>('textbook')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [view, setView] = useState<'source' | 'learning'>('source')
+  const [viewSelection, setViewSelection] = useState<{key:string;mode:'source'|'learning'}|null>(null)
   const [trash, setTrash] = useState(false)
   const versionId = requestedVersion || detail?.material.current_version_id || ''
   const selectedVersion = detail?.versions.find(v => v.id === versionId)
@@ -58,7 +58,10 @@ export function MaterialLibraryPage() {
   useEffect(() => { setSubject(currentSubjectId ?? '') }, [currentSubjectId])
   const linkedOffset = params.get('offset') ?? '0'
   const linkedBlock = params.get('block') ?? ''
-  useEffect(() => { setView(linkedEntry || linkedRevision ? 'learning' : 'source') }, [versionId, linkedBlock, linkedEntry, linkedRevision])
+  // Reset synchronously by source identity; a delayed effect must not undo a fresh click.
+  const viewKey = JSON.stringify([selectedId,versionId,linkedBlock,linkedEntry,linkedRevision])
+  const view = viewSelection?.key === viewKey ? viewSelection.mode : linkedEntry || linkedRevision ? 'learning' : 'source'
+  const setView = (mode:'source'|'learning') => setViewSelection({key:viewKey,mode})
   useEffect(() => {
     setNoteRefs([])
     if (!linkedBlock) return
@@ -165,7 +168,7 @@ export function MaterialLibraryPage() {
         </button>)}
       </aside>
       <section className="material-reader" aria-label="材料阅读区">
-        {!detail ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 可配置上方转换工具后导入；扫描 PDF 可按页识别。</p></div> : <>
+        {!detail || detail.material.id !== selectedId ? <div className="empty">{selectedId ? '正在读取材料…' : '从左侧选择材料开始阅读。'}<p className="muted">旧版 DOC / PPT 可配置上方转换工具后导入；扫描 PDF 可按页识别。</p></div> : <>
           <h2>{detail.material.title}</h2>
           <MaterialManagement key={detail.material.id + ':' + detail.material.archived} material={detail.material} onSaved={async () => { await reload(); const result = await window.api.materials.get(selectedId); if (result.ok) setDetail(result.data) }} />
           <div className="toolbar">

@@ -78,6 +78,10 @@ const memoPlan = record({
   task:nullable(record({title,detail:text(4000),due_at:nullable(number),planned_at:nullable(number),planned_end_at:nullable(number),location:text(1000)}))
 })
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.AssignmentsList]: [record({query:text(500),scope:choice('open','all','overdue','trash'),subject_id:opt(id),offset:v=>number(v)&&(v as number)<=10000000})],
+  [IPC.AssignmentsGet]: [id],
+  [IPC.AssignmentsSave]: [record({id:optional(id),expected_revision:optional(id),subject_id:nullable(id),title,detail:content,status:choice('open','doing','blocked','done'),blocked_reason:text(2000),due_at:nullable(number)})],
+  [IPC.AssignmentsArchive]: [record({id,expected_revision:id,archived:bool})],
   [IPC.ClassroomAlignment]: [id],
   [IPC.ClassroomAlignmentSave]: [record({note_id:id,revision:nullable(id),enabled:bool})],
   [IPC.MemosList]: [record({query:text(500),archived:bool,state:optional(choice('all','inbox','routed')),offset:v=>number(v)&&(v as number)<=10000000})],
@@ -125,7 +129,7 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.ExerciseSetsDiscard]: [],
   [IPC.ExercisesTrash]: [record({ id, expected_revision_id: id })],
   [IPC.ExercisesRestore]: [record({ id, expected_revision_id: id })],
-  [IPC.CalendarSave]: [record({ id: optional(id), task: record({ title, detail: optional(content), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), due_at: opt(number), status: optional(choice('open','doing','blocked','done')), blocked_reason: optional(text(2000)) }), confirmation: optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) })) })],
+  [IPC.CalendarSave]: [record({ expected_assignment_revision: optional(id), id: optional(id), task: record({ title, detail: optional(content), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), due_at: opt(number), status: optional(choice('open','doing','blocked','done')), blocked_reason: optional(text(2000)) }), confirmation: optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) })) })],
   [IPC.CalendarPreview]: [record({ from: number, to: number })],
   [IPC.CalendarImport]: [id, optional(record({ ignore_conflicts: bool, conflict_fingerprint: text(64) }))],
   [IPC.PlanningGet]: [],

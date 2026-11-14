@@ -355,3 +355,7 @@ R2 已按此原则实施，验证记录见 [R2 报告](08-classroom-material-lin
 复习采用 ts-fsrs 6.0.0 / FSRS-7；migration 032 的固定来源快照、完整模型状态、评分审计和唯一任务联接见 [复习架构与边界](53-fsrs-reviews.md)。旧 `review_records` 不静默改写。
 
 复习用时策略与记忆状态分离：migration 033 将复习策略投影到现有排程器，以建议复习时间作为硬最早开始；现有时间块额外关联复习轮次。评分、撤销、暂停、来源失效和停用策略通过事务触发器归档旧块与锁定状态，避免旧日程污染新一轮。见 [轮次与学习时间块](54-review-learning-blocks.md)。
+
+## M4 作业任务映射（2026-11-14）
+
+migration 034 追加 `assignment_links` 与审计，复用原 `assignments` 和唯一 `tasks`，未改已发布 task kind 约束。任务更新触发镜像/修订/历史，作业与日程均检查修订后事务保存；删除走回收站，清除时间块并保留来源。回收作业在提醒中停用、在规划器中阻塞依赖，恢复不复活旧锁。细节与验收见 [手动作业](56-manual-assignments.md)；学校同步的前置研究和后续验收见 [接入方案](55-assignments-and-campus-sync.md)。署名：codex。

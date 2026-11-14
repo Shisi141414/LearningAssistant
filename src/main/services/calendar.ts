@@ -93,6 +93,10 @@ export function saveCalendarTask(input: CalendarTaskSaveInput): CalendarTaskSave
   checkRunning()
   try {
     return getDb().transaction(() => {
+      if (input.id) {
+        const assignment = getDb().prepare('SELECT revision FROM assignment_links WHERE task_id=?').get(input.id) as {revision:string}|undefined
+        if (assignment && assignment.revision !== input.expected_assignment_revision) throw Error('对应作业已变化，请刷新日程后重试；当前输入仍保留')
+      }
       let task = input.id ? updateTask(input.id, input.task) : createTask(input.task)
       if (!input.id && input.task.status)
         task = updateTask(task.id, {

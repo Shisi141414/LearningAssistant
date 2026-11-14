@@ -1,3 +1,4 @@
+import type { AssignmentArchive, AssignmentDetail, AssignmentList, AssignmentPage, AssignmentSave } from '@shared/assignments'
 import type { ReviewSource, ReviewPage, ReviewListInput, ReviewDetail, ReviewReveal, ReviewGrade, ReviewAction, ReviewPlanningState, ReviewPlanningSave } from '@shared/reviews'
 import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference, MemoAutoSettings, MemoAutoState } from '@shared/memos'
 /**
@@ -38,6 +39,12 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  assignments: {
+    list:(input:AssignmentList)=>invoke<AssignmentPage>(IPC.AssignmentsList,input),
+    get:(id:string)=>invoke<AssignmentDetail>(IPC.AssignmentsGet,id),
+    save:(input:AssignmentSave)=>invoke<AssignmentDetail>(IPC.AssignmentsSave,input),
+    archive:(input:AssignmentArchive)=>invoke<AssignmentDetail>(IPC.AssignmentsArchive,input)
+  },
   memos: {
     autoState:()=>invoke<MemoAutoState>(IPC.MemoAutoState),
     autoSave:(input:Omit<MemoAutoSettings,'since'>)=>invoke<MemoAutoState>(IPC.MemoAutoSave,input),

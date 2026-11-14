@@ -106,6 +106,7 @@ select:focus {
 }
 
 .sidebar {
+  overflow-y: auto;
   width: 200px;
   flex-shrink: 0;
   background: var(--bg-panel);

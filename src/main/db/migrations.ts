@@ -1052,5 +1052,62 @@ CREATE TRIGGER review_plan_insert AFTER INSERT ON review_planning BEGIN UPDATE s
 CREATE TRIGGER review_plan_update AFTER UPDATE ON review_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
 CREATE TRIGGER review_plan_delete AFTER DELETE ON review_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
 `
+  },
+  {
+    version: 34,
+    name: 'assignments_unified_tasks_and_audit',
+    sql: `
+CREATE TABLE assignment_links (
+  assignment_id TEXT PRIMARY KEY REFERENCES assignments(id) ON DELETE RESTRICT,
+  task_id TEXT NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  revision TEXT NOT NULL, deleted_at INTEGER, restore_status TEXT,
+  writing INTEGER NOT NULL DEFAULT 0 CHECK(writing IN (0,1)), legacy_snapshot_json TEXT
+);
+CREATE TABLE assignment_history (
+  id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE RESTRICT,
+  action TEXT NOT NULL, before_json TEXT, after_json TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_assignment_history ON assignment_history(assignment_id,created_at DESC,id);
+-- Preserve every original row, including unrecognised legacy source/status values.
+INSERT INTO assignment_links(assignment_id,task_id,revision,legacy_snapshot_json)
+  SELECT a.id,lower(hex(randomblob(16))),lower(hex(randomblob(16))),json_object('id',a.id,'subject_id',a.subject_id,'title',a.title,'due_at',a.due_at,'source',a.source,'planned_at',a.planned_at,'status',a.status) FROM assignments a;
+INSERT INTO tasks(id,kind,project_id,milestone_id,title,detail,status,blocked_reason,due_at,
+  planned_at,planned_end_at,all_day,location,knowledge_refs_json,created_at,updated_at)
+  SELECT l.task_id,'manual',NULL,NULL,
+    CASE WHEN length(trim(a.title))=0 THEN '未命名作业' ELSE substr(trim(a.title),1,500) END,
+    '',CASE WHEN a.status IN ('open','doing','done') THEN a.status ELSE 'open' END,'',
+    CASE WHEN typeof(a.due_at)='integer' AND a.due_at BETWEEN 0 AND 8640000000000000 THEN a.due_at END,
+    CASE WHEN typeof(a.planned_at)='integer' AND a.planned_at BETWEEN 0 AND 8640000000000000 THEN a.planned_at END,
+    NULL,0,'','[]',CAST(unixepoch('subsec')*1000 AS INTEGER),CAST(unixepoch('subsec')*1000 AS INTEGER)
+  FROM assignments a JOIN assignment_links l ON l.assignment_id=a.id;
+INSERT INTO assignment_history(id,assignment_id,action,before_json,after_json,created_at)
+  SELECT lower(hex(randomblob(16))),assignment_id,'migrate',NULL,legacy_snapshot_json,CAST(unixepoch('subsec')*1000 AS INTEGER)
+  FROM assignment_links;
+CREATE TRIGGER assignment_task_delete BEFORE DELETE ON tasks
+  WHEN EXISTS(SELECT 1 FROM assignment_links WHERE task_id=OLD.id) BEGIN
+  SELECT RAISE(ABORT,'作业任务请移入回收站，不能直接删除');
+END;
+CREATE TRIGGER assignment_trashed_task BEFORE UPDATE ON tasks
+  WHEN EXISTS(SELECT 1 FROM assignment_links WHERE task_id=OLD.id AND deleted_at IS NOT NULL AND writing=0) BEGIN
+  SELECT RAISE(ABORT,'作业已在回收站，请先恢复');
+END;
+CREATE TRIGGER assignment_task_edit AFTER UPDATE OF title,detail,status,blocked_reason,due_at,planned_at,planned_end_at,all_day,location,knowledge_refs_json ON tasks
+  WHEN EXISTS(SELECT 1 FROM assignment_links WHERE task_id=NEW.id) AND (OLD.title IS NOT NEW.title OR OLD.detail IS NOT NEW.detail OR OLD.status IS NOT NEW.status OR OLD.blocked_reason IS NOT NEW.blocked_reason OR OLD.due_at IS NOT NEW.due_at OR OLD.planned_at IS NOT NEW.planned_at OR OLD.planned_end_at IS NOT NEW.planned_end_at OR OLD.all_day IS NOT NEW.all_day OR OLD.location IS NOT NEW.location OR OLD.knowledge_refs_json IS NOT NEW.knowledge_refs_json) BEGIN
+  INSERT INTO assignment_history(id,assignment_id,action,before_json,after_json,created_at)
+    SELECT lower(hex(randomblob(16))),assignment_id,'task-edit',json_object('id',OLD.id,'title',OLD.title,'detail',OLD.detail,'status',OLD.status,'blocked_reason',OLD.blocked_reason,'due_at',OLD.due_at,'planned_at',OLD.planned_at,'planned_end_at',OLD.planned_end_at,'all_day',OLD.all_day,'location',OLD.location,'knowledge_refs_json',OLD.knowledge_refs_json),json_object('id',NEW.id,'title',NEW.title,'detail',NEW.detail,'status',NEW.status,'blocked_reason',NEW.blocked_reason,'due_at',NEW.due_at,'planned_at',NEW.planned_at,'planned_end_at',NEW.planned_end_at,'all_day',NEW.all_day,'location',NEW.location,'knowledge_refs_json',NEW.knowledge_refs_json),CAST(unixepoch('subsec')*1000 AS INTEGER)
+    FROM assignment_links WHERE task_id=NEW.id AND writing=0;
+  UPDATE assignments SET title=NEW.title,status=NEW.status,due_at=NEW.due_at,planned_at=NEW.planned_at
+    WHERE id=(SELECT assignment_id FROM assignment_links WHERE task_id=NEW.id);
+  UPDATE assignment_links SET revision=lower(hex(randomblob(16))) WHERE task_id=NEW.id;
+END;
+CREATE TRIGGER assignment_subject_edit AFTER UPDATE OF subject_id ON assignments
+  WHEN OLD.subject_id IS NOT NEW.subject_id BEGIN
+  INSERT INTO assignment_history(id,assignment_id,action,before_json,after_json,created_at)
+    SELECT lower(hex(randomblob(16))),assignment_id,'subject-edit',json_object('subject_id',OLD.subject_id),
+      json_object('subject_id',NEW.subject_id),CAST(unixepoch('subsec')*1000 AS INTEGER)
+    FROM assignment_links WHERE assignment_id=NEW.id AND writing=0;
+  UPDATE assignment_links SET revision=lower(hex(randomblob(16))) WHERE assignment_id=NEW.id;
+END;
+`
   }
 ]

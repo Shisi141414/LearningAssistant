@@ -344,6 +344,9 @@ export interface TaskKnowledgeRef {
 }
 
 export interface Task {
+  assignment_id?: string | null
+  assignment_subject_id?: string | null
+  assignment_revision?: string | null
   /** Authoritative source mapping from review_cards; no duplicate task or altered legacy kind constraint. */
   review_id?: string | null
   review_subject_id?: string | null

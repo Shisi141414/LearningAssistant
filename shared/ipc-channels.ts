@@ -11,6 +11,8 @@
  */
 
 export const IPC = {
+  AssignmentsList: 'assignments:list', AssignmentsGet: 'assignments:get',
+  AssignmentsSave: 'assignments:save', AssignmentsArchive: 'assignments:archive',
   ReviewPlanningGet: 'reviews:planning', ReviewPlanningSave: 'reviews:planning-save',
   ReviewsAdd: 'reviews:add', ReviewsList: 'reviews:list', ReviewsGet: 'reviews:get',
   ReviewsReveal: 'reviews:reveal', ReviewsGrade: 'reviews:grade', ReviewsAction: 'reviews:action',

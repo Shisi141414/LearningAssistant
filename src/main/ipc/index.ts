@@ -1,3 +1,4 @@
+import { registerAssignmentsIpc } from './assignments.ipc'
 import { registerReviewsIpc } from './reviews.ipc'
 import { registerMemosIpc } from './memos.ipc'
 /**
@@ -26,6 +27,7 @@ import { registerProjectsIpc } from './projects.ipc'
 import { registerExercisesIpc } from './exercises.ipc'
 
 export function registerAllIpc(): void {
+  registerAssignmentsIpc()
   registerReviewsIpc()
   registerMemosIpc()
   registerAutoScheduleIpc()

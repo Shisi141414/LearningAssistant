@@ -1,3 +1,4 @@
+import { MathInput } from '../components/MathInput'
 import {ReviewPlanningPanel} from '../components/ReviewPlanningPanel'
 import { MemoReferences } from '../components/MemoReferences'
 import { TaskResources } from '../components/TaskResources'
@@ -51,6 +52,7 @@ const displayTime = (ts: number): string =>
     minute: '2-digit'
   })
 type Draft = {
+  assignment_revision?: string
   id?: string
   title: string
   detail: string
@@ -64,6 +66,7 @@ type Draft = {
 }
 const draftFor = (task?: TaskWithProject, start?: Date, allDay = false): Draft => ({
   id: task?.id,
+  assignment_revision: task?.assignment_revision ?? undefined,
   title: task?.title ?? '',
   detail: task?.detail ?? '',
   location: task?.location ?? '',
@@ -264,11 +267,12 @@ export function SchedulePage() {
         planned_at: parseTime(draft.start),
         planned_end_at: parseTime(draft.end),
         all_day: draft.allDay,
-        due_at: parseTime(draft.due)
+        due_at: selected?.assignment_id && draft.due === inputTime(selected.due_at) ? selected.due_at : parseTime(draft.due)
       }
       const result = check(
         await window.api.calendar.save({
           id: draft.id,
+          expected_assignment_revision: draft.assignment_revision,
           task: {
             ...input,
             ...(draft.id ? { status: draft.status, blocked_reason: draft.reason } : {})
@@ -292,11 +296,12 @@ export function SchedulePage() {
   const remove = (task: TaskWithProject): void => {
     if (
       window.confirm(
-        `删除日程「${task.title}」？${task.project_id ? '项目中的同一任务也会删除。' : ''}`
+        `删除日程「${task.title}」？${task.assignment_id ? '对应作业将移入回收站，原有学习时间会撤销。' : task.project_id ? '项目中的同一任务也会删除。' : ''}`
       )
     )
       void perform(async () => {
-        check(await window.api.tasks.remove(task.id))
+        if (task.assignment_id) check(await window.api.assignments.archive({id:task.assignment_id,expected_revision:task.assignment_revision!,archived:true}))
+        else check(await window.api.tasks.remove(task.id))
         if (draft?.id === task.id) setDraft(null)
         await reload()
       })
@@ -680,6 +685,7 @@ export function SchedulePage() {
               <h2>{draft.id ? '编辑日程' : '新建日程'}</h2>
               <button type="button" aria-label="关闭日程编辑" title="关闭日程编辑" disabled={busy} onClick={() => { if (canDiscardDraft()) setDraft(null) }}>×</button>
             </div>
+            {selected?.assignment_id && <p className="muted">来自作业 <Link to={`/assignments?assignment=${encodeURIComponent(selected.assignment_id)}`}>查看作业与修改历史</Link>；这里的修改会同步到同一作业。</p>}
             {selected?.project_id && (
               <p className="muted">
                 来自项目{' '}
@@ -765,12 +771,7 @@ export function SchedulePage() {
             </label>
             <label>
               说明
-              <textarea
-                aria-label="日程说明"
-                value={draft.detail}
-                maxLength={200000}
-                onChange={(e) => setDraft({ ...draft, detail: e.target.value })}
-              />
+              <div inert={busy}><MathInput label="日程说明" value={draft.detail} minHeight={90} onChange={(value) => setDraft({ ...draft, detail: value })} /></div>
             </label>
             {draft.id && (
               <label>
