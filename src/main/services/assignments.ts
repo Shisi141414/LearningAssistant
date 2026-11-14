@@ -56,7 +56,8 @@ export function getAssignment(id: string): AssignmentDetail {
   const r = row(id)
   const history = getDb()
     .prepare(
-      'SELECT id,action,before_json,after_json,created_at FROM assignment_history WHERE assignment_id=? ORDER BY created_at DESC,rowid DESC LIMIT 100'
+      // Mixed JS/SQLite clocks can differ by a millisecond; audit history follows append order.
+      'SELECT id,action,before_json,after_json,created_at FROM assignment_history WHERE assignment_id=? ORDER BY rowid DESC LIMIT 100'
     )
     .all(id) as AssignmentHistory[]
   const count = getDb()

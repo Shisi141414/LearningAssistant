@@ -337,6 +337,23 @@ await test('学科删除不丢作业、来源与历史，并拒绝未获知变�
   assert.equal(getDb().pragma('foreign_key_check').length, 0)
 })
 
+await test('历史按实际追加顺序展示，不受 JS 与 SQLite 毫秒误差或时钟回拨影响', () => {
+  const realNow = Date.now
+  let a
+  try {
+    Date.now = () => realNow() + 2000
+    a = saveAssignment(input())
+  } finally {
+    Date.now = realNow
+  }
+  const changed = save(a, { title: '时钟变化后的编辑' })
+  assert.equal(changed.history[0].action, 'edit')
+  assert.equal(changed.history[1].action, 'create')
+  assert.ok(changed.history[0].created_at < changed.history[1].created_at)
+  closeDb()
+  assert.deepEqual(getAssignment(a.id).history, changed.history)
+})
+
 await test('筛选/搜索与50项分页互补，截止排序优先；过期按真实时刻而非日期判断', () => {
   const now = Date.now()
   for (let i = 0; i < 53; i++)
