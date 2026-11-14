@@ -1,3 +1,4 @@
+import { MemosPage } from './pages/MemosPage'
 /**
  * App.tsx —— 路由与全局副作用
  */
@@ -30,6 +31,7 @@ import './pages/knowledge.css'
 export default function App() {
   const navigate = useNavigate()
   useEffect(() => window.api.onReminderOpen((input) => {
+    if (!window.dispatchEvent(new Event('memo-before-navigate', { cancelable: true }))) return
     navigate('/review?reminders=1' + (input.task_id ? '&task=' + encodeURIComponent(input.task_id) : ''))
     window.dispatchEvent(new Event('open-reminders'))
   }), [navigate])
@@ -81,6 +83,7 @@ export default function App() {
         <Route path="/exercises" element={<ExercisesPage />} />
         <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
         <Route path="/review" element={<SchedulePage />} />
+        <Route path="/memos" element={<MemosPage />} />
         <Route path="/inspirations" element={<InspirationPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         </Routes>

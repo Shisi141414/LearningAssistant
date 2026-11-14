@@ -1,3 +1,4 @@
+import { MemoCapture } from '../components/MemoCapture'
 /**
  * app/QuickBar.tsx —— 全局底部快捷栏（需求 #9）
  *
@@ -32,6 +33,7 @@ function captureSelection(): { text: string; segmentId: string | null } {
 
 export function QuickBar() {
   const [question, setQuestion] = useState('')
+  const [memoOpen, setMemoOpen] = useState(false)
   const navigate = useNavigate()
   const showToast = useAppStore((s) => s.showToast)
   const currentSubjectId = useAppStore((s) => s.currentSubjectId)
@@ -49,6 +51,7 @@ export function QuickBar() {
       showToast('请输入问题')
       return
     }
+    if (!window.dispatchEvent(new Event('memo-before-navigate', { cancelable: true }))) return
     capture()
     const sel = lastSelection.current
     let content = q
@@ -96,25 +99,29 @@ export function QuickBar() {
   }
 
   return (
-    <div className="quickbar">
-      <MathInput
-        multiline={false}
-        placeholder="询问智能体…（选中内容后会自动附为参考，∑ 数学符号）"
-        value={question}
-        onChange={setQuestion}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') void ask()
-        }}
-      />
-      <button className="primary" onMouseDown={capture} onClick={() => void ask()}>
-        询问智能体
-      </button>
-      <button onMouseDown={capture} onClick={() => void annotate('keypoint')} title="选中笔记内容后一键标记重点">
-        ⭐ 重点
-      </button>
-      <button onMouseDown={capture} onClick={() => void annotate('question')} title="选中笔记内容后一键标记疑问">
-        ❓ 疑问
-      </button>
-    </div>
+    <>
+      <div className="quickbar">
+        <MathInput
+          multiline={false}
+          placeholder="询问智能体…（选中内容后会自动附为参考，∑ 数学符号）"
+          value={question}
+          onChange={setQuestion}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void ask()
+          }}
+        />
+        <button className="primary" onMouseDown={capture} onClick={() => void ask()}>
+          询问智能体
+        </button>
+        <button onClick={() => setMemoOpen(true)}>随手记</button>
+        <button onMouseDown={capture} onClick={() => void annotate('keypoint')} title="选中笔记内容后一键标记重点">
+          ⭐ 重点
+        </button>
+        <button onMouseDown={capture} onClick={() => void annotate('question')} title="选中笔记内容后一键标记疑问">
+          ❓ 疑问
+        </button>
+      </div>
+      {memoOpen && <MemoCapture onClose={() => setMemoOpen(false)} />}
+    </>
   )
 }

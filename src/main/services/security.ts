@@ -69,7 +69,26 @@ const taskResourceSource: Check = value => [
 ].some(check=>check(value))
 const taskResourceFields = { role:choice('learn','apply','output','question','verify'),concept_id:nullable(id),why:text(4000),verification:text(4000) }
 const taskResourceOffset=optional((value:unknown)=>number(value)&&(value as number)<=10_000_000)
+const memoPlan = record({
+  id, expected_revision:id,
+  knowledge:nullable(v=>[
+    record({kind:choice('existing'),id,revision:number}),
+    record({kind:choice('new'),name:text(120,true),summary:text(4000),subject_id:id})
+  ].some(check=>check(v))),
+  task:nullable(record({title,detail:text(4000),due_at:nullable(number),planned_at:nullable(number),planned_end_at:nullable(number),location:text(1000)}))
+})
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.MemosList]: [record({query:text(500),archived:bool,state:optional(choice('all','inbox','routed')),offset:v=>number(v)&&(v as number)<=10000000})],
+  [IPC.MemosGet]: [id],
+  [IPC.MemosSave]: [record({content:text(12000,true),subject_id:nullable(id),id:optional(id),expected_revision:optional(id)})],
+  [IPC.MemosArchive]: [record({id,expected_revision:id,archived:bool})],
+  [IPC.MemosInspiration]: [id],
+  [IPC.MemosPreview]: [memoPlan],
+  [IPC.MemosApply]: [record({plan:memoPlan,fingerprint:text(64,true),ignore_conflicts:bool})],
+  [IPC.MemosUndo]: [id],
+  [IPC.MemosReferences]: [record({kind:choice('concept','task'),id})],
+  [IPC.MemosRecognize]: [record({id,expected_revision:id,model_db_id:id})],
+  [IPC.MemosCancel]: [id],
   [IPC.ContinuousGet]: [],
   [IPC.ContinuousSave]: [record({revision:nullable(id),enabled:bool,horizon_days:number})],
   [IPC.ContinuousCheck]: [],

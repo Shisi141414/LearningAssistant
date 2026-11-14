@@ -1,3 +1,4 @@
+import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference } from '@shared/memos'
 /**
  * preload/index.ts —— contextBridge 暴露的类型化 API
  *
@@ -36,6 +37,19 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  memos: {
+    list:(input:{query:string;archived:boolean;offset:number;state?:'all'|'inbox'|'routed'})=>invoke<MemoPage>(IPC.MemosList,input),
+    get:(id:string)=>invoke<MemoDetail>(IPC.MemosGet,id),
+    save:(input:MemoInput)=>invoke<MemoDetail>(IPC.MemosSave,input),
+    archive:(input:{id:string;expected_revision:string;archived:boolean})=>invoke<MemoDetail>(IPC.MemosArchive,input),
+    fromInspiration:(id:string)=>invoke<MemoDetail>(IPC.MemosInspiration,id),
+    preview:(input:MemoRoutePlan)=>invoke<MemoRoutePreview>(IPC.MemosPreview,input),
+    apply:(input:{plan:MemoRoutePlan;fingerprint:string;ignore_conflicts:boolean})=>invoke<MemoDetail>(IPC.MemosApply,input),
+    undo:(id:string)=>invoke<MemoDetail>(IPC.MemosUndo,id),
+    references:(input:{kind:'concept'|'task';id:string})=>invoke<MemoReference[]>(IPC.MemosReferences,input),
+    recognize:(input:{id:string;expected_revision:string;model_db_id:string})=>invoke<MemoDetail>(IPC.MemosRecognize,input),
+    cancelRecognition:(id:string)=>invoke<boolean>(IPC.MemosCancel,id)
+  },
   exerciseSets: {
     preview: (versionId: string) => invoke<ExerciseSetPreview>(IPC.ExerciseSetsPreview, versionId),
     import: (input: { token: string; entry_ids: string[] }) => invoke<ExerciseSetResult>(IPC.ExerciseSetsImport, input),

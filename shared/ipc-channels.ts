@@ -164,6 +164,17 @@ export const IPC = {
   ChatAbort: 'chat:abort',
 
   /* 灵感 */
+  MemosList: 'memos:list',
+  MemosGet: 'memos:get',
+  MemosSave: 'memos:save',
+  MemosArchive: 'memos:archive',
+  MemosInspiration: 'memos:inspiration',
+  MemosPreview: 'memos:preview',
+  MemosApply: 'memos:apply',
+  MemosUndo: 'memos:undo',
+  MemosReferences: 'memos:references',
+  MemosRecognize: 'memos:recognize',
+  MemosCancel: 'memos:cancel',
   InspirationsList: 'inspirations:list',
   InspirationsAdd: 'inspirations:add',
   InspirationsRemove: 'inspirations:remove',

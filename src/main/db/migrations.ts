@@ -855,5 +855,48 @@ CREATE TRIGGER schedule_settings_insert AFTER INSERT ON schedule_settings BEGIN 
 CREATE TRIGGER schedule_settings_update AFTER UPDATE ON schedule_settings BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
 CREATE TRIGGER schedule_settings_delete AFTER DELETE ON schedule_settings BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
 `
+  },
+  {
+    version: 29,
+    name: 'memo_capture_review_and_routing',
+    sql: `
+CREATE TABLE memos (
+  id TEXT PRIMARY KEY, revision TEXT NOT NULL,
+  subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  content TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+  archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0,1)),
+  inspiration_id TEXT UNIQUE
+);
+CREATE TABLE memo_versions (
+  id TEXT PRIMARY KEY, memo_id TEXT NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+  content TEXT NOT NULL, subject_id TEXT, created_at INTEGER NOT NULL, timezone TEXT NOT NULL
+);
+CREATE INDEX idx_memo_versions ON memo_versions(memo_id,created_at);
+CREATE TABLE memo_routes (
+  id TEXT PRIMARY KEY, memo_id TEXT NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL REFERENCES memo_versions(id), request_key TEXT NOT NULL UNIQUE,
+  decision_json TEXT NOT NULL, created_at INTEGER NOT NULL, undone_at INTEGER
+);
+CREATE INDEX idx_memo_routes_owner ON memo_routes(memo_id,revision,undone_at);
+CREATE INDEX idx_memos_updated ON memos(archived,updated_at DESC,id);
+CREATE TABLE memo_targets (
+  id TEXT PRIMARY KEY, route_id TEXT NOT NULL REFERENCES memo_routes(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK(kind IN ('concept','task')),
+  concept_id TEXT REFERENCES knowledge_points(id) ON DELETE SET NULL,
+  task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+  title TEXT NOT NULL, created INTEGER NOT NULL CHECK(created IN (0,1)), snapshot_json TEXT NOT NULL,
+  CHECK((kind='concept' AND task_id IS NULL) OR (kind='task' AND concept_id IS NULL))
+);
+CREATE INDEX idx_memo_target_concept ON memo_targets(concept_id);
+CREATE INDEX idx_memo_target_task ON memo_targets(task_id);
+CREATE TABLE memo_recognitions (
+  id TEXT PRIMARY KEY, memo_id TEXT NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL REFERENCES memo_versions(id),
+  status TEXT NOT NULL CHECK(status IN ('running','ready','failed','cancelled')),
+  provider_name TEXT NOT NULL, model_id TEXT NOT NULL,
+  error TEXT NOT NULL DEFAULT '', proposal_json TEXT, created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_memo_recognitions_owner ON memo_recognitions(memo_id,created_at DESC,id);
+`
   }
 ]

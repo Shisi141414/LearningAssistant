@@ -1,3 +1,4 @@
+import { MemoReferences } from '../components/MemoReferences'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { ConceptBacklink, ConceptInput } from '@shared/types'
@@ -102,6 +103,7 @@ export function KnowledgePage() {
             {loadingRefs && <p role="status">正在查找…</p>}
             {next !== null && <button disabled={loadingRefs} onClick={() => void more()}>继续查找后 300 个文字块</button>}
           </section>}
+          {selected && <MemoReferences kind="concept" id={selected.id} />}
         </>}
       </section>
     </div>

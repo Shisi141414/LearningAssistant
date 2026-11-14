@@ -1,3 +1,4 @@
+import { MemoReferences } from '../components/MemoReferences'
 import { TaskResources } from '../components/TaskResources'
 import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
 import { ReminderCenter, TaskReminderEditor } from '../components/Reminders'
@@ -842,6 +843,7 @@ export function SchedulePage() {
           {selected && planning?.blocks.some(b=>b.task_id===selected.id) && <p className="muted">此任务按下方学习时间块安排。要改为固定日程，请先移除全部时间块并停用自动安排。</p>}
           {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} onEditBlock={editBlock} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           {selected && <TaskReminderEditor key={`reminder:${selected.id}`} taskId={selected.id} onDraftState={reminderDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
+          {selected && <MemoReferences kind="task" id={selected.id} />}
           {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
           </aside>
         )}

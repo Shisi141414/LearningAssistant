@@ -1,3 +1,4 @@
+import { recoverMemoRecognition, stopMemoRecognition } from './services/memo-recognition'
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
@@ -93,6 +94,7 @@ app.whenReady().then(async () => {
   recoverLearningSuggestions()
   recoverNoteSuggestions()
   recoverKnowledgeSuggestions()
+  recoverMemoRecognition()
   createWindow()
   if (process.platform === 'win32') app.setAppUserModelId('cn.tsinghua.learningassistant')
   reminderRuntime = startReminderRuntime((task_id) => {
@@ -139,5 +141,6 @@ app.on('before-quit', () => {
   stopLearningSuggestions()
   stopNoteSuggestions()
   stopKnowledgeSuggestions()
+  stopMemoRecognition()
   closeDb()
 })

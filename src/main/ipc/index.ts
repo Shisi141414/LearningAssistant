@@ -1,3 +1,4 @@
+import { registerMemosIpc } from './memos.ipc'
 /**
  * ipc/index.ts —— IPC handler 注册总装
  */
@@ -24,6 +25,7 @@ import { registerProjectsIpc } from './projects.ipc'
 import { registerExercisesIpc } from './exercises.ipc'
 
 export function registerAllIpc(): void {
+  registerMemosIpc()
   registerAutoScheduleIpc()
   registerRemindersIpc()
   registerTaskResourcesIpc()

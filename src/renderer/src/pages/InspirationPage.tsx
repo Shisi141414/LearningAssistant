@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 /**
  * pages/InspirationPage.tsx —— 灵感库（需求 #8）
  */
@@ -8,6 +9,7 @@ import { MathInput } from '../components/MathInput'
 import { MarkdownSegment } from '../components/MarkdownSegment'
 
 export function InspirationPage() {
+  const navigate = useNavigate()
   const currentSubjectId = useAppStore((s) => s.currentSubjectId)
   const subjects = useAppStore((s) => s.subjects)
   const showToast = useAppStore((s) => s.showToast)
@@ -65,6 +67,7 @@ export function InspirationPage() {
                 {subjectName(i.subject_id)} · {new Date(i.created_at).toLocaleString('zh-CN')}
               </div>
             </div>
+            <button onClick={() => { void window.api.memos.fromInspiration(i.id).then(r => { if (r.ok) navigate('/memos?memo=' + encodeURIComponent(r.data.memo.id)); else showToast(r.error) }) }}>转入备忘</button>
             <button
               onClick={() => {
                 void window.api.inspirations.remove(i.id).then(() => void reload())
