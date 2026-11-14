@@ -9,6 +9,7 @@ import { streamChat } from './llm'
 
 const running = new Map<string, AbortController>()
 let stopping = false
+export const memoRecognitionBusy = (): boolean => running.size > 0
 export function recognizeMemo(input: {
   id: string
   expected_revision: string

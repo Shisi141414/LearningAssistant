@@ -1,4 +1,5 @@
 import { recoverMemoRecognition, stopMemoRecognition } from './services/memo-recognition'
+import { startMemoAutoRuntime } from './services/memo-auto-runtime'
 /**
  * main/index.ts —— 主进程入口：窗口、生命周期、IPC 注册
  */
@@ -35,6 +36,7 @@ let stopRecovery: (() => void) | undefined
 let reminderRuntime: ReminderRuntime | undefined
 let quitting = false
 let stopContinuousRuntime: (() => void) | undefined
+let stopMemoAutoRuntime: (() => void) | undefined
 
 function createWindow(route?: string): void {
   const win = new BrowserWindow({
@@ -115,6 +117,7 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
   stopContinuousRuntime = startContinuousScheduleRuntime()
+  stopMemoAutoRuntime = startMemoAutoRuntime()
 }).catch((error) => { dialog.showErrorBox('学习助手启动失败', error instanceof Error ? error.message : String(error)); app.quit() })
 
 app.on('window-all-closed', () => {
@@ -125,6 +128,7 @@ app.on('before-quit', () => {
   quitting = true
   reminderRuntime?.stop()
   stopContinuousRuntime?.()
+  stopMemoAutoRuntime?.()
   stopRecovery?.()
   stopClassroom()
   stopAllChats()

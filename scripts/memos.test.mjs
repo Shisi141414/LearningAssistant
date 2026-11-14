@@ -33,7 +33,7 @@ import {
 } from '../src/main/services/memo-recognition.ts'
 import { assertIdle } from '../src/main/services/work.ts'
 
-await test('真实 v28 升级失败保持旧库、版本与灵感；排除故障重试 v29 成功', () => {
+await test('真实 v28 升级失败保持旧库、版本与灵感；排除故障后迁移成功', () => {
   let old = new Database(join(dataRoot, 'learning-assistant.db'))
   old.pragma('foreign_keys=ON')
   for (const m of MIGRATIONS.filter((m) => m.version <= 28)) old.exec(m.sql)
@@ -59,7 +59,7 @@ await test('真实 v28 升级失败保持旧库、版本与灵感；排除故障
   )
   old.exec('DROP TABLE memo_versions')
   old.close()
-  assert.equal(getDb().pragma('user_version', { simple: true }), 29)
+  assert.equal(getDb().pragma('user_version', { simple: true }), MIGRATIONS.at(-1).version)
   assert.equal(
     getDb().prepare('SELECT context_text FROM inspirations').get().context_text,
     '原始选区'

@@ -1,4 +1,4 @@
-import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference } from '@shared/memos'
+import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference, MemoAutoSettings, MemoAutoState } from '@shared/memos'
 /**
  * preload/index.ts —— contextBridge 暴露的类型化 API
  *
@@ -38,6 +38,10 @@ const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...a
 
 const api = {
   memos: {
+    autoState:()=>invoke<MemoAutoState>(IPC.MemoAutoState),
+    autoSave:(input:Omit<MemoAutoSettings,'since'>)=>invoke<MemoAutoState>(IPC.MemoAutoSave,input),
+    autoBacklog:()=>invoke<number>(IPC.MemoAutoBacklog),
+    autoAction:(input:{id:string;action:'cancel'|'retry'})=>invoke<MemoAutoState>(IPC.MemoAutoAction,input),
     list:(input:{query:string;archived:boolean;offset:number;state?:'all'|'inbox'|'routed'})=>invoke<MemoPage>(IPC.MemosList,input),
     get:(id:string)=>invoke<MemoDetail>(IPC.MemosGet,id),
     save:(input:MemoInput)=>invoke<MemoDetail>(IPC.MemosSave,input),

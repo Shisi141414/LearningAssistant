@@ -94,6 +94,7 @@ export interface MemoDetail {
   versions: MemoVersion[]
   routes: MemoRoute[]
   recognitions: MemoRecognition[]
+  automation: MemoAutoJob[]
 }
 export interface MemoReference {
   memo_id: string
@@ -101,4 +102,35 @@ export interface MemoReference {
   content: string
   archived: boolean
   created_at: number
+}
+
+export interface MemoAutoSettings {
+  revision: string
+  enabled: boolean
+  model_db_id: string | null
+  subject_ids: string[]
+  include_unassigned: boolean
+  knowledge: boolean
+  tasks: boolean
+  /** SQLite version row watermark at opt-in, not a wall-clock timestamp. */
+  since: number
+}
+export interface MemoAutoJob {
+  id: string
+  excerpt: string
+  memo_id: string
+  revision: string
+  policy_revision: string
+  policy_json: string
+  status: 'pending' | 'running' | 'review' | 'routed' | 'cancelled'
+  attempts: number
+  next_at: number
+  recognition_id: string | null
+  reason: string
+  created_at: number
+  updated_at: number
+}
+export interface MemoAutoState {
+  settings: MemoAutoSettings
+  jobs: MemoAutoJob[]
 }

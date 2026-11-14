@@ -898,5 +898,25 @@ CREATE TABLE memo_recognitions (
 );
 CREATE INDEX idx_memo_recognitions_owner ON memo_recognitions(memo_id,created_at DESC,id);
 `
+  },
+  {
+    version: 30,
+    name: 'memo_automation_policy_and_durable_queue',
+    sql: `
+CREATE TABLE memo_auto_settings (
+  id INTEGER PRIMARY KEY CHECK(id=1), revision TEXT NOT NULL, value_json TEXT NOT NULL
+);
+CREATE TABLE memo_auto_jobs (
+  id TEXT PRIMARY KEY,
+  memo_id TEXT NOT NULL REFERENCES memos(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL UNIQUE REFERENCES memo_versions(id),
+  policy_revision TEXT NOT NULL, policy_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('pending','running','review','routed','cancelled')),
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts>=0 AND attempts<=3),
+  next_at INTEGER NOT NULL, recognition_id TEXT REFERENCES memo_recognitions(id), model_stamp TEXT,
+  reason TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_memo_auto_due ON memo_auto_jobs(status,next_at);
+`
   }
 ]

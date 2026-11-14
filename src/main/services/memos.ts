@@ -123,7 +123,12 @@ export function memoDetail(id: string): MemoDetail {
     ...row,
     proposal: proposal_json ? JSON.parse(proposal_json) : null
   }))
-  return { memo, versions, routes, recognitions }
+  const automation = db
+    .prepare(
+      'SELECT j.*,substr(v.content,1,100) AS excerpt FROM memo_auto_jobs j JOIN memo_versions v ON v.id=j.revision WHERE j.memo_id=? ORDER BY j.created_at DESC,j.id LIMIT 20'
+    )
+    .all(id) as MemoDetail['automation']
+  return { memo, versions, routes, recognitions, automation }
 }
 export function saveMemo(input: MemoInput): MemoDetail {
   return getDb().transaction(() => {

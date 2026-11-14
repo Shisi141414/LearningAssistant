@@ -139,3 +139,37 @@
   outline: 1px solid var(--accent);
   outline-offset: 4px;
 }
+.memo-automation {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 12px 0;
+}
+.memo-automation summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.memo-automation fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.memo-auto-options {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.memo-auto-jobs {
+  padding-left: 22px;
+}
+.memo-auto-jobs li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.memo-auto-jobs span {
+  margin-left: 12px;
+}
+.memo-auto-jobs button {
+  margin-left: 12px;
+}

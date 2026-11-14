@@ -1,4 +1,10 @@
 import { IPC } from '@shared/ipc-channels'
+import {
+  memoAutoState,
+  saveMemoAutoSettings,
+  enqueueMemoBacklog,
+  actMemoAuto
+} from '../services/memo-auto'
 import { ipcMain, handleResult } from './helpers'
 import {
   listMemos,
@@ -17,6 +23,14 @@ import {
 } from '../services/memo-recognition'
 
 export function registerMemosIpc(): void {
+  ipcMain.handle(IPC.MemoAutoState, () => handleResult(memoAutoState))
+  ipcMain.handle(IPC.MemoAutoSave, (_e, input) =>
+    handleResult(() => saveMemoAutoSettings(input))
+  )
+  ipcMain.handle(IPC.MemoAutoBacklog, () => handleResult(enqueueMemoBacklog))
+  ipcMain.handle(IPC.MemoAutoAction, (_e, input) =>
+    handleResult(() => actMemoAuto(input))
+  )
   ipcMain.handle(IPC.MemosList, (_e, input) =>
     handleResult(() => listMemos(input))
   )

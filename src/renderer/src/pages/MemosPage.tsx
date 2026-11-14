@@ -6,6 +6,7 @@ import { MathInput } from '../components/MathInput'
 import { MarkdownSegment } from '../components/MarkdownSegment'
 import { MemoCapture } from '../components/MemoCapture'
 import { MemoRouteEditor } from '../components/MemoRouteEditor'
+import { MemoAutomation } from '../components/MemoAutomation'
 import { useAppStore } from '../stores/app'
 import { useConceptStore } from '../stores/concepts'
 import './memos.css'
@@ -32,13 +33,14 @@ export function MemosPage() {
   const [proposal, setProposal] = useState<MemoProposal | null>(null),
     [formKey, setFormKey] = useState(0),
     [routeDirty, setRouteDirty] = useState(false)
+  const [autoDirty, setAutoDirty] = useState(false)
   const request = useRef(0),
     listRequest = useRef(0)
   const rawDirty =
       !!detail &&
       (content !== detail.memo.content ||
         subject !== (detail.memo.subject_id ?? '')),
-    dirty = rawDirty || routeDirty
+    dirty = rawDirty || routeDirty || autoDirty
   const editing = useRef({
     id: detail?.memo.id,
     revision: detail?.memo.revision,
@@ -284,6 +286,16 @@ export function MemosPage() {
         </button>
       </div>
       {error && <p role="alert">{error}</p>}
+      <MemoAutomation
+        models={models}
+        providers={providers}
+        disabled={busy}
+        onDirty={setAutoDirty}
+        onChanged={() => {
+          void reload()
+          void refresh()
+        }}
+      />
       <div className="memo-workspace">
         <aside className="memo-list" aria-label="备忘列表">
           <input
@@ -363,6 +375,56 @@ export function MemosPage() {
                 {new Date(detail.memo.created_at).toLocaleString('zh-CN')}
                 {detail.memo.inspiration_id ? ' · 从灵感转入，原记录保留' : ''}
               </p>
+              {detail.automation
+                .filter((j) => j.revision === detail.memo.revision)
+                .map((j) => (
+                  <section
+                    className="memo-job"
+                    aria-label="本条自动整理"
+                    key={j.id}
+                  >
+                    <strong>
+                      {
+                        {
+                          pending: '等待补处理',
+                          running: '正在自动识别',
+                          review: '需要确认',
+                          routed: '已自动归档',
+                          cancelled: '自动整理已停止'
+                        }[j.status]
+                      }
+                    </strong>
+                    <p>
+                      {j.status === 'routed' &&
+                      detail.routes.some(
+                        (r) => r.revision === j.revision && r.undone_at
+                      )
+                        ? '此条归档已撤销，不会自动重新创建。'
+                        : j.reason || '等待处理'}
+                    </p>
+                    {j.status !== 'routed' && (
+                      <button
+                        disabled={busy || rawDirty}
+                        onClick={() =>
+                          void run(async () => {
+                            const r = await window.api.memos.autoAction({
+                              id: j.id,
+                              action: ['pending', 'running'].includes(j.status)
+                                ? 'cancel'
+                                : 'retry'
+                            })
+                            if (!r.ok) setError(r.error)
+                            else await refresh()
+                          })
+                        }
+                      >
+                        {['pending', 'running'].includes(j.status)
+                          ? '停止此条自动整理'
+                          : '按当前规则重试此条'}
+                      </button>
+                    )}
+                  </section>
+                ))}
               <fieldset disabled={busy || detail.memo.archived}>
                 <div inert={busy || detail.memo.archived}>
                   <MathInput
@@ -401,7 +463,7 @@ export function MemosPage() {
                   <section className="memo-ai" aria-label="备忘智能识别">
                     <h2>助理识别</h2>
                     <p className="muted">
-                      只发送本条已保存原文、记录时间和时区给所选供应商。识别结果需要核对，不直接写入知识或日程。
+                      手动识别只发送本条已保存原文、记录时间和时区给所选供应商，生成待核对候选。自动归档由上方单独启用的规则控制。
                     </p>
                     <div className="toolbar">
                       <select
