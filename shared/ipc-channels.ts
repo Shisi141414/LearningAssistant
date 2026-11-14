@@ -11,6 +11,7 @@
  */
 
 export const IPC = {
+  ReviewPlanningGet: 'reviews:planning', ReviewPlanningSave: 'reviews:planning-save',
   ReviewsAdd: 'reviews:add', ReviewsList: 'reviews:list', ReviewsGet: 'reviews:get',
   ReviewsReveal: 'reviews:reveal', ReviewsGrade: 'reviews:grade', ReviewsAction: 'reviews:action',
 

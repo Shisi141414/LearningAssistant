@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { ReviewPlanningPanel } from '../components/ReviewPlanningPanel'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type {
   ReviewAction,
@@ -45,6 +46,23 @@ export function ReviewPage() {
   const [refresh, setRefresh] = useState(0),
     [now, setNow] = useState(Date.now()),
     [loading, setLoading] = useState(false)
+  const planningDraft = useRef({ dirty: false, busy: false })
+  const planningDraftChanged = useCallback(
+    (value: { dirty: boolean; busy: boolean }) => {
+      planningDraft.current = value
+    },
+    []
+  )
+  const canLeavePlanning = () => {
+    if (planningDraft.current.busy) {
+      showToast('复习安排正在保存，请稍候')
+      return false
+    }
+    return (
+      !planningDraft.current.dirty ||
+      window.confirm('复习安排尚未保存，放弃这些输入？')
+    )
+  }
   const lock = useRef(false),
     generation = useRef(0)
   useEffect(() => {
@@ -91,7 +109,7 @@ export function ReviewPage() {
     }
   }, [id])
   const perform = async (fn: (valid: () => boolean) => Promise<void>) => {
-    if (lock.current) return
+    if (lock.current || !canLeavePlanning()) return
     lock.current = true
     setBusy(true)
     setError('')
@@ -237,6 +255,7 @@ export function ReviewPage() {
         <button
           disabled={busy}
           onClick={() => {
+            if (!canLeavePlanning()) return
             setRefresh((n) => n + 1)
             if (detail) {
               const token = ++generation.current
@@ -279,7 +298,10 @@ export function ReviewPage() {
               className={`review-queue-item${item.id === id ? ' selected' : ''}`}
               disabled={busy}
               key={item.id}
-              onClick={() => setParams({ card: item.id })}
+              onClick={() => {
+                if (item.id !== id && canLeavePlanning())
+                  setParams({ card: item.id })
+              }}
             >
               <strong>{item.title}</strong>
               <span>
@@ -435,7 +457,10 @@ export function ReviewPage() {
                   )}
                   <button
                     disabled={busy || !next}
-                    onClick={() => next && setParams({ card: next.id })}
+                    onClick={() => {
+                      if (next && canLeavePlanning())
+                        setParams({ card: next.id })
+                    }}
                   >
                     下一条到期
                   </button>
@@ -458,6 +483,11 @@ export function ReviewPage() {
                   查看复习日程
                 </Link>
               </div>
+              <ReviewPlanningPanel
+                id={detail.id}
+                revision={detail.revision}
+                onDraftState={planningDraftChanged}
+              />
               <details className="review-history">
                 <summary>最近记录 · 保留固定来源版本</summary>
                 {detail.history.length ? (

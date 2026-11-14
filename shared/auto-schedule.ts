@@ -24,6 +24,7 @@ export interface TaskPlanning {
   dependencies: string[]
 }
 export interface ScheduleBlock {
+  review_cycle?: string
   id: string
   task_id: string
   start_at: number
@@ -33,6 +34,8 @@ export interface ScheduleBlock {
   reason: string
 }
 export interface PlannerTask {
+  review_cycle?: string | null
+  review_due_at?: number | null
   id: string
   title: string
   status: string
@@ -52,6 +55,7 @@ export interface PlannerInput {
   now: number
 }
 export interface PlannedBlock {
+  review_cycle?: string
   task_id: string
   start_at: number
   end_at: number
@@ -350,7 +354,10 @@ export function planSchedule(input: PlannerInput): PlannerResult {
       })
   // A prerequisite inherits the nearest downstream deadline so it does not strand urgent work.
   const deadlines = new Map(
-    tasks.map((t) => [t.id, t.due_at ?? Number.MAX_SAFE_INTEGER])
+    tasks.map((t) => [
+      t.id,
+      t.review_cycle ? Number.MAX_SAFE_INTEGER : t.due_at ?? Number.MAX_SAFE_INTEGER
+    ])
   )
   for (let i = 0; i < planning.length; i++) {
     let changed = false
@@ -389,6 +396,8 @@ export function planSchedule(input: PlannerInput): PlannerResult {
       .sort(
         (a, b) =>
           deadlines.get(a)! - deadlines.get(b)! ||
+          (taskById.get(a)!.review_due_at ?? Number.MAX_SAFE_INTEGER) -
+            (taskById.get(b)!.review_due_at ?? Number.MAX_SAFE_INTEGER) ||
           options.get(b)!.priority - options.get(a)!.priority ||
           a.localeCompare(b)
       )
@@ -401,14 +410,15 @@ export function planSchedule(input: PlannerInput): PlannerResult {
       p = options.get(id)!,
       t = taskById.get(id)!,
       reservations = preserved.filter(
-        (b) => b.task_id === id && b.end_at > lower
+        (b) => b.task_id === id && (!!t.review_cycle || b.end_at > lower)
       ),
       constrainedStart = Math.max(
         p.not_before ?? 0,
+        t.review_due_at ?? 0,
         ...p.dependencies.map((dep) => finish.get(dep)!)
       ),
       earliest = Math.max(lower, constrainedStart),
-      latest = Math.min(to, t.due_at ?? to),
+      latest = t.review_cycle ? to : Math.min(to, t.due_at ?? to),
       reserved = reservations.reduce(
         (sum, b) =>
           sum + Math.max(0, b.end_at - Math.max(lower, b.start_at)) / MINUTE,
@@ -416,7 +426,7 @@ export function planSchedule(input: PlannerInput): PlannerResult {
       )
     if (
       reservations.some(
-        (b) => b.start_at < constrainedStart || b.end_at > latest
+        (b) => b.start_at < constrainedStart || (!t.review_cycle && b.end_at > latest)
       )
     ) {
       fail(
@@ -425,8 +435,11 @@ export function planSchedule(input: PlannerInput): PlannerResult {
       )
       continue
     }
+    // An elapsed review reservation is not a successful review, but must not spawn another block every tick.
+    const covered =
+      t.review_cycle && reservations.length ? p.remaining_minutes : reserved
     let remaining =
-      Math.ceil(Math.max(0, p.remaining_minutes - reserved) / 5) * 5
+      Math.ceil(Math.max(0, p.remaining_minutes - covered) / 5) * 5
     const proposed: PlannedBlock[] = [],
       localUsed = new Map(used)
     for (const slot of slots) {
@@ -476,10 +489,11 @@ export function planSchedule(input: PlannerInput): PlannerResult {
           )
             break
           proposed.push({
+            ...(t.review_cycle ? { review_cycle: t.review_cycle } : {}),
             task_id: id,
             start_at: cursor,
             end_at: cursor + take * MINUTE,
-            reason: `避让固定日程；优先级 ${p.priority}；${p.dependencies.length ? '前置任务完成后；' : ''}按可用时段安排`
+            reason: `${t.review_cycle ? '到建议复习时间后；' : ''}避让固定日程；优先级 ${p.priority}；${p.dependencies.length ? '前置任务完成后；' : ''}按可用时段安排`
           })
           remaining -= take
           localUsed.set(slot.day, (localUsed.get(slot.day) ?? 0) + take)
@@ -490,7 +504,9 @@ export function planSchedule(input: PlannerInput): PlannerResult {
     if (remaining > 0) {
       fail(
         id,
-        '截止前可用时段不足，或每日上限、分段长度不能满足；未写入部分安排'
+        t.review_cycle
+          ? '复习到期后没有足够的可用时段或每日容量；保留待复习，不改动记忆时间'
+          : '截止前可用时段不足，或每日上限、分段长度不能满足；未写入部分安排'
       )
       continue
     }

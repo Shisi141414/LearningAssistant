@@ -1,3 +1,4 @@
+import {ReviewPlanningPanel} from '../components/ReviewPlanningPanel'
 import { MemoReferences } from '../components/MemoReferences'
 import { TaskResources } from '../components/TaskResources'
 import { AutoSchedule, TaskPlanningEditor } from '../components/AutoSchedule'
@@ -668,7 +669,7 @@ export function SchedulePage() {
         </section>
         {draft && (
           <aside className="schedule-editor" aria-label="日程编辑">
-          {selected?.review_id ? <section aria-label="复习日程详情"><div className="schedule-editor-heading"><h2>复习安排</h2><button aria-label="关闭日程编辑" onClick={() => setDraft(null)}>×</button></div><h3>{selected.title}</h3><p>建议复习时间：{selected.due_at === null ? '尚未安排' : displayTime(selected.due_at)}</p><p className="muted">此时间由记忆评分生成。在复习页评分、暂停或恢复，会同步更新日程和提醒。</p><Link to={`/practice?card=${encodeURIComponent(selected.review_id)}`}>前往复习</Link></section> : <>
+          {selected?.review_id ? <section aria-label="复习日程详情"><div className="schedule-editor-heading"><h2>复习安排</h2><button aria-label="关闭日程编辑" onClick={() => {if (canDiscardDraft()) setDraft(null)}}>×</button></div><h3>{selected.title}</h3><p>建议复习时间：{selected.due_at === null ? '尚未安排' : displayTime(selected.due_at)}</p><p className="muted">此时间由记忆评分生成。在复习页评分、暂停或恢复，会同步更新日程和提醒。</p><Link to={`/practice?card=${encodeURIComponent(selected.review_id)}`}>前往复习</Link><ReviewPlanningPanel id={selected.review_id} revision={String(selected.updated_at)} onDraftState={planningDraftChanged} /></section> : <>
           <form
             onSubmit={(e) => {
               e.preventDefault()

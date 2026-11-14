@@ -1,3 +1,7 @@
+import {
+  reviewPlanningState,
+  saveReviewPlanning
+} from '../services/review-planning'
 import { IPC } from '@shared/ipc-channels'
 import { ipcMain, handleResult } from './helpers'
 import {
@@ -9,6 +13,12 @@ import {
   actOnReview
 } from '../services/reviews'
 export function registerReviewsIpc(): void {
+  ipcMain.handle(IPC.ReviewPlanningGet, (_e, id) =>
+    handleResult(() => reviewPlanningState(id))
+  )
+  ipcMain.handle(IPC.ReviewPlanningSave, (_e, input) =>
+    handleResult(() => saveReviewPlanning(input))
+  )
   ipcMain.handle(IPC.ReviewsAdd, (_e, input) =>
     handleResult(() => addReview(input))
   )

@@ -118,7 +118,7 @@ await test('真实 v31→32 失败回滚、重试，旧复习状态/任务/关�
   )
   old.exec('DROP TABLE review_logs')
   old.close()
-  assert.equal(getDb().pragma('user_version', { simple: true }), 32)
+  assert.equal(getDb().pragma('user_version', { simple: true }), MIGRATIONS.at(-1).version)
   assert.equal(
     getDb().prepare('SELECT task_id FROM calendar_import_receipts').get()
       .task_id,

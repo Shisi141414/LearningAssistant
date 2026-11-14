@@ -210,6 +210,8 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.MilestonesUpdate]: [record({ id, title: optional(title), detail: optional(content), due_at: opt(number), status: optional(choice('open', 'done')) })],
   [IPC.MilestonesRemove]: [id],
 
+  [IPC.ReviewPlanningGet]:[id],
+  [IPC.ReviewPlanningSave]:[record({id,expected_revision:nullable(id),expected_card_revision:id,enabled:bool,duration_minutes:v=>number(v)&&(v as number)>=5&&(v as number)<=120&&(v as number)%5===0,priority:v=>number(v)&&(v as number)<=3})],
   [IPC.ReviewsAdd]: [record({kind:choice('concept','exercise'),source_id:id,expected_source_revision:id})],
   [IPC.ReviewsList]: [record({scope:choice('today','all','paused'),subject_id:opt(id),offset:v=>number(v)&&(v as number)<=10000})],
   [IPC.ReviewsGet]: [id],

@@ -1,3 +1,4 @@
+import { reviewPlanningProjection } from './review-planning'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
@@ -61,10 +62,18 @@ export function stopScheduleJobs(): void {
 }
 export function listScheduleBlocks(): ScheduleBlock[] {
   const rows = getDb()
-    .prepare('SELECT * FROM schedule_blocks ORDER BY start_at,id LIMIT 10001')
-    .all() as Array<Omit<ScheduleBlock, 'locked'> & { locked: number }>
+    .prepare(
+      'SELECT b.*,c.cycle AS review_cycle FROM schedule_blocks b LEFT JOIN review_block_cycles c ON c.block_id=b.id ORDER BY b.start_at,b.id LIMIT 10001'
+    )
+    .all() as Array<
+    Omit<ScheduleBlock, 'locked'> & { locked: number; review_cycle?: string | null }
+  >
   if (rows.length > 10000) throw Error('学习时间块超过一万项，请先清理历史安排')
-  return rows.map((b) => ({ ...b, locked: !!b.locked }))
+  return rows.map(({ review_cycle, ...b }) => ({
+    ...b,
+    locked: !!b.locked,
+    ...(review_cycle ? { review_cycle } : {})
+  }))
 }
 function snapshot(): Snapshot {
   const db = getDb(),
@@ -79,7 +88,7 @@ function snapshot(): Snapshot {
       .all() as { task_id: string; depends_on_id: string }[],
     tasks = db
       .prepare(
-        'SELECT t.id,t.title,t.status,t.due_at,t.planned_at,t.planned_end_at,t.all_day,t.updated_at,p.status AS project_status FROM tasks t LEFT JOIN projects p ON t.project_id=p.id ORDER BY t.id LIMIT 5001'
+        'SELECT t.id,t.title,t.status,t.due_at,t.planned_at,t.planned_end_at,t.all_day,t.updated_at,p.status AS project_status,c.due_at AS review_due_at,rp.cycle AS review_cycle FROM tasks t LEFT JOIN projects p ON t.project_id=p.id LEFT JOIN review_cards c ON c.task_id=t.id LEFT JOIN review_planning rp ON rp.card_id=c.id ORDER BY t.id LIMIT 5001'
       )
       .all() as Array<PlannerInput['tasks'][number] & { updated_at: number }>,
     latest = db
@@ -87,7 +96,8 @@ function snapshot(): Snapshot {
         'SELECT id,created_at FROM schedule_runs WHERE undone_at IS NULL ORDER BY rowid DESC LIMIT 1'
       )
       .get() as PlanningState['latest_run'] | undefined
-  if (tasks.length > 5000 || rows.length > 500)
+  const reviewPlans = reviewPlanningProjection()
+  if (tasks.length > 5000 || rows.length + reviewPlans.length > 500)
     throw Error('最多支持五千项任务、五百项自动排程配置，请先清理历史任务')
   const state: PlanningState = {
     settings: {
@@ -96,14 +106,17 @@ function snapshot(): Snapshot {
         ? JSON.parse(settings.value_json)
         : defaultScheduleSettings()
     },
-    planning: rows.map((r) => ({
-      ...JSON.parse(r.options_json),
-      task_id: r.task_id,
-      revision: r.revision,
-      dependencies: deps
-        .filter((d) => d.task_id === r.task_id)
-        .map((d) => d.depends_on_id)
-    })),
+    planning: [
+      ...rows.map((r) => ({
+        ...JSON.parse(r.options_json),
+        task_id: r.task_id,
+        revision: r.revision,
+        dependencies: deps
+          .filter((d) => d.task_id === r.task_id)
+          .map((d) => d.depends_on_id)
+      })),
+      ...reviewPlans
+    ],
     blocks: listScheduleBlocks(),
     latest_run: latest ?? null
   }
@@ -154,7 +167,7 @@ export function saveTaskPlanning(input: TaskPlanningSave): PlanningState {
       task = s.tasks.find((t) => t.id === input.task_id),
       current = s.state.planning.find((p) => p.task_id === input.task_id)
     if (!task) throw Error('任务不存在')
-    if (getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(input.task_id)) throw Error('复习时间由记忆评分调度，暂不参与学习时间块排程')
+    if (getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(input.task_id)) throw Error('请在复习详情中设置每轮复习时间安排')
     if (input.dependencies.some(id=>getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(id))) throw Error('复习是持续循环，不能作为一次性任务的前置依赖')
     assertRevision(current?.revision ?? null, input.expected_revision)
     if (input.enabled && task.planned_at !== null)
@@ -262,7 +275,9 @@ export function moveScheduleBlock(input: BlockMoveInput): BlockMoveResult {
     const warnings: string[] = [],
       p = s.state.planning.find((p) => p.task_id === task.id),
       settings = s.state.settings.value
-    if (task.due_at !== null && input.end_at > task.due_at)
+    if (task.review_due_at !== null && task.review_due_at !== undefined && input.start_at < task.review_due_at)
+      throw Error('不能把复习时间块移到建议复习时间之前')
+    if (!task.review_cycle && task.due_at !== null && input.end_at > task.due_at)
       warnings.push('调整后的结束时间晚于任务截止时间；截止时间不会改变。')
     if (
       p?.not_before !== null &&
@@ -459,6 +474,12 @@ export async function previewSchedule(
   })
 }
 function insertBlock(b: ScheduleBlock): void {
+  const review = getDb()
+    .prepare('SELECT c.id,c.active,c.due_at,p.cycle,p.enabled FROM review_cards c LEFT JOIN review_planning p ON p.card_id=c.id WHERE c.task_id=?')
+    .get(b.task_id) as {id:string;active:number;due_at:number;cycle:string;enabled:number} | undefined
+  if (review && (!review.active || !review.enabled || review.cycle !== b.review_cycle || b.start_at < review.due_at))
+    throw Error('复习轮次或最早复习时间已改变，请重新安排')
+  if (!review && b.review_cycle) throw Error('时间块复习来源无效')
   getDb()
     .prepare(
       'INSERT INTO schedule_blocks(id,task_id,start_at,end_at,locked,revision,reason) VALUES(?,?,?,?,?,?,?)'
@@ -472,6 +493,8 @@ function insertBlock(b: ScheduleBlock): void {
       b.revision,
       b.reason
     )
+  if (review)
+    getDb().prepare('INSERT INTO review_block_cycles VALUES(?,?,?)').run(b.id,review.id,review.cycle)
   // Tombstones also prevent our own exported/deleted block from becoming a new task on reimport.
   getDb()
     .prepare(
@@ -532,7 +555,8 @@ export function applySchedule(
     ): boolean =>
       a.task_id === b.task_id &&
       a.start_at === b.start_at &&
-      a.end_at === b.end_at
+      a.end_at === b.end_at &&
+      (a as ScheduleBlock).review_cycle === (b as ScheduleBlock).review_cycle
     const deleted = removed.filter((b) => !added.some((a) => same(a, b))),
       created = added.filter((a) => !removed.some((b) => same(a, b)))
     if (!deleted.length && !created.length) return s.state

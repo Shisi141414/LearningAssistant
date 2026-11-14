@@ -994,5 +994,63 @@ CREATE TRIGGER review_concept_delete AFTER DELETE ON knowledge_points BEGIN
   UPDATE tasks SET status='done' WHERE id IN (SELECT task_id FROM review_cards WHERE kind='concept' AND source_id=OLD.id);
 END;
 `
+  },
+  {
+    version: 33,
+    name: 'review_cycle_learning_blocks',
+    sql: `
+CREATE TABLE review_planning (
+  card_id TEXT PRIMARY KEY REFERENCES review_cards(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+  duration_minutes INTEGER NOT NULL CHECK(duration_minutes BETWEEN 5 AND 120 AND duration_minutes%5=0),
+  priority INTEGER NOT NULL CHECK(priority BETWEEN 0 AND 3), cycle TEXT NOT NULL
+);
+CREATE TABLE review_block_cycles (
+  block_id TEXT PRIMARY KEY REFERENCES schedule_blocks(id) ON DELETE CASCADE,
+  card_id TEXT NOT NULL REFERENCES review_cards(id), cycle TEXT NOT NULL
+);
+CREATE INDEX idx_review_block_cycle ON review_block_cycles(card_id,cycle);
+CREATE TABLE review_block_history (
+  id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES review_cards(id),
+  cycle TEXT NOT NULL, reason TEXT NOT NULL, blocks_json TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX idx_review_block_history ON review_block_history(card_id,created_at DESC);
+CREATE TRIGGER review_memory_cycle AFTER UPDATE OF scheduler_json ON review_cards WHEN OLD.scheduler_json!=NEW.scheduler_json BEGIN
+  INSERT INTO review_block_history(id,card_id,cycle,reason,blocks_json,created_at)
+    SELECT lower(hex(randomblob(16))),c.card_id,c.cycle,'memory_changed',
+      json_group_array(json_object('id',b.id,'task_id',b.task_id,'start_at',b.start_at,'end_at',b.end_at,
+        'locked',b.locked,'revision',b.revision,'reason',b.reason,'review_cycle',c.cycle)),
+      CAST(unixepoch('subsec')*1000 AS INTEGER)
+    FROM review_block_cycles c JOIN schedule_blocks b ON b.id=c.block_id
+    WHERE c.card_id=NEW.id GROUP BY c.card_id,c.cycle;
+  DELETE FROM schedule_blocks WHERE id IN (SELECT block_id FROM review_block_cycles WHERE card_id=NEW.id);
+  UPDATE review_planning SET cycle=lower(hex(randomblob(16))),revision=lower(hex(randomblob(16))) WHERE card_id=NEW.id;
+END;
+CREATE TRIGGER review_closed_cycle AFTER UPDATE OF status ON tasks WHEN NEW.status='done' AND OLD.status!='done' BEGIN
+  INSERT INTO review_block_history(id,card_id,cycle,reason,blocks_json,created_at)
+    SELECT lower(hex(randomblob(16))),c.card_id,c.cycle,'paused_or_unavailable',
+      json_group_array(json_object('id',b.id,'task_id',b.task_id,'start_at',b.start_at,'end_at',b.end_at,
+        'locked',b.locked,'revision',b.revision,'reason',b.reason,'review_cycle',c.cycle)),
+      CAST(unixepoch('subsec')*1000 AS INTEGER)
+    FROM review_block_cycles c JOIN schedule_blocks b ON b.id=c.block_id
+    WHERE c.card_id=(SELECT id FROM review_cards WHERE task_id=NEW.id) GROUP BY c.card_id,c.cycle;
+  DELETE FROM schedule_blocks WHERE id IN (SELECT block_id FROM review_block_cycles WHERE card_id=(SELECT id FROM review_cards WHERE task_id=NEW.id));
+  UPDATE review_planning SET cycle=lower(hex(randomblob(16))),revision=lower(hex(randomblob(16))) WHERE card_id=(SELECT id FROM review_cards WHERE task_id=NEW.id);
+END;
+CREATE TRIGGER review_plan_disabled AFTER UPDATE OF enabled ON review_planning WHEN OLD.enabled=1 AND NEW.enabled=0 BEGIN
+  INSERT INTO review_block_history(id,card_id,cycle,reason,blocks_json,created_at)
+    SELECT lower(hex(randomblob(16))),c.card_id,c.cycle,'planning_disabled',
+      json_group_array(json_object('id',b.id,'task_id',b.task_id,'start_at',b.start_at,'end_at',b.end_at,
+        'locked',b.locked,'revision',b.revision,'reason',b.reason,'review_cycle',c.cycle)),
+      CAST(unixepoch('subsec')*1000 AS INTEGER)
+    FROM review_block_cycles c JOIN schedule_blocks b ON b.id=c.block_id
+    WHERE c.card_id=NEW.card_id GROUP BY c.card_id,c.cycle;
+  DELETE FROM schedule_blocks WHERE id IN (SELECT block_id FROM review_block_cycles WHERE card_id=NEW.card_id);
+  UPDATE review_planning SET cycle=lower(hex(randomblob(16))),revision=lower(hex(randomblob(16))) WHERE card_id=NEW.card_id;
+END;
+CREATE TRIGGER review_plan_insert AFTER INSERT ON review_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER review_plan_update AFTER UPDATE ON review_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+CREATE TRIGGER review_plan_delete AFTER DELETE ON review_planning BEGIN UPDATE schedule_change_counter SET seq=seq+1; END;
+`
   }
 ]

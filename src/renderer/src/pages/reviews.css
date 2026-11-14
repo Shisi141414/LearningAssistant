@@ -197,3 +197,5 @@
     gap: 10px;
   }
 }
+
+.review-planning { margin:24px 0; border-top:1px solid var(--border,#dce4e1); padding-top:18px; line-height:1.8; }.review-planning fieldset {border:0;padding:0;display:flex;flex-wrap:wrap;gap:12px;align-items:end}.review-planning label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.review-planning input[type=number]{width:90px}.review-planning-block{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.review-planning-block span{flex:1;min-width:200px}

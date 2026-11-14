@@ -76,3 +76,30 @@ export interface ReviewAction {
   expected_revision: string
   action: 'pause' | 'resume' | 'refresh' | 'undo'
 }
+
+export interface ReviewPlanningState {
+  id: string
+  card_revision: string
+  revision: string | null
+  enabled: boolean
+  duration_minutes: number
+  priority: number
+  cycle: string | null
+  active: boolean
+  due_at: number
+  blocks: import('./auto-schedule').ScheduleBlock[]
+  history: {
+    id: string
+    reason: string
+    created_at: number
+    blocks: import('./auto-schedule').ScheduleBlock[]
+  }[]
+}
+export interface ReviewPlanningSave {
+  id: string
+  expected_revision: string | null
+  expected_card_revision: string
+  enabled: boolean
+  duration_minutes: number
+  priority: number
+}
