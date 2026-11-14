@@ -1,3 +1,4 @@
+import { stopCampus } from './services/campus'
 import { recoverMemoRecognition, stopMemoRecognition } from './services/memo-recognition'
 import { startMemoAutoRuntime } from './services/memo-auto-runtime'
 /**
@@ -128,6 +129,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   quitting = true
+  stopCampus()
   reminderRuntime?.stop()
   stopContinuousRuntime?.()
   stopMemoAutoRuntime?.()

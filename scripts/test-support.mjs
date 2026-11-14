@@ -38,7 +38,7 @@ registerHooks({
     return next(specifier, context)
   },
   load(url, context, next) {
-    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage,shell,BrowserWindow}=globalThis.__electronMock;', shortCircuit: true }
+    if (url === 'test:electron') return { format: 'module', source: 'export const {app,ipcMain,dialog,safeStorage,shell,BrowserWindow,session}=globalThis.__electronMock;', shortCircuit: true }
     return next(url, context)
   }
 })

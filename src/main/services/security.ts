@@ -78,6 +78,11 @@ const memoPlan = record({
   task:nullable(record({title,detail:text(4000),due_at:nullable(number),planned_at:nullable(number),planned_end_at:nullable(number),location:text(1000)}))
 })
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.CampusState]: [], [IPC.CampusLogin]: [], [IPC.CampusDisconnect]: [], [IPC.CampusDiscard]: [],
+  [IPC.CampusProvenance]: [id],
+  [IPC.CampusMap]: [record({id,revision:id,subject_id:nullable(id)})],
+  [IPC.CampusPreview]: [v=>Array.isArray(v)&&v.length>0&&v.length<=30&&v.every(id)],
+  [IPC.CampusApply]: [record({token:id,keys:v=>Array.isArray(v)&&v.length>0&&v.length<=2000&&v.every(id),adopt:v=>Array.isArray(v)&&v.length<=2000&&v.every(record({key:id,fields:x=>Array.isArray(x)&&x.length<=3&&x.every(choice('title','due_at','subject_id'))}))})],
   [IPC.AssignmentsList]: [record({query:text(500),scope:choice('open','all','overdue','trash'),subject_id:opt(id),offset:v=>number(v)&&(v as number)<=10000000})],
   [IPC.AssignmentsGet]: [id],
   [IPC.AssignmentsSave]: [record({id:optional(id),expected_revision:optional(id),subject_id:nullable(id),title,detail:content,status:choice('open','doing','blocked','done'),blocked_reason:text(2000),due_at:nullable(number)})],

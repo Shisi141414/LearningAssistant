@@ -11,6 +11,9 @@
  */
 
 export const IPC = {
+  CampusState: 'campus:state', CampusLogin: 'campus:login', CampusDisconnect: 'campus:disconnect',
+  CampusMap: 'campus:map', CampusPreview: 'campus:preview', CampusApply: 'campus:apply',
+  CampusDiscard: 'campus:discard', CampusProvenance: 'campus:provenance',
   AssignmentsList: 'assignments:list', AssignmentsGet: 'assignments:get',
   AssignmentsSave: 'assignments:save', AssignmentsArchive: 'assignments:archive',
   ReviewPlanningGet: 'reviews:planning', ReviewPlanningSave: 'reviews:planning-save',

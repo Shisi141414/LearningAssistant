@@ -1,3 +1,4 @@
+import type { CampusApply, CampusPreview, CampusProvenance, CampusState } from '@shared/campus'
 import type { AssignmentArchive, AssignmentDetail, AssignmentList, AssignmentPage, AssignmentSave } from '@shared/assignments'
 import type { ReviewSource, ReviewPage, ReviewListInput, ReviewDetail, ReviewReveal, ReviewGrade, ReviewAction, ReviewPlanningState, ReviewPlanningSave } from '@shared/reviews'
 import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference, MemoAutoSettings, MemoAutoState } from '@shared/memos'
@@ -39,6 +40,16 @@ import type {
 const invoke = ipcRenderer.invoke.bind(ipcRenderer) as <T>(channel: string, ...args: unknown[]) => Promise<ApiResult<T>>
 
 const api = {
+  campus: {
+    state:()=>invoke<CampusState>(IPC.CampusState),
+    login:()=>invoke<CampusState>(IPC.CampusLogin),
+    disconnect:()=>invoke<CampusState>(IPC.CampusDisconnect),
+    map:(input:{id:string;revision:string;subject_id:string|null})=>invoke<CampusState>(IPC.CampusMap,input),
+    preview:(ids:string[])=>invoke<CampusPreview>(IPC.CampusPreview,ids),
+    apply:(input:CampusApply)=>invoke<{created:number;updated:number;skipped:number}>(IPC.CampusApply,input),
+    discard:()=>invoke<void>(IPC.CampusDiscard),
+    provenance:(id:string)=>invoke<CampusProvenance|null>(IPC.CampusProvenance,id)
+  },
   assignments: {
     list:(input:AssignmentList)=>invoke<AssignmentPage>(IPC.AssignmentsList,input),
     get:(id:string)=>invoke<AssignmentDetail>(IPC.AssignmentsGet,id),

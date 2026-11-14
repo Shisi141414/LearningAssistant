@@ -1,3 +1,4 @@
+import { CampusPanel, CampusSourceInfo } from '../components/CampusPanel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type {
@@ -52,6 +53,7 @@ const draftFor = (a?: Assignment): Draft => ({
   blocked_reason: a?.task.blocked_reason ?? ''
 })
 const actions: Record<string, string> = {
+  'campus-sync': '学校来源更新',
   create: '创建作业',
   edit: '编辑作业',
   'task-edit': '日程或提醒中的修改',
@@ -94,6 +96,7 @@ function History({ item }: { item: AssignmentHistory }) {
           {time(after.due_at as number | null)}
         </p>
       )}
+      {item.action === 'campus-sync' && <p>学校{after.submitted ? '已提交' : '未提交'} · {String(after.course_title ?? '')}（本地完成状态独立保留）</p>}
       {item.action === 'trash' ? (
         <p>状态：回收站</p>
       ) : (
@@ -326,6 +329,7 @@ export function AssignmentsPage() {
           新建作业
         </button>
       </header>
+      <CampusPanel onImported={() => setRefresh(n => n + 1)} />
       <section className="assignments-filters" aria-label="作业筛选">
         <input
           aria-label="搜索作业"
@@ -471,6 +475,7 @@ export function AssignmentsPage() {
                 ×
               </button>
             </div>
+            {detail && <CampusSourceInfo id={detail.id} revision={detail.revision} />}
             {detail?.deleted_at !== null && detail && (
               <div className="assignment-trash-note">
                 此作业已在回收站。恢复后保留截止时间，原有时间块不会自动恢复。

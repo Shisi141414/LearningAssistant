@@ -1109,5 +1109,44 @@ CREATE TRIGGER assignment_subject_edit AFTER UPDATE OF subject_id ON assignments
   UPDATE assignment_links SET revision=lower(hex(randomblob(16))) WHERE assignment_id=NEW.id;
 END;
 `
+  },
+  {
+    version: 35,
+    name: 'campus_sources_and_field_ownership',
+    sql: `
+ALTER TABLE assignment_links ADD COLUMN mutation_origin TEXT NOT NULL DEFAULT 'local' CHECK(mutation_origin IN ('local','campus'));
+CREATE TABLE campus_accounts(id TEXT PRIMARY KEY,label TEXT NOT NULL,updated_at INTEGER NOT NULL);
+CREATE TABLE campus_courses(
+  account_id TEXT NOT NULL REFERENCES campus_accounts(id),semester TEXT NOT NULL,id TEXT NOT NULL,
+  title TEXT NOT NULL,subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,revision TEXT NOT NULL,
+  PRIMARY KEY(account_id,semester,id)
+);
+CREATE TABLE campus_sources(
+  account_id TEXT NOT NULL REFERENCES campus_accounts(id),course_id TEXT NOT NULL,homework_id TEXT NOT NULL,
+  assignment_id TEXT NOT NULL UNIQUE REFERENCES assignments(id) ON DELETE RESTRICT,
+  source_json TEXT NOT NULL,source_revision TEXT NOT NULL,overrides_json TEXT NOT NULL DEFAULT '{}',synced_at INTEGER NOT NULL,
+  PRIMARY KEY(account_id,course_id,homework_id)
+);
+CREATE TABLE campus_source_versions(
+  id TEXT PRIMARY KEY,assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE RESTRICT,
+  revision TEXT NOT NULL,source_json TEXT NOT NULL,created_at INTEGER NOT NULL,
+  UNIQUE(assignment_id,revision)
+);
+CREATE TRIGGER campus_local_title AFTER UPDATE OF title ON tasks WHEN OLD.title IS NOT NEW.title BEGIN
+  UPDATE campus_sources SET overrides_json=json_set(overrides_json,'$.title',1) WHERE assignment_id IN
+    (SELECT assignment_id FROM assignment_links WHERE task_id=NEW.id AND mutation_origin='local');
+END;
+CREATE TRIGGER campus_local_due AFTER UPDATE OF due_at ON tasks WHEN OLD.due_at IS NOT NEW.due_at BEGIN
+  UPDATE campus_sources SET overrides_json=json_set(overrides_json,'$.due_at',1) WHERE assignment_id IN
+    (SELECT assignment_id FROM assignment_links WHERE task_id=NEW.id AND mutation_origin='local');
+END;
+CREATE TRIGGER campus_local_subject AFTER UPDATE OF subject_id ON assignments WHEN OLD.subject_id IS NOT NEW.subject_id BEGIN
+  UPDATE campus_sources SET overrides_json=json_set(overrides_json,'$.subject_id',1) WHERE assignment_id=NEW.id AND EXISTS
+    (SELECT 1 FROM assignment_links WHERE assignment_id=NEW.id AND mutation_origin='local');
+END;
+CREATE TRIGGER campus_subject_deleted AFTER UPDATE OF subject_id ON campus_courses WHEN OLD.subject_id IS NOT NEW.subject_id BEGIN
+  UPDATE campus_courses SET revision=lower(hex(randomblob(16))) WHERE account_id=NEW.account_id AND semester=NEW.semester AND id=NEW.id;
+END;
+`
   }
 ]
