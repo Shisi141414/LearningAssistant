@@ -70,7 +70,7 @@ await test('真实 v29→30 失败回滚、原文/灵感/旧归档保留，排�
   )
   old.exec('DROP TABLE memo_auto_jobs')
   old.close()
-  assert.equal(getDb().pragma('user_version', { simple: true }), 30)
+  assert.equal(getDb().pragma('user_version', { simple: true }), MIGRATIONS.at(-1).version)
   assert.equal(memoDetail('old').routes[0].id, 'r')
   assert.equal(
     getDb().prepare('SELECT context_text FROM inspirations').get().context_text,

@@ -78,6 +78,8 @@ const memoPlan = record({
   task:nullable(record({title,detail:text(4000),due_at:nullable(number),planned_at:nullable(number),planned_end_at:nullable(number),location:text(1000)}))
 })
 const rules: Partial<Record<string, Check[]>> = {
+  [IPC.ClassroomAlignment]: [id],
+  [IPC.ClassroomAlignmentSave]: [record({note_id:id,revision:nullable(id),enabled:bool})],
   [IPC.MemosList]: [record({query:text(500),archived:bool,state:optional(choice('all','inbox','routed')),offset:v=>number(v)&&(v as number)<=10000000})],
   [IPC.MemosGet]: [id],
   [IPC.MemosSave]: [record({content:text(12000,true),subject_id:nullable(id),id:optional(id),expected_revision:optional(id)})],

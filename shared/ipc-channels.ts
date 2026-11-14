@@ -87,6 +87,8 @@ export const IPC = {
   MaterialsOcrPage: 'materials:ocrPage',
   MaterialsOcrCorrect: 'materials:ocrCorrect',
   ClassroomPosition: 'classroom:position',
+  ClassroomAlignment: 'classroom:alignment',
+  ClassroomAlignmentSave: 'classroom:alignmentSave',
   ClassroomCalibrate: 'classroom:calibrate',
   /* 学科 */
   SubjectsList: 'subjects:list',

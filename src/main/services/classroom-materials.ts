@@ -29,25 +29,40 @@ export function calibrateClassroom(noteId: string, blockId: string | null, sessi
     const now = Date.now()
     db.prepare('INSERT INTO classroom_positions (note_id, block_id, updated_at) VALUES (?, ?, ?) ON CONFLICT(note_id) DO UPDATE SET block_id = excluded.block_id, updated_at = excluded.updated_at').run(noteId, blockId, now)
     db.prepare('INSERT INTO classroom_calibrations (id, note_id, session_id, block_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(nanoid(), noteId, sessionId ?? null, blockId, blockId ? sessionId ? 'manual' : 'start' : 'detach', now)
+    db.prepare(`INSERT INTO classroom_alignment_settings(note_id,revision,enabled,hold_segment) VALUES(?,?,0,1)
+      ON CONFLICT(note_id) DO UPDATE SET revision=excluded.revision,hold_segment=1,enabled=CASE WHEN ? IS NULL THEN 0 ELSE enabled END`).run(noteId, nanoid(), blockId)
+    db.prepare("UPDATE classroom_alignment_jobs SET status='cancelled',reason='手动校准优先；保留当时来源',updated_at=? WHERE note_id=? AND status IN ('queued','running')").run(now, noteId)
     return classroomPosition(noteId)!
   })()
 }
 export function segmentMaterialRef(segmentId: string): MaterialAnchor | null {
-  const row = getDb().prepare('SELECT block_id FROM segment_material_refs WHERE segment_id = ?').get(segmentId) as { block_id: string } | undefined
-  return row ? materialAnchor(row.block_id) : null
+  const row = getDb().prepare(`SELECT COALESCE(j.applied_block_id,r.block_id) AS block_id FROM note_segments s
+    LEFT JOIN segment_material_refs r ON r.segment_id=s.id
+    LEFT JOIN classroom_alignment_jobs j ON j.segment_id=s.id AND j.status='applied' WHERE s.id=?`).get(segmentId) as { block_id: string | null } | undefined
+  return row?.block_id ? materialAnchor(row.block_id) : null
 }
 export function attachMaterialRefs(noteId: string, segments: NoteSegment[]): NoteSegment[] {
-  const refs = getDb().prepare(`${anchorSelect} JOIN segment_material_refs r ON r.block_id = b.id JOIN note_segments s ON s.id = r.segment_id WHERE s.note_id = ?`).all(noteId) as MaterialAnchor[]
-  // 一次联查拿到块；映射段落关系也一次读取，避免逐段查询。
-  const ids = getDb().prepare('SELECT r.segment_id, r.block_id FROM segment_material_refs r JOIN note_segments s ON s.id = r.segment_id WHERE s.note_id = ?').all(noteId) as Array<{ segment_id: string; block_id: string }>
-  const byBlock = new Map(refs.map(ref => [ref.id, ref]))
-  const bySegment = new Map(ids.map(row => [row.segment_id, byBlock.get(row.block_id) ?? null]))
+  // Start from this note, then look up block primary keys; never cross-scan the material library.
+  const refs = getDb().prepare(`SELECT b.*,m.id AS material_id,m.title AS material_title,v.file_name,v.format,s.id AS segment_id
+    FROM note_segments s LEFT JOIN segment_material_refs r ON r.segment_id=s.id
+    LEFT JOIN classroom_alignment_jobs j ON j.segment_id=s.id AND j.status='applied'
+    JOIN material_blocks b ON b.id=COALESCE(j.applied_block_id,r.block_id)
+    JOIN material_versions v ON v.id=b.version_id JOIN materials m ON m.id=v.material_id WHERE s.note_id=?`).all(noteId) as Array<MaterialAnchor & {segment_id:string}>
+  const bySegment = new Map(refs.map(({segment_id,...ref}) => [segment_id,ref]))
   return segments.map(segment => ({ ...segment, material_ref: bySegment.get(segment.id) ?? null }))
 }
 export function materialNoteRefs(blockId: string): MaterialNoteRef[] {
   materialAnchor(blockId)
-  return getDb().prepare(`SELECT r.segment_id, s.note_id, n.title, substr(s.raw_text, 1, 240) AS raw_text FROM segment_material_refs r
-    JOIN note_segments s ON s.id = r.segment_id JOIN notes n ON n.id = s.note_id WHERE r.block_id = ? ORDER BY s.created_at DESC LIMIT 50`).all(blockId) as MaterialNoteRef[]
+  return getDb().prepare(`SELECT segment_id,note_id,title,raw_text FROM (
+    SELECT s.id AS segment_id,s.note_id,n.title,substr(s.raw_text,1,240) AS raw_text,s.created_at
+    FROM segment_material_refs r JOIN note_segments s ON s.id=r.segment_id JOIN notes n ON n.id=s.note_id
+    LEFT JOIN classroom_alignment_jobs j ON j.segment_id=s.id AND j.status='applied'
+    WHERE r.block_id=? AND j.applied_block_id IS NULL
+    UNION ALL
+    SELECT s.id,s.note_id,n.title,substr(s.raw_text,1,240),s.created_at FROM classroom_alignment_jobs j
+    JOIN note_segments s ON s.id=j.segment_id JOIN notes n ON n.id=s.note_id
+    WHERE j.status='applied' AND j.applied_block_id=?
+    ) ORDER BY created_at DESC LIMIT 50`).all(blockId,blockId) as MaterialNoteRef[]
 }
 export function segmentMaterialContext(segmentId: string): string {
   const anchor = segmentMaterialRef(segmentId)

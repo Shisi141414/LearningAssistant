@@ -38,3 +38,9 @@
 .pdf-page canvas { display: block; }
 .classroom-setup-material { margin-top: 20px; max-width: 1000px; }
 @media (max-width: 1100px) { .classroom-split { gap: 12px; } .classroom-material { padding: 12px; } .classroom-split button { font-size: 12px; padding: 6px 8px; } }
+.classroom-alignment { padding: 12px 16px; margin: 12px 0; border: 1px solid #dce7e4; border-radius: 12px; background: #f3faf7; }
+.classroom-alignment p { margin: 8px 0; overflow-wrap: anywhere; }
+.classroom-alignment details { max-height: 220px; overflow: auto; }
+.alignment-candidates { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 10px; }
+.alignment-candidates > div { background: white; padding: 12px; border-radius: 8px; min-width: 0; }
+.alignment-candidates button { display: block; margin-top: 8px; }

@@ -7,12 +7,13 @@ import { PdfPage } from './PdfPage'
 import './classroom-material.css'
 import { ConceptText } from './ConceptText'
 
-export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate, live = false, refsRevision = 0 }: {
+export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate, live = false, refsRevision = 0, calibrationRevision = 0 }: {
   currentAnchor: MaterialAnchor | null
   focusTarget?: { anchor: MaterialAnchor; token: number } | null
   onCalibrate: (anchor: MaterialAnchor | null) => Promise<void> | void
   live?: boolean
-  refsRevision?: number
+  refsRevision?: number | string
+  calibrationRevision?: number
 }) {
   const showToast = useAppStore(s => s.showToast)
   const [materials, setMaterials] = useState<Material[]>([])
@@ -27,8 +28,11 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
   const [refs, setRefs] = useState<MaterialNoteRef[]>([])
   const [location, setLocation] = useState('1')
   const [busy, setBusy] = useState(false)
+  const [following, setFollowing] = useState(true)
   const [error, setError] = useState('')
   const requestId = useRef(0)
+
+  useEffect(() => { setFollowing(true) }, [calibrationRevision])
 
   useEffect(() => {
     let alive = true
@@ -40,10 +44,10 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
     return () => { alive = false; requestId.current++ }
   }, [])
   useEffect(() => {
-    if (currentAnchor) { requestId.current++; setMaterialId(currentAnchor.material_id); setVersionId(currentAnchor.version_id); setBlock(currentAnchor) }
-  }, [currentAnchor?.id])
+    if (currentAnchor && following) { requestId.current++; setMaterialId(currentAnchor.material_id); setVersionId(currentAnchor.version_id); setBlock(currentAnchor) }
+  }, [currentAnchor?.id, following])
   useEffect(() => {
-    if (focusTarget) { requestId.current++; setMaterialId(focusTarget.anchor.material_id); setVersionId(focusTarget.anchor.version_id); setBlock(focusTarget.anchor) }
+    if (focusTarget) { setFollowing(false); requestId.current++; setMaterialId(focusTarget.anchor.material_id); setVersionId(focusTarget.anchor.version_id); setBlock(focusTarget.anchor) }
   }, [focusTarget])
   useEffect(() => {
     setDetail(null)
@@ -95,6 +99,7 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
   }, [query, versionId, searchOffset])
 
   const selectBlock = async (id: string): Promise<void> => {
+    setFollowing(false)
     const ticket = ++requestId.current
     const result = await window.api.materials.anchor(id)
     if (ticket !== requestId.current) return
@@ -102,6 +107,7 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
     else setError(result.error)
   }
   const locate = async (index: number, unit: 'block' | 'page' | 'slide'): Promise<void> => {
+    setFollowing(false)
     if (!Number.isSafeInteger(index) || index < 1 || index > 50_000) { setError('请输入有效的位置编号'); return }
     const ticket = ++requestId.current
     const result = await window.api.materials.locate({ version_id: versionId, index, unit })
@@ -111,7 +117,7 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
   }
   const confirm = async (anchor: MaterialAnchor | null): Promise<void> => {
     setBusy(true)
-    try { await onCalibrate(anchor) } finally { setBusy(false) }
+    try { await onCalibrate(anchor); setFollowing(true) } finally { setBusy(false) }
   }
   const locator = block ? JSON.parse(block.locator_json) as MaterialLocator : null
   const unit = block?.format === 'pdf' ? 'page' : block?.format === 'pptx' ? 'slide' : 'block'
@@ -119,17 +125,17 @@ export function ClassroomMaterialPanel({ currentAnchor, focusTarget, onCalibrate
     <h2>{live ? '课堂教材' : '本讲材料与开始点'}</h2>
     <p className="muted">{live ? '浏览不会改变讲授位置；校准后，后续记录才关联到这里。' : '可提前选定本讲开始位置，也可不关联教材。'}</p>
     <div className="classroom-material-picker">
-      <select aria-label="课堂材料" value={materialId} onChange={e => { requestId.current++; setMaterialId(e.target.value); setVersionId(''); setBlock(null) }}>
+      <select aria-label="课堂材料" value={materialId} onChange={e => { setFollowing(false); requestId.current++; setMaterialId(e.target.value); setVersionId(''); setBlock(null) }}>
         <option value="">选择学习材料</option>{materials.map(item => <option value={item.id} key={item.id}>{item.title}</option>)}
         {materialId && !materials.some(item => item.id === materialId) && <option value={materialId}>{block?.material_title ?? '已归档材料'}</option>}
       </select>
-      {detail && <select aria-label="课堂材料版本" value={versionId} onChange={e => { requestId.current++; setVersionId(e.target.value); setBlock(null) }}><option value="">选择可阅读版本</option>{detail.versions.filter(v => v.status === 'ready').map((v, index) => <option key={v.id} value={v.id}>{v.file_name} · {new Date(v.created_at).toLocaleDateString('zh-CN')} · {index === 0 ? '较新' : '历史'}</option>)}</select>}
+      {detail && <select aria-label="课堂材料版本" value={versionId} onChange={e => { setFollowing(false); requestId.current++; setVersionId(e.target.value); setBlock(null) }}><option value="">选择可阅读版本</option>{detail.versions.filter(v => v.status === 'ready').map((v, index) => <option key={v.id} value={v.id}>{v.file_name} · {new Date(v.created_at).toLocaleDateString('zh-CN')} · {index === 0 ? '较新' : '历史'}</option>)}</select>}
     </div>
     {!materials.length && <p className="muted">先到 <Link to="/library">材料库</Link> 导入教材、讲义或课件。</p>}
     {detail && !versionId && <p role="status">此材料暂时没有可阅读版本，请先完成解析。</p>}
     <div className="classroom-current" role="status">
       <strong>{live ? '当前讲到' : '已选起点'}：</strong>{currentAnchor ? `${currentAnchor.material_title} · ${materialLocation(currentAnchor)}` : '未关联教材'}
-      {currentAnchor && currentAnchor.id !== block?.id && <button onClick={() => { setMaterialId(currentAnchor.material_id); setVersionId(currentAnchor.version_id); setBlock(currentAnchor) }}>回到讲授位置</button>}
+      {currentAnchor && (!following || currentAnchor.id !== block?.id) && <button onClick={() => { setFollowing(true); setMaterialId(currentAnchor.material_id); setVersionId(currentAnchor.version_id); setBlock(currentAnchor) }}>回到讲授位置</button>}
     </div>
     {error && <p role="alert" className="material-error">{error}</p>}
     {block && <>

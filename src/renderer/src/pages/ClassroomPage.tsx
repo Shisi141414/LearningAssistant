@@ -13,6 +13,7 @@ import { MarkdownSegment } from '../components/MarkdownSegment'
 import { MathInput } from '../components/MathInput'
 import { useAppStore } from '../stores/app'
 import { ClassroomMaterialPanel } from '../components/ClassroomMaterialPanel'
+import { ClassroomAlignmentPanel } from '../components/ClassroomAlignmentPanel'
 import { materialLocation } from '../utils/material'
 import { NoteLearningReader } from '../components/NoteLearningReader'
 
@@ -70,6 +71,9 @@ export function ClassroomPage() {
   const [startAnchor, setStartAnchor] = useState<MaterialAnchor | null>(null)
   const [position, setPosition] = useState<ClassroomPosition | null>(null)
   const [focusTarget, setFocusTarget] = useState<{ anchor: MaterialAnchor; token: number } | null>(null)
+  const [calibrationRevision, setCalibrationRevision] = useState(0)
+  const [materialRefsRevision, setMaterialRefsRevision] = useState(0)
+  const calibrationGeneration = useRef(0)
   /* ---- setup ---- */
   const [phase, setPhase] = useState<Phase>('setup')
   const subjects = useAppStore((s) => s.subjects)
@@ -327,7 +331,7 @@ export function ClassroomPage() {
   const calibrate = async (anchor: MaterialAnchor | null): Promise<void> => {
     if (!noteRef.current) return
     const result = await window.api.classroom.calibrate({ note_id: noteRef.current, block_id: anchor?.id ?? null })
-    if (result.ok) { setPosition(result.data); setStartAnchor(result.data.block); showToast(anchor ? '讲授位置已校准，后续记录使用这里的来源' : '后续记录不关联教材') }
+    if (result.ok) { calibrationGeneration.current++; setPosition(result.data); setStartAnchor(result.data.block); setFocusTarget(null); setCalibrationRevision(value => value + 1); showToast(anchor ? '讲授位置已校准，后续记录使用这里的来源' : '后续记录不关联教材') }
     else showToast(result.error)
   }
 
@@ -471,8 +475,21 @@ export function ClassroomPage() {
         <button onClick={() => void endSession()}>结束课堂</button>
       </div>
 
+      {note && <ClassroomAlignmentPanel noteId={note.id} onCalibrate={calibrate} onChange={async () => {
+        const id = noteRef.current
+        if (!id) return
+        const generation = calibrationGeneration.current
+        const [cursor, saved] = await Promise.all([window.api.classroom.position(id), window.api.notes.get(id)])
+        if (!mountedRef.current || noteRef.current !== id || calibrationGeneration.current !== generation) return
+        if (cursor.ok) setPosition(cursor.data)
+        if (saved.ok) {
+          const refs = new Map(saved.data.segments.map(item => [item.id, item.material_ref]))
+          setNote(previous => previous ? { ...previous, segments: previous.segments.map(segment => ({ ...segment, material_ref: refs.has(segment.id) ? refs.get(segment.id) ?? null : segment.material_ref })) } : previous)
+          setMaterialRefsRevision(value => value + 1)
+        }
+      }} />}
       <div className="classroom-split">
-      <ClassroomMaterialPanel live currentAnchor={position?.block ?? null} focusTarget={focusTarget} onCalibrate={calibrate} refsRevision={note?.segments.length ?? 0} />
+      <ClassroomMaterialPanel live currentAnchor={position?.block ?? null} focusTarget={focusTarget} onCalibrate={calibrate} calibrationRevision={calibrationRevision} refsRevision={`${note?.segments.length ?? 0}:${materialRefsRevision}`} />
       <section className="classroom-transcript" aria-label="课堂转写">
       <div className="classroom-transcript-scroll">
         <div className="partial-line">

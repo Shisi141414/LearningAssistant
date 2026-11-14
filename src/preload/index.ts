@@ -199,6 +199,8 @@ const api = {
     remove: (id: ID) => invoke<boolean>(IPC.AnnotationsRemove, id)
   },
   classroom: {
+    alignment: (noteId: ID) => invoke<import('@shared/classroom-alignment').ClassroomAlignmentState>(IPC.ClassroomAlignment, noteId),
+    alignmentSave: (input: { note_id: ID; revision: string | null; enabled: boolean }) => invoke<import('@shared/classroom-alignment').ClassroomAlignmentState>(IPC.ClassroomAlignmentSave, input),
     position: (noteId: ID) => invoke<ClassroomPosition | null>(IPC.ClassroomPosition, noteId),
     calibrate: (input: { note_id: ID; block_id: ID | null }) => invoke<ClassroomPosition>(IPC.ClassroomCalibrate, input),
     flush: () => invoke<boolean>(IPC.ClassroomFlush),

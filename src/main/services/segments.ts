@@ -4,10 +4,11 @@ import { getDb } from './db'
 import { configGet } from './config'
 import { segmentMaterialRef } from './classroom-materials'
 import { captureNoteLearning } from './note-learning'
+import { queueClassroomAlignment } from './classroom-alignment'
 
 export function addSegment(input: SegmentInput): NoteSegment {
   const db = getDb()
-  return db.transaction(() => {
+  const segment = db.transaction(() => {
     const note = db.prepare('SELECT source FROM notes WHERE id = ?').get(input.note_id) as { source: string } | undefined
     if (!note) throw new Error('笔记不存在')
     const max = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM note_segments WHERE note_id = ?').get(input.note_id) as { m: number }
@@ -20,4 +21,6 @@ export function addSegment(input: SegmentInput): NoteSegment {
     captureNoteLearning(id)
     return { ...db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as NoteSegment, material_ref: segmentMaterialRef(id) }
   })()
+  queueClassroomAlignment(segment.id)
+  return segment
 }

@@ -918,5 +918,31 @@ CREATE TABLE memo_auto_jobs (
 );
 CREATE INDEX idx_memo_auto_due ON memo_auto_jobs(status,next_at);
 `
+  },
+  {
+    version: 31,
+    name: 'classroom_automatic_alignment',
+    sql: `
+CREATE TABLE classroom_alignment_settings (
+  note_id TEXT PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0,1)),
+  hold_segment INTEGER NOT NULL DEFAULT 1 CHECK(hold_segment IN (0,1))
+);
+CREATE TABLE classroom_alignment_jobs (
+  id TEXT PRIMARY KEY, note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  segment_id TEXT NOT NULL UNIQUE REFERENCES note_segments(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL REFERENCES classroom_sessions(id), epoch TEXT NOT NULL,
+  source_revision INTEGER NOT NULL, raw_hash TEXT NOT NULL,
+  source_anchor_id TEXT NOT NULL REFERENCES material_blocks(id),
+  version_id TEXT NOT NULL REFERENCES material_versions(id), hold_segment INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('queued','running','applied','review','cancelled','failed')),
+  applied_block_id TEXT REFERENCES material_blocks(id), candidates_json TEXT NOT NULL DEFAULT '[]',
+  strong_match INTEGER NOT NULL DEFAULT 0 CHECK(strong_match IN (0,1)),
+  reason TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX idx_classroom_alignment_owner ON classroom_alignment_jobs(note_id,created_at DESC);
+CREATE INDEX idx_classroom_alignment_pending ON classroom_alignment_jobs(status);
+CREATE INDEX idx_classroom_alignment_applied ON classroom_alignment_jobs(applied_block_id) WHERE status='applied';
+`
   }
 ]

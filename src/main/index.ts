@@ -13,6 +13,7 @@ import { startContinuousScheduleRuntime } from './services/continuous-schedule-r
 import { IPC_EVENTS } from '@shared/ipc-channels'
 import { startOrganizationRecovery } from './services/organizer'
 import { stopClassroom } from './ipc/classroom.ipc'
+import { recoverClassroomAlignment, stopClassroomAlignment } from './services/classroom-alignment'
 import { stopAllChats } from './ipc/chat.ipc'
 import { startMaterialRecovery, stopMaterialJobs } from './services/materials'
 import { stopPix2TextSidecar } from './services/pix2text'
@@ -91,6 +92,7 @@ app.whenReady().then(async () => {
   getDb().prepare("UPDATE classroom_sessions SET ended_at = ?, end_reason = 'interrupted' WHERE ended_at IS NULL").run(Date.now())
   registerAllIpc()
   registerMaterialProtocol()
+  recoverClassroomAlignment()
   stopRecovery = startOrganizationRecovery()
   startMaterialRecovery()
   recoverLearningSuggestions()
@@ -130,6 +132,7 @@ app.on('before-quit', () => {
   stopContinuousRuntime?.()
   stopMemoAutoRuntime?.()
   stopRecovery?.()
+  stopClassroomAlignment(true)
   stopClassroom()
   stopAllChats()
   stopMaterialJobs()

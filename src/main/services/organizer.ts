@@ -8,17 +8,24 @@ import { pickModel } from '../ipc/chat.ipc'
 import { configGet } from './config'
 import { segmentMaterialContext } from './classroom-materials'
 import { captureNoteLearning } from './note-learning'
+import { waitForClassroomAlignment } from './classroom-alignment'
 
 const running = new Map<ID, Promise<SegmentOrganizedEvent>>()
 export function organizeSegment(id: ID): Promise<SegmentOrganizedEvent> {
   const existing = running.get(id)
   if (existing) return existing
   const work = withWork('笔记整理', async () => {
+    const alignment = waitForClassroomAlignment(id)
+    if (alignment === false) throw new Error('应用正在退出，原文已保存')
     const db = getDb()
     const seg = db.prepare('SELECT * FROM note_segments WHERE id = ?').get(id) as NoteSegment | undefined
     if (!seg?.raw_text.trim()) throw new Error('段落不存在或无原文可整理')
+    // Capture the requested revision before waiting: an intervening manual edit must win.
+    if (alignment !== true && !await alignment) throw new Error('应用正在退出，原文已保存')
     db.prepare("UPDATE note_segments SET organize_status = 'processing', organize_attempts = organize_attempts + 1 WHERE id = ?").run(id)
     try {
+      const requested = db.prepare('SELECT revision FROM note_segments WHERE id=?').get(id) as { revision: number } | undefined
+      if (!requested || requested.revision !== (seg.revision ?? 0)) throw new Error('生成期间段落已被编辑，保留你的修改，请重新整理')
       const subject = db.prepare(`SELECT s.name FROM notes n LEFT JOIN activities a ON a.id = n.activity_id
         LEFT JOIN subjects s ON s.id = COALESCE(n.subject_id, a.subject_id) WHERE n.id = ?`).get(seg.note_id) as { name: string | null }
       const model = pickModel(null)
