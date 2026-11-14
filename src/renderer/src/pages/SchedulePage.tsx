@@ -226,7 +226,7 @@ export function SchedulePage() {
         list.push({
           ...appearance,
           id: t.id + ':due',
-          title: '截止 · ' + t.title,
+          title: t.review_id ? t.title : '截止 · ' + t.title,
           start: t.due_at,
           classNames: [...appearance.classNames, 'schedule-deadline']
         })
@@ -668,6 +668,7 @@ export function SchedulePage() {
         </section>
         {draft && (
           <aside className="schedule-editor" aria-label="日程编辑">
+          {selected?.review_id ? <section aria-label="复习日程详情"><div className="schedule-editor-heading"><h2>复习安排</h2><button aria-label="关闭日程编辑" onClick={() => setDraft(null)}>×</button></div><h3>{selected.title}</h3><p>建议复习时间：{selected.due_at === null ? '尚未安排' : displayTime(selected.due_at)}</p><p className="muted">此时间由记忆评分生成。在复习页评分、暂停或恢复，会同步更新日程和提醒。</p><Link to={`/practice?card=${encodeURIComponent(selected.review_id)}`}>前往复习</Link></section> : <>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -842,9 +843,11 @@ export function SchedulePage() {
           </form>
           {selected && planning?.blocks.some(b=>b.task_id===selected.id) && <p className="muted">此任务按下方学习时间块安排。要改为固定日程，请先移除全部时间块并停用自动安排。</p>}
           {selected && planning && <TaskPlanningEditor key={`planning:${selected.id}`} taskId={selected.id} tasks={tasks} state={planning} onChange={setPlanning} onDraftState={planningDraftChanged} onEditBlock={editBlock} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
-          {selected && <TaskReminderEditor key={`reminder:${selected.id}`} taskId={selected.id} onDraftState={reminderDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
+
           {selected && <MemoReferences kind="task" id={selected.id} />}
           {selected && <TaskResources key={selected.id} taskId={selected.id} disabled={busy} initiallyOpen={targetTaskId === selected.id} />}
+          </>}
+          {selected && <TaskReminderEditor key={`reminder:${selected.id}`} taskId={selected.id} onDraftState={reminderDraftChanged} disabled={busy || JSON.stringify(draft)!==JSON.stringify(originalDraft.current)} />}
           </aside>
         )}
       </div>
@@ -865,7 +868,7 @@ export function SchedulePage() {
                   type="checkbox"
                   aria-label={`完成任务：${t.title}`}
                   checked={t.status === 'done'}
-                  disabled={busy}
+                  disabled={busy || !!t.review_id}
                   onChange={() =>
                     void perform(async () => {
                       check(
@@ -883,15 +886,15 @@ export function SchedulePage() {
                   </button>
                   <div className="muted">
                     {STATUS[t.status]}
-                    {t.due_at !== null && ' · 截止 ' + displayTime(t.due_at)}
+                    {t.due_at !== null && (t.review_id ? ' · 建议复习 ' : ' · 截止 ') + displayTime(t.due_at)}
                     {t.project_title && ' · ' + t.project_title}
                   </div>
                   {t.location && <div className="muted">{t.location}</div>}
                 </div>
                 <button disabled={busy} onClick={() => edit(t)}>
-                  编辑
+                  {t.review_id ? '查看复习' : '编辑'}
                 </button>
-                <button disabled={busy} onClick={() => remove(t)}>
+                <button disabled={busy || !!t.review_id} onClick={() => remove(t)}>
                   删除
                 </button>
               </div>

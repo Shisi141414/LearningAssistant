@@ -290,7 +290,7 @@ export function publishDueReminders(now = Date.now()): number {
   })()
 }
 const itemQuery =
-  'SELECT r.*,d.status AS system_status,d.error AS system_error FROM reminders r LEFT JOIN reminder_deliveries d ON r.id=d.reminder_id'
+  'SELECT r.*,c.id AS review_id,d.status AS system_status,d.error AS system_error FROM reminders r LEFT JOIN reminder_deliveries d ON r.id=d.reminder_id LEFT JOIN review_cards c ON c.task_id=r.task_id'
 export function listReminders(
   input: { view: 'attention' | 'upcoming' | 'history'; offset?: number },
   now = Date.now()

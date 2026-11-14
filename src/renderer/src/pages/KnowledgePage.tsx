@@ -1,3 +1,4 @@
+import { ReviewAddButton } from '../components/ReviewAddButton'
 import { MemoReferences } from '../components/MemoReferences'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -93,6 +94,7 @@ export function KnowledgePage() {
             <button className="primary" type="submit" disabled={saving || !draft.name.trim()}>{saving ? '正在保存…' : '保存概念'}</button>
           </form>
           {selected && <section className="concept-evidence" aria-label="知识点来源证据"><h2>已确认的来源证据</h2><p className="muted">保留引用时正文与位置。引用角色由用户选择，不代表系统已认证内容正确。</p><EvidenceList key={selected.id} input={{ concept_id: selected.id }} /></section>}
+          {selected && <ReviewAddButton disabled={saving || draft.name !== selected.name || draft.summary !== (selected.summary ?? '') || draft.subject_id !== selected.subject_id || aliases !== selected.aliases.join('\n')} source={{kind:'concept',source_id:selected.id,expected_source_revision:String(selected.revision)}} />}
           {selected && <ConceptUsage key={selected.id} conceptId={selected.id} />}
           {selected && <section className="concept-references" aria-label="概念提及">
             <h2>材料与笔记中的提及</h2>

@@ -1,3 +1,4 @@
+import type { ReviewSource, ReviewPage, ReviewListInput, ReviewDetail, ReviewReveal, ReviewGrade, ReviewAction } from '@shared/reviews'
 import type { MemoInput, MemoDetail, MemoPage, MemoRoutePlan, MemoRoutePreview, MemoReference, MemoAutoSettings, MemoAutoState } from '@shared/memos'
 /**
  * preload/index.ts —— contextBridge 暴露的类型化 API
@@ -58,6 +59,14 @@ const api = {
     preview: (versionId: string) => invoke<ExerciseSetPreview>(IPC.ExerciseSetsPreview, versionId),
     import: (input: { token: string; entry_ids: string[] }) => invoke<ExerciseSetResult>(IPC.ExerciseSetsImport, input),
     discard: () => invoke<boolean>(IPC.ExerciseSetsDiscard)
+  },
+  reviews: {
+    add:(input:ReviewSource)=>invoke<ReviewDetail>(IPC.ReviewsAdd,input),
+    list:(input:ReviewListInput)=>invoke<ReviewPage>(IPC.ReviewsList,input),
+    get:(id:string)=>invoke<ReviewDetail>(IPC.ReviewsGet,id),
+    reveal:(input:{id:string;expected_revision:string})=>invoke<ReviewReveal>(IPC.ReviewsReveal,input),
+    grade:(input:{token:string;grade:ReviewGrade})=>invoke<ReviewDetail>(IPC.ReviewsGrade,input),
+    action:(input:ReviewAction)=>invoke<ReviewDetail>(IPC.ReviewsAction,input)
   },
   exercises: {
     list: (input: ExerciseListInput) => invoke<ExercisePage>(IPC.ExercisesList, input),

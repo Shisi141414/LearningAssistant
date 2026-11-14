@@ -234,6 +234,7 @@ export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: T
   const db = getDb()
   const cur = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined
   if (!cur) throw new Error('任务不存在')
+  if (db.prepare('SELECT id FROM review_cards WHERE task_id=?').get(id)) throw new Error('请到复习页评分、暂停或恢复，此日程由复习记录管理')
   if ((patchInput.status ?? cur.status) === 'blocked' && (patchInput.blocked_reason ?? cur.blocked_reason).trim() === '') {
     throw new Error('标记阻塞需要填写原因（blocked_reason）')
   }
@@ -259,6 +260,7 @@ export function updateTask(id: ID, patchInput: Partial<TaskInput> & { status?: T
 }
 
 export function removeTask(id: ID): void {
+  if (getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(id)) throw new Error('请到复习页暂停复习，历史记录会保留')
   const db = getDb()
   const cur = db.prepare('SELECT project_id FROM tasks WHERE id = ?').get(id) as { project_id: string | null } | undefined
   db.prepare('DELETE FROM tasks WHERE id = ?').run(id)
@@ -267,13 +269,13 @@ export function removeTask(id: ID): void {
 
 /** 手动任务收件箱（R5 日程页与 R6 备忘分流的入口；项目任务在项目详情看） */
 export function listManualTasks(): Task[] {
-  return (getDb().prepare("SELECT * FROM tasks WHERE kind = 'manual' ORDER BY COALESCE(due_at, created_at)").all() as TaskRow[]).map(rowToTask)
+  return (getDb().prepare("SELECT * FROM tasks WHERE kind = 'manual' AND id NOT IN (SELECT task_id FROM review_cards) ORDER BY COALESCE(due_at, created_at)").all() as TaskRow[]).map(rowToTask)
 }
 
 /** 任务附项目名（R5 日程页统一视图用）。类型 TaskWithProject 在 @shared/types。 */
 export function listAllTasks(): Array<Task & { project_title: string | null; project_subject_id: string | null }> {
   const rows = getDb().prepare(
-    'SELECT t.*, p.title AS project_title, p.subject_id AS project_subject_id FROM tasks t LEFT JOIN projects p ON p.id = t.project_id ORDER BY COALESCE(t.due_at, t.created_at)'
+    'SELECT t.*, r.id AS review_id, r.subject_id AS review_subject_id, p.title AS project_title, p.subject_id AS project_subject_id FROM tasks t LEFT JOIN projects p ON p.id = t.project_id LEFT JOIN review_cards r ON r.task_id=t.id ORDER BY COALESCE(t.due_at, t.created_at)'
   ).all() as Array<TaskRow & { project_title: string | null; project_subject_id: string | null }>
   return rows.map((r) => ({ ...rowToTask(r), project_title: r.project_title, project_subject_id: r.project_subject_id }))
 }

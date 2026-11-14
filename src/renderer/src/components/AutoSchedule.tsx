@@ -596,6 +596,7 @@ export function TaskPlanningEditor({
               (t) =>
                 t.id !== taskId &&
                 !draft.dependencies.includes(t.id) &&
+                !t.review_id &&
                 t.title.includes(search)
             )
             .slice(0, 100)

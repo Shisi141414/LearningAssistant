@@ -1,3 +1,4 @@
+import { ReviewAddButton } from '../components/ReviewAddButton'
 import { TaskSourceLinks } from '../components/TaskResources'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -599,6 +600,7 @@ function ExerciseEditor({ exerciseId, initialRevisionId, targetEntryId }: { exer
         snapshot && (
           <>
             <div className="exercise-metadata">
+              {detail && current && detail.deleted_at === null && <ReviewAddButton disabled={busy} source={{kind:'exercise',source_id:detail.id,expected_source_revision:detail.current_revision_id}} />}
               <span>
                 {subjects.find((item) => item.id === snapshot.subject_id)?.name || '未分科'}
               </span>

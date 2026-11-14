@@ -35,6 +35,7 @@ export type SystemDeliveryStatus =
   | 'skipped'
   | 'cancelled'
 export interface ReminderItem {
+  review_id?: string | null
   id: string
   task_id: string
   event_key: string

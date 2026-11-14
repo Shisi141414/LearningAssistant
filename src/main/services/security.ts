@@ -209,6 +209,13 @@ const rules: Partial<Record<string, Check[]>> = {
   [IPC.MilestonesCreate]: [record({ project_id: id, title, detail: optional(content), due_at: opt(number) })],
   [IPC.MilestonesUpdate]: [record({ id, title: optional(title), detail: optional(content), due_at: opt(number), status: optional(choice('open', 'done')) })],
   [IPC.MilestonesRemove]: [id],
+
+  [IPC.ReviewsAdd]: [record({kind:choice('concept','exercise'),source_id:id,expected_source_revision:id})],
+  [IPC.ReviewsList]: [record({scope:choice('today','all','paused'),subject_id:opt(id),offset:v=>number(v)&&(v as number)<=10000})],
+  [IPC.ReviewsGet]: [id],
+  [IPC.ReviewsReveal]: [record({id,expected_revision:id})],
+  [IPC.ReviewsGrade]: [record({token:id,grade:v=>[1,2,3,4].includes(v as number)})],
+  [IPC.ReviewsAction]: [record({id,expected_revision:id,action:choice('pause','resume','refresh','undo')})],
   [IPC.TasksCreate]: [record({ kind: optional(choice('project_task', 'manual')), project_id: opt(id), milestone_id: opt(id), title, planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), detail: optional(content), due_at: opt(number), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
   [IPC.TasksUpdate]: [record({ id, title: optional(title), detail: optional(content), status: optional(choice('open', 'doing', 'blocked', 'done')), blocked_reason: optional(text(2000)), due_at: opt(number), planned_at: opt(number), planned_end_at: opt(number), all_day: optional(bool), location: optional(text(1000)), milestone_id: opt(id), knowledge_refs: optional((v) => Array.isArray(v) && v.length <= 32 && v.every((item) => record({ concept_id: id, why: text(2000) })(item))) })],
   [IPC.TasksRemove]: [id], [IPC.TasksListManual]: [], [IPC.TasksListAll]: [],

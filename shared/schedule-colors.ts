@@ -15,9 +15,11 @@ export function scheduleCategory(
   task: TaskWithProject,
   subjects: Pick<Subject, 'id' | 'name'>[]
 ): string {
-  const linked = subjects.find((subject) => subject.id === task.project_subject_id)
+  const subjectId = task.project_subject_id ?? task.review_subject_id
+  const linked = subjects.find((subject) => subject.id === subjectId)
   if (linked) return '学科：' + linked.name
-  if (task.project_subject_id) return '学科：' + task.project_subject_id
+  if (subjectId) return '学科：' + subjectId
+  if (task.review_id) return '复习'
   if (task.project_id) return '项目：' + (task.project_title ?? task.project_id)
   const title = task.title.normalize('NFKC').trim()
   const matched = [...subjects]

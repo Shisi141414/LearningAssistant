@@ -23,7 +23,7 @@ Electron + React + TypeScript · electron-vite · better-sqlite3 · zustand · o
 
 ## 开发
 
-开发 Node 版本须满足 `package.json` 的 `engines`（建议 24.22.1 以上的 24.x），以符合 OfficeParser 的运行要求。应用内 Electron 自带兼容的 Node。长篇材料解析使用工作线程，不依赖单独 Python 环境。
+开发 Node 版本须满足 `package.json` 的 `engines`（建议 24.22.1 以上的 24.x），以符合 OfficeParser 与 ts-fsrs 的运行要求（复习调度器要求 Node 24 及以上）。应用内 Electron 自带兼容的 Node。长篇材料解析使用工作线程，不依赖单独 Python 环境。
 
 ```bash
 git pull --ff-only     # 修改前检查工作区，再拉取最新

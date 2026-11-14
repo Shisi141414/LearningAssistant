@@ -351,3 +351,5 @@ R2 已按此原则实施，验证记录见 [R2 报告](08-classroom-material-lin
 ## 课堂自动定位
 
 课堂自动定位追加迁移 31，采用独立工作线程及 MiniSearch 本地索引。控制修订隔离人工校准前后的判断，段落原文修订/散列及会话状态隔离迟到结果；自动锚点与原始锚点分开，发布时追加内部格式来源快照。详见 [自动定位与验证边界](52-classroom-automatic-alignment.md)。
+
+复习采用 ts-fsrs 6.0.0 / FSRS-7；migration 032 的固定来源快照、完整模型状态、评分审计和唯一任务联接见 [复习架构与边界](53-fsrs-reviews.md)。旧 `review_records` 不静默改写。

@@ -944,5 +944,55 @@ CREATE INDEX idx_classroom_alignment_owner ON classroom_alignment_jobs(note_id,c
 CREATE INDEX idx_classroom_alignment_pending ON classroom_alignment_jobs(status);
 CREATE INDEX idx_classroom_alignment_applied ON classroom_alignment_jobs(applied_block_id) WHERE status='applied';
 `
+  },
+  {
+    version: 32,
+    name: 'fsrs_review_cards_and_audit',
+    sql: `
+-- Source snapshots deliberately have no source FK: deleting a source must preserve recall history.
+CREATE TABLE review_cards (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK(kind IN ('concept','exercise')),
+  source_id TEXT NOT NULL, source_revision TEXT NOT NULL, snapshot_json TEXT NOT NULL,
+  title TEXT NOT NULL, subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+  revision TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+  scheduler_json TEXT NOT NULL, due_at INTEGER NOT NULL,
+  task_id TEXT NOT NULL UNIQUE REFERENCES tasks(id) ON DELETE RESTRICT,
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+  UNIQUE(kind,source_id)
+);
+CREATE INDEX idx_review_due ON review_cards(active,due_at,id);
+CREATE INDEX idx_review_subject ON review_cards(subject_id,active,due_at,id);
+CREATE TABLE review_logs (
+  id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES review_cards(id) ON DELETE RESTRICT,
+  action TEXT NOT NULL CHECK(action IN ('grade','undo','pause','resume','refresh')),
+  grade INTEGER CHECK(grade BETWEEN 1 AND 4), before_json TEXT NOT NULL,
+  after_revision TEXT NOT NULL, due_at INTEGER NOT NULL, source_revision TEXT NOT NULL,
+  source_snapshot_json TEXT NOT NULL, scheduler_log_json TEXT,
+  created_at INTEGER NOT NULL, undone INTEGER NOT NULL DEFAULT 0 CHECK(undone IN (0,1))
+);
+CREATE INDEX idx_review_history ON review_logs(card_id,created_at DESC);
+CREATE TABLE review_attempts (
+  id TEXT PRIMARY KEY, card_id TEXT NOT NULL REFERENCES review_cards(id) ON DELETE CASCADE,
+  revision TEXT NOT NULL, expires_at INTEGER NOT NULL,
+  log_id TEXT REFERENCES review_logs(id), grade INTEGER CHECK(grade BETWEEN 1 AND 4)
+);
+CREATE INDEX idx_review_attempt_expiry ON review_attempts(expires_at) WHERE log_id IS NULL;
+-- Existing task kind constraints stay intact. review_cards.task_id is the authoritative source discriminator.
+CREATE TRIGGER review_exercise_availability AFTER UPDATE OF deleted_at ON exercises BEGIN
+  UPDATE review_cards SET revision=lower(hex(randomblob(16))) WHERE kind='exercise' AND source_id=NEW.id;
+  UPDATE tasks SET status=CASE WHEN NEW.deleted_at IS NULL AND
+    (SELECT active FROM review_cards WHERE task_id=tasks.id)=1 THEN 'open' ELSE 'done' END,
+    updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER)
+    WHERE id IN (SELECT task_id FROM review_cards WHERE kind='exercise' AND source_id=NEW.id);
+END;
+CREATE TRIGGER review_exercise_delete AFTER DELETE ON exercises BEGIN
+  UPDATE review_cards SET revision=lower(hex(randomblob(16))) WHERE kind='exercise' AND source_id=OLD.id;
+  UPDATE tasks SET status='done' WHERE id IN (SELECT task_id FROM review_cards WHERE kind='exercise' AND source_id=OLD.id);
+END;
+CREATE TRIGGER review_concept_delete AFTER DELETE ON knowledge_points BEGIN
+  UPDATE review_cards SET revision=lower(hex(randomblob(16))) WHERE kind='concept' AND source_id=OLD.id;
+  UPDATE tasks SET status='done' WHERE id IN (SELECT task_id FROM review_cards WHERE kind='concept' AND source_id=OLD.id);
+END;
+`
   }
 ]

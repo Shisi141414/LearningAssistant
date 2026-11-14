@@ -83,7 +83,7 @@ await test('v30→31 故障回滚、旧笔记/教材/手动来源保留，移除
   old.exec('DROP TABLE classroom_alignment_jobs')
   old.close()
   const db = getDb()
-  assert.equal(db.pragma('user_version', { simple: true }), 31)
+  assert.equal(db.pragma('user_version', { simple: true }), MIGRATIONS.at(-1).version)
   assert.equal(segmentMaterialRef('old').id, 'b0')
   db.prepare('UPDATE material_blocks SET text=? WHERE id=?').run(
     contents[0],

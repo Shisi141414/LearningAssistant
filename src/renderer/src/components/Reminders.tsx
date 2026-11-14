@@ -496,13 +496,13 @@ export function ReminderCenter({
                 >
                   稍后提醒
                 </button>
-                <button
+                {item.review_id ? <Link to={`/practice?card=${encodeURIComponent(item.review_id)}`}>前往复习</Link> : <button
                   type="button"
                   disabled={busy || disabled}
                   onClick={() => void act(item, 'complete')}
                 >
                   完成任务
-                </button>
+                </button>}
                 {['failed', 'uncertain', 'skipped'].includes(
                   item.system_status ?? ''
                 ) && (

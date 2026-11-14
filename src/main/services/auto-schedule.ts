@@ -154,6 +154,8 @@ export function saveTaskPlanning(input: TaskPlanningSave): PlanningState {
       task = s.tasks.find((t) => t.id === input.task_id),
       current = s.state.planning.find((p) => p.task_id === input.task_id)
     if (!task) throw Error('任务不存在')
+    if (getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(input.task_id)) throw Error('复习时间由记忆评分调度，暂不参与学习时间块排程')
+    if (input.dependencies.some(id=>getDb().prepare('SELECT id FROM review_cards WHERE task_id=?').get(id))) throw Error('复习是持续循环，不能作为一次性任务的前置依赖')
     assertRevision(current?.revision ?? null, input.expected_revision)
     if (input.enabled && task.planned_at !== null)
       throw Error(

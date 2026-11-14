@@ -1,3 +1,4 @@
+import { ReviewPage } from './pages/ReviewPage'
 import { MemosPage } from './pages/MemosPage'
 /**
  * App.tsx —— 路由与全局副作用
@@ -82,6 +83,7 @@ export default function App() {
         <Route path="/library" element={<MaterialLibraryPage />} />
         <Route path="/exercises" element={<ExercisesPage />} />
         <Route path="/exercises/:exerciseId" element={<ExerciseDetailPage />} />
+        <Route path="/practice" element={<ReviewPage />} />
         <Route path="/review" element={<SchedulePage />} />
         <Route path="/memos" element={<MemosPage />} />
         <Route path="/inspirations" element={<InspirationPage />} />
